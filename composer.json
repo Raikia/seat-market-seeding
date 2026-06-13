@@ -1,0 +1,36 @@
+{
+    "name": "raikia/seat-market-seeding",
+    "description": "A market seeding tracker plugin for EVE Online SeAT.",
+    "type": "seat-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Raikia",
+            "email": "raikia@protonmail.com"
+        }
+    ],
+    "require": {
+        "eveseat/services": "^5.0",
+        "eveseat/eveapi": "^5.0",
+        "eveseat/web": "^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Raikia\\SeatMarketSeeding\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Raikia\\SeatMarketSeeding\\MarketSeedingServiceProvider"
+            ]
+        },
+        "seat": {
+            "name": "Market Seeding",
+            "icon": "fas fa-store",
+            "route": "market-seeding.index"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
