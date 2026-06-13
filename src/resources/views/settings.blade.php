@@ -15,25 +15,27 @@
         .market-seeding-card .card-header {
             align-items: center;
             display: flex;
+            gap: 1rem;
             justify-content: space-between;
+        }
+        .market-seeding-card .card-header > div:first-child {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .market-seeding-card .card-title {
+            float: none;
+        }
+        .market-seeding-card .card-subtitle {
+            display: block;
+            margin-top: .2rem;
         }
         .market-seeding-card .card-tools {
             display: flex;
+            flex: 0 0 auto;
+            flex-wrap: wrap;
             gap: .35rem;
-        }
-        .market-seeding-location-summary {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: .25rem;
-            min-height: 38px;
-            padding: .45rem .65rem;
-        }
-        .market-seeding-location-summary strong {
-            display: block;
-            line-height: 1.1;
-        }
-        .market-seeding-location-summary small {
-            color: #6c757d;
+            justify-content: flex-end;
+            margin-left: auto;
         }
         .market-seeding-subsection {
             border-top: 1px solid #e9ecef;
@@ -45,12 +47,6 @@
             gap: 1rem;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
-        .market-seeding-dark-skin .market-seeding-location-summary {
-            background: #1f2d3d;
-            border-color: #3c4b54;
-            color: #e9ecef;
-        }
-        .market-seeding-dark-skin .market-seeding-location-summary small,
         .market-seeding-dark-skin .text-muted {
             color: #b8c7ce !important;
         }
@@ -74,6 +70,38 @@
             background: #5f4b1f;
             color: #fff3cd;
         }
+        .market-seeding-table-shell .dataTables_wrapper {
+            padding: .5rem .25rem 0;
+        }
+        .market-seeding-table-shell table.dataTable {
+            margin-top: .5rem !important;
+            margin-bottom: .75rem !important;
+            width: 100% !important;
+        }
+        .market-seeding-table-shell .dataTables_length,
+        .market-seeding-table-shell .dataTables_filter,
+        .market-seeding-table-shell .dataTables_info,
+        .market-seeding-table-shell .dataTables_paginate {
+            font-size: .875rem;
+        }
+        .market-seeding-table-shell .dataTables_filter input,
+        .market-seeding-table-shell .dataTables_length select {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            padding: .25rem .5rem;
+        }
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_info,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter label,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length label {
+            color: #b8c7ce;
+        }
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter input,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select option {
+            background: #1f2d3d;
+            border-color: #3c4b54;
+            color: #e9ecef;
+        }
     </style>
 
     <div class="market-seeding-settings-shell {{ $marketSeedingThemeClass }}">
@@ -89,7 +117,7 @@
                         <label for="name">Display Name</label>
                         <input type="text" class="form-control" name="name" id="name" placeholder="Home staging" required>
                     </div>
-                    <div class="form-group col-lg-4 col-md-6">
+                    <div class="form-group col-lg-5 col-md-6">
                         <label for="location_selector">Station or Structure</label>
                         <select class="form-control market-location-selector" id="location_selector" style="width: 100%;"></select>
                         <input type="hidden" name="location_id" id="location_id" required>
@@ -97,13 +125,6 @@
                         <input type="hidden" name="region_id" id="region_id" value="10000002">
                         <input type="hidden" name="solar_system_id" id="solar_system_id">
                         <input type="hidden" name="is_structure" id="is_structure" value="0">
-                    </div>
-                    <div class="form-group col-lg-3 col-md-6">
-                        <label>Selected Location</label>
-                        <div class="market-seeding-location-summary" id="selected_location_summary">
-                            <strong>No location selected</strong>
-                            <small>Search above, or use manual entry.</small>
-                        </div>
                     </div>
                     <div class="form-group col-lg-2 col-md-6">
                         <label for="role_id">Visibility Role</label>
@@ -158,17 +179,16 @@
         @php
             $marketCollapseId = 'market-settings-body-' . $market->id;
             $manualCollapseId = 'manual-location-fields-' . $market->id;
-            $selectedSummaryId = 'selected-location-summary-' . $market->id;
         @endphp
 
         <div class="card mb-4 market-seeding-card">
             <div class="card-header">
                 <div>
                     <h3 class="card-title mb-0">{{ $market->name }}</h3>
-                    <small class="text-muted">{{ $market->location_name }} &middot; {{ $market->items->count() }} tracked items</small>
+                    <small class="text-muted card-subtitle">{{ $market->location_name }} &middot; {{ $market->items->count() }} tracked items</small>
                 </div>
                 <div class="card-tools">
-                    <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="true" aria-controls="{{ $marketCollapseId }}">
+                    <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
                         <i class="fas fa-sliders-h"></i> Configure
                     </button>
                     <form action="{{ route('market-seeding.markets.refresh', $market->id) }}" method="POST">
@@ -186,7 +206,7 @@
                     </form>
                 </div>
             </div>
-            <div class="collapse show" id="{{ $marketCollapseId }}">
+            <div class="collapse" id="{{ $marketCollapseId }}">
                 <div class="card-body">
                     <form action="{{ route('market-seeding.markets.update', $market->id) }}" method="POST" class="mb-3">
                         {{ csrf_field() }}
@@ -196,16 +216,11 @@
                                 <label>Name</label>
                                 <input type="text" class="form-control" name="name" value="{{ $market->name }}" required>
                             </div>
-                            <div class="form-group col-lg-3 col-md-6">
-                                <label>Selected Location</label>
-                                <div class="market-seeding-location-summary" id="{{ $selectedSummaryId }}">
-                                    <strong>{{ $market->location_name }}</strong>
-                                    <small>{{ $market->is_structure ? 'Structure' : 'Station' }}</small>
-                                </div>
-                            </div>
-                            <div class="form-group col-lg-3 col-md-6">
-                                <label>Change Location</label>
-                                <select class="form-control market-location-selector" style="width: 100%;" data-prefix="market-{{ $market->id }}"></select>
+                            <div class="form-group col-lg-4 col-md-6">
+                                <label>Station or Structure</label>
+                                <select class="form-control market-location-selector" style="width: 100%;" data-prefix="market-{{ $market->id }}">
+                                    <option value="{{ $market->location_id }}" selected>{{ $market->location_name }}</option>
+                                </select>
                                 <input type="hidden" name="location_id" id="market-{{ $market->id }}-location_id" value="{{ $market->location_id }}" required>
                                 <input type="hidden" name="location_name" id="market-{{ $market->id }}-location_name" value="{{ $market->location_name }}" required>
                                 <input type="hidden" name="region_id" id="market-{{ $market->id }}-region_id" value="{{ $market->region_id }}">
@@ -343,8 +358,8 @@ Caracal 10" required></textarea>
                         @endif
                     </div>
 
-                    <div class="table-responsive market-seeding-subsection">
-                        <table class="table table-sm table-hover">
+                    <div class="table-responsive market-seeding-subsection market-seeding-table-shell">
+                        <table class="table table-sm table-hover market-seeding-settings-table" id="market-seeding-settings-table-{{ $market->id }}">
                             <thead>
                                 <tr>
                                     <th>Item</th>
@@ -357,13 +372,13 @@ Caracal 10" required></textarea>
                                 @foreach($market->items->sortBy('type_name') as $item)
                                     <tr>
                                         <td>{{ $item->type_name }}</td>
-                                        <td class="text-right" style="width: 140px;">
+                                        <td class="text-right" style="width: 140px;" data-order="{{ $item->desired_quantity }}">
                                             <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST">
                                                 {{ csrf_field() }}
                                                 {{ method_field('PUT') }}
                                                 <input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="{{ $item->desired_quantity }}" min="1">
                                         </td>
-                                        <td class="text-right" style="width: 140px;">
+                                        <td class="text-right" style="width: 140px;" data-order="{{ $item->warning_quantity }}">
                                                 <input type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
                                             </form>
                                         </td>
@@ -390,6 +405,32 @@ Caracal 10" required></textarea>
 @push('javascript')
     <script>
         $(function () {
+            var settingsTables = null;
+
+            if ($.fn.DataTable) {
+                settingsTables = $('.market-seeding-settings-table').DataTable({
+                    order: [[0, 'asc']],
+                    paging: true,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                    stateSave: true,
+                    autoWidth: false,
+                    columnDefs: [
+                        { orderable: false, searchable: false, targets: [3] }
+                    ],
+                    language: {
+                        emptyTable: 'No stock targets have been configured for this market.',
+                        zeroRecords: 'No items match this search.'
+                    }
+                });
+            }
+
+            $('.market-seeding-card .collapse').on('shown.bs.collapse', function () {
+                if (settingsTables) {
+                    settingsTables.columns.adjust();
+                }
+            });
+
             $('.item-selector').select2({
                 ajax: {
                     url: '{{ route('market-seeding.search.items') }}',
@@ -445,14 +486,12 @@ Caracal 10" required></textarea>
                     regionId: '#' + prefix + '-region_id',
                     solarSystemId: '#' + prefix + '-solar_system_id',
                     isStructure: '#' + prefix + '-is_structure',
-                    summary: '#selected-location-summary-' + prefix.replace('market-', '')
                 } : {
                     locationId: '#location_id',
                     locationName: '#location_name',
                     regionId: '#region_id',
                     solarSystemId: '#solar_system_id',
                     isStructure: '#is_structure',
-                    summary: '#selected_location_summary'
                 };
 
                 $(selectors.locationId).val(data.id);
@@ -460,27 +499,11 @@ Caracal 10" required></textarea>
                 $(selectors.regionId).val(data.region_id || 10000002);
                 $(selectors.solarSystemId).val(data.solar_system_id || '');
                 $(selectors.isStructure).val(data.is_structure ? 1 : 0);
-                updateLocationSummary(selectors.summary, data.text, data.is_structure ? 'Structure' : 'Station');
             });
 
             $('.manual-location-id, .manual-location-name, .manual-region-id, .manual-is-structure').on('input change', function () {
                 var target = $(this).data('target');
                 $(target).val($(this).val());
-
-                if ($(this).hasClass('manual-location-name')) {
-                    var form = $(this).closest('form');
-                    var summary = form.find('.market-seeding-location-summary').attr('id');
-                    var type = form.find('.manual-is-structure').val() === '1' ? 'Structure' : 'Station';
-                    updateLocationSummary('#' + summary, $(this).val() || 'Manual location', type);
-                }
-            });
-
-            function updateLocationSummary(selector, name, type) {
-                $(selector).html('<strong>' + escapeHtml(name) + '</strong><small>' + escapeHtml(type) + '</small>');
-            }
-
-            function escapeHtml(value) {
-                return $('<div>').text(value).html();
             }
         });
     </script>

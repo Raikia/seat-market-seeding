@@ -113,6 +113,38 @@
             background: #5f4b1f;
             color: #fff3cd;
         }
+        .market-seeding-table-shell .dataTables_wrapper {
+            padding: .5rem .25rem 0;
+        }
+        .market-seeding-table-shell table.dataTable {
+            margin-top: .5rem !important;
+            margin-bottom: .75rem !important;
+            width: 100% !important;
+        }
+        .market-seeding-table-shell .dataTables_length,
+        .market-seeding-table-shell .dataTables_filter,
+        .market-seeding-table-shell .dataTables_info,
+        .market-seeding-table-shell .dataTables_paginate {
+            font-size: .875rem;
+        }
+        .market-seeding-table-shell .dataTables_filter input,
+        .market-seeding-table-shell .dataTables_length select {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            padding: .25rem .5rem;
+        }
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_info,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter label,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length label {
+            color: #b8c7ce;
+        }
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter input,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select,
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select option {
+            background: #1f2d3d;
+            border-color: #3c4b54;
+            color: #e9ecef;
+        }
     </style>
 
     <div class="market-seeding-shell {{ $marketSeedingThemeClass }}">
@@ -224,8 +256,8 @@
                             </div>
                         </div>
 
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover">
+                        <div class="table-responsive market-seeding-table-shell">
+                            <table class="table table-sm table-hover market-seeding-dashboard-table" id="market-seeding-dashboard-table-{{ $market->id }}">
                                 <thead>
                                     <tr>
                                         <th>Item</th>
@@ -243,26 +275,26 @@
                                     @foreach($marketReport['rows'] as $row)
                                         <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}">
                                             <td>{{ $row['item']->type_name }}</td>
-                                            <td class="text-right">{{ $whole($row['current_quantity']) }}</td>
-                                            <td class="text-right">{{ $whole($row['item']->desired_quantity) }}</td>
-                                            <td class="text-right">
+                                            <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
+                                            <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
+                                            <td class="text-right" data-order="{{ $row['missing_quantity'] }}">
                                                 @if($row['missing_quantity'] > 0)
                                                     <span class="badge badge-danger">{{ $whole($row['missing_quantity']) }}</span>
                                                 @else
                                                     <span class="badge badge-success">0</span>
                                                 @endif
                                             </td>
-                                            <td class="text-right">{{ $row['local_price'] ? $isk($row['local_price']) : '-' }}</td>
-                                            <td class="text-right">{{ $row['jita_price'] ? $isk($row['jita_price']) : '-' }}</td>
-                                            <td class="text-right">
+                                            <td class="text-right" data-order="{{ $row['local_price'] ?: 0 }}">{{ $row['local_price'] ? $isk($row['local_price']) : '-' }}</td>
+                                            <td class="text-right" data-order="{{ $row['jita_price'] ?: 0 }}">{{ $row['jita_price'] ? $isk($row['jita_price']) : '-' }}</td>
+                                            <td class="text-right" data-order="{{ $row['price_delta'] ?? 0 }}">
                                                 @if($row['price_delta'] !== null)
                                                     {{ $percent($row['price_delta']) }}
                                                 @else
                                                     -
                                                 @endif
                                             </td>
-                                            <td class="text-right">{{ $isk($row['restock_cost']) }}</td>
-                                            <td class="text-right">{{ $isk($row['seeded_value']) }}</td>
+                                            <td class="text-right" data-order="{{ $row['restock_cost'] }}">{{ $isk($row['restock_cost']) }}</td>
+                                            <td class="text-right" data-order="{{ $row['seeded_value'] }}">{{ $isk($row['seeded_value']) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -311,6 +343,23 @@
 @push('javascript')
     <script>
         $(function () {
+            var dashboardTables = null;
+
+            if ($.fn.DataTable) {
+                dashboardTables = $('.market-seeding-dashboard-table').DataTable({
+                    order: [[3, 'desc'], [0, 'asc']],
+                    paging: true,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                    stateSave: true,
+                    autoWidth: false,
+                    language: {
+                        emptyTable: 'No stock targets have been configured for this market.',
+                        zeroRecords: 'No items match this search.'
+                    }
+                });
+            }
+
             $('.copy-market-export').on('click', function () {
                 var textarea = document.getElementById($(this).data('target'));
                 textarea.select();
@@ -323,6 +372,9 @@
 
                 if (marketId === 'all') {
                     cards.show();
+                    if (dashboardTables) {
+                        dashboardTables.columns.adjust();
+                    }
                     return;
                 }
 
@@ -330,6 +382,9 @@
                 var selected = $('.market-seeding-card[data-market-id="' + marketId + '"]');
                 selected.show();
                 selected.find('.collapse').collapse('show');
+                if (dashboardTables) {
+                    dashboardTables.columns.adjust();
+                }
             });
 
             $('#market-seeding-expand-all').on('click', function () {
@@ -338,6 +393,12 @@
 
             $('#market-seeding-collapse-all').on('click', function () {
                 $('#market-seeding-accordion .collapse').collapse('hide');
+            });
+
+            $('#market-seeding-accordion .collapse').on('shown.bs.collapse', function () {
+                if (dashboardTables) {
+                    dashboardTables.columns.adjust();
+                }
             });
         });
     </script>
