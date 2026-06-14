@@ -108,6 +108,14 @@
     <div class="card mb-4 market-seeding-card">
         <div class="card-header">
             <h3 class="card-title mb-0">Add Market</h3>
+            <div class="card-tools">
+                <form action="{{ route('market-seeding.markets.refresh-all') }}" method="POST">
+                    {{ csrf_field() }}
+                    <button type="submit" class="btn btn-info btn-sm">
+                        <i class="fas fa-sync"></i> Refresh ESI
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="card-body">
             <form action="{{ route('market-seeding.markets.store') }}" method="POST">
@@ -195,12 +203,6 @@
                     <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
                         <i class="fas fa-sliders-h"></i> Configure
                     </button>
-                    <form action="{{ route('market-seeding.markets.refresh', $market->id) }}" method="POST">
-                        {{ csrf_field() }}
-                        <button type="submit" class="btn btn-info btn-sm">
-                            <i class="fas fa-sync"></i> Refresh ESI
-                        </button>
-                    </form>
                     <form action="{{ route('market-seeding.markets.destroy', $market->id) }}" method="POST" onsubmit="return confirm('Delete this seeded market and all of its stock targets?');">
                         {{ csrf_field() }}
                         {{ method_field('DELETE') }}

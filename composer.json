@@ -16,7 +16,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Raikia\\SeatMarketSeeding\\": "src/"
+            "Raikia\\SeatMarketSeeding\\": "src/",
+            "Raikia\\SeatMarketSeeding\\Database\\Seeders\\": "src/database/seeders/"
         }
     },
     "extra": {

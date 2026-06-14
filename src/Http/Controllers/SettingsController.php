@@ -5,7 +5,7 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 use Illuminate\Http\Request;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
-use Raikia\SeatMarketSeeding\Services\EsiMarketOrderRefresh;
+use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
@@ -125,19 +125,28 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', $count . ' saved fitting item(s) imported successfully.');
     }
 
-    public function refreshMarket(SeededMarket $market, EsiMarketOrderRefresh $refresh)
+    public function refreshMarkets(MarketSeedingRefreshAll $refreshAll)
     {
         $refreshToken = optional(auth()->user())->main_character_id
             ? RefreshToken::find(auth()->user()->main_character_id)
             : null;
 
-        try {
-            $count = $refresh->refresh($market, $refreshToken);
-        } catch (\Throwable $e) {
-            return redirect()->route('market-seeding.settings')->with('error', 'Market refresh failed: ' . $e->getMessage());
+        $results = $refreshAll->refresh($refreshToken);
+        $message = sprintf(
+            'Market refresh completed. %d market(s) refreshed, %d order(s) updated.',
+            $results['markets'],
+            $results['orders']
+        );
+
+        if (!empty($results['skipped'])) {
+            $message .= ' Skipped: ' . implode(' ', $results['skipped']);
         }
 
-        return redirect()->route('market-seeding.settings')->with('success', 'Market refresh completed. ' . $count . ' order(s) updated.');
+        if (!empty($results['errors'])) {
+            return redirect()->route('market-seeding.settings')->with('error', $message . ' Errors: ' . implode(' ', $results['errors']));
+        }
+
+        return redirect()->route('market-seeding.settings')->with('success', $message);
     }
 
     public function updateItem(Request $request, SeededMarketItem $item)

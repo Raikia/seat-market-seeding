@@ -32,6 +32,10 @@ Route::group([
             'as' => 'market-seeding.markets.destroy',
             'uses' => 'SettingsController@destroyMarket',
         ]);
+        Route::post('/markets/refresh', [
+            'as' => 'market-seeding.markets.refresh-all',
+            'uses' => 'SettingsController@refreshMarkets',
+        ]);
         Route::post('/markets/{market}/items', [
             'as' => 'market-seeding.items.store',
             'uses' => 'SettingsController@storeItem',
@@ -43,10 +47,6 @@ Route::group([
         Route::post('/markets/{market}/items/import-saved-fitting', [
             'as' => 'market-seeding.items.import-saved-fitting',
             'uses' => 'SettingsController@importSavedFitting',
-        ]);
-        Route::post('/markets/{market}/refresh', [
-            'as' => 'market-seeding.markets.refresh',
-            'uses' => 'SettingsController@refreshMarket',
         ]);
         Route::put('/items/{item}', [
             'as' => 'market-seeding.items.update',

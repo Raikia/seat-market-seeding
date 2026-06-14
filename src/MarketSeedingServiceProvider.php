@@ -2,6 +2,8 @@
 
 namespace Raikia\SeatMarketSeeding;
 
+use Raikia\SeatMarketSeeding\Console\Commands\RefreshMarketSeedingMarkets;
+use Raikia\SeatMarketSeeding\Database\Seeders\ScheduleSeeder;
 use Seat\Services\AbstractSeatPlugin;
 
 class MarketSeedingServiceProvider extends AbstractSeatPlugin
@@ -18,6 +20,7 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
         $this->addTranslations();
         $this->loadMigrationsFrom(__DIR__ . '/database/migrations');
         $this->registerPermissions(__DIR__ . '/Config/market-seeding.permissions.php', 'seat-market-seeding');
+        $this->registerCommands();
     }
 
     /**
@@ -30,6 +33,7 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
         $this->mergeConfigFrom(
             __DIR__ . '/Config/market-seeding.sidebar.php', 'package.sidebar'
         );
+        $this->registerDatabaseSeeders(ScheduleSeeder::class);
     }
 
     /**
@@ -88,4 +92,14 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
     {
         $this->loadTranslationsFrom(__DIR__ . '/resources/lang', 'seat-market-seeding');
     }
+
+    private function registerCommands()
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                RefreshMarketSeedingMarkets::class,
+            ]);
+        }
+    }
+
 }
