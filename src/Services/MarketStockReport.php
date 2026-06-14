@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\Market\Price;
@@ -13,7 +14,7 @@ class MarketStockReport
 
     public function build(Collection $markets): array
     {
-        $markets->load('items', 'role');
+        $this->loadMarketRelations($markets);
 
         $typeIds = $markets->flatMap(function (SeededMarket $market) {
             return $market->items->pluck('type_id');
@@ -96,6 +97,19 @@ class MarketStockReport
             'markets' => $reports,
             'totals' => $totals,
         ];
+    }
+
+    private function loadMarketRelations(Collection $markets): void
+    {
+        if ($markets instanceof EloquentCollection) {
+            $markets->load('items', 'role');
+
+            return;
+        }
+
+        $markets->each(function (SeededMarket $market) {
+            $market->loadMissing('items', 'role');
+        });
     }
 
     private function localSellOrders(Collection $locationIds, Collection $typeIds): Collection
