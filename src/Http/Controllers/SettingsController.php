@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
@@ -23,9 +24,10 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
         $roles = \Seat\Web\Models\Acl\Role::all();
+        $profiles = MarketSeedingProfile::orderBy('name')->get();
         $savedFittingsAvailable = $savedFittings->isAvailable();
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'savedFittingsAvailable'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable'));
     }
 
     public function storeMarket(Request $request)
@@ -52,6 +54,27 @@ class SettingsController extends Controller
         $market->delete();
 
         return redirect()->route('market-seeding.settings')->with('success', 'Market deleted successfully.');
+    }
+
+    public function storeProfile(Request $request)
+    {
+        MarketSeedingProfile::create($request->validate($this->profileRules()));
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Market profile created successfully.');
+    }
+
+    public function updateProfile(Request $request, MarketSeedingProfile $profile)
+    {
+        $profile->update($request->validate($this->profileRules()));
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Market profile updated successfully.');
+    }
+
+    public function destroyProfile(MarketSeedingProfile $profile)
+    {
+        $profile->delete();
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Market profile deleted successfully.');
     }
 
     public function storeItem(Request $request, SeededMarket $market)
@@ -261,6 +284,15 @@ class SettingsController extends Controller
             'is_structure' => 'nullable|boolean',
             'role_id' => 'nullable|integer',
             'notes' => 'nullable|string',
+        ];
+    }
+
+    private function profileRules(): array
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
+            'stock_list' => 'required|string',
         ];
     }
 

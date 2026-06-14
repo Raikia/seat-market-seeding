@@ -47,6 +47,32 @@
             gap: 1rem;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
+        .market-seeding-profile-list {
+            display: grid;
+            gap: .75rem;
+        }
+        .market-seeding-profile-row {
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            padding: .75rem;
+        }
+        .market-seeding-profile-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+            justify-content: flex-end;
+        }
+        .market-seeding-profile-loader {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            margin-bottom: .75rem;
+            padding: .75rem;
+        }
+        .market-seeding-profile-modal .modal-body {
+            max-height: 75vh;
+            overflow-y: auto;
+        }
         .market-seeding-dark-skin .text-muted {
             color: #b8c7ce !important;
         }
@@ -57,6 +83,23 @@
             background: #1f2d3d;
             border-color: #3c4b54 !important;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-profile-row,
+        .market-seeding-dark-skin .market-seeding-profile-loader {
+            background: #1f2d3d;
+            border-color: #3c4b54;
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin.market-seeding-profile-modal .modal-content,
+        .market-seeding-dark-skin .market-seeding-profile-modal .modal-content {
+            background: #222d32;
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin.market-seeding-profile-modal .modal-header,
+        .market-seeding-dark-skin.market-seeding-profile-modal .modal-footer,
+        .market-seeding-dark-skin .market-seeding-profile-modal .modal-header,
+        .market-seeding-dark-skin .market-seeding-profile-modal .modal-footer {
+            border-color: #3c4b54;
         }
         .market-seeding-dark-skin .table {
             color: #e9ecef;
@@ -109,6 +152,9 @@
         <div class="card-header">
             <h3 class="card-title mb-0">Add Market</h3>
             <div class="card-tools">
+                <button type="button" class="btn btn-default btn-sm" data-toggle="modal" data-target="#market-seeding-profiles-modal">
+                    <i class="fas fa-layer-group"></i> Manage Profiles
+                </button>
                 <form action="{{ route('market-seeding.markets.refresh-all') }}" method="POST">
                     {{ csrf_field() }}
                     <button type="submit" class="btn btn-info btn-sm">
@@ -180,6 +226,103 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal fade market-seeding-profile-modal {{ $marketSeedingThemeClass }}" id="market-seeding-profiles-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-profiles-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="market-seeding-profiles-modal-label">Market Profiles</h5>
+                        <small class="text-muted">Reusable stock lists that can be loaded into any market bulk import box.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ route('market-seeding.profiles.store') }}" method="POST" class="mb-4">
+                        {{ csrf_field() }}
+                        <h5>Create Profile</h5>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label>Name</label>
+                                <input type="text" class="form-control" name="name" placeholder="Common ammo" required>
+                            </div>
+                            <div class="form-group col-md-8">
+                                <label>Description</label>
+                                <input type="text" class="form-control" name="description" placeholder="Optional note">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Stock List</label>
+                            <textarea name="stock_list" class="form-control" rows="8" placeholder="Scourge Fury Heavy Missile x5000&#10;Nova Fury Heavy Missile x5000&#10;Mjolnir Fury Heavy Missile x5000" required></textarea>
+                        </div>
+                        <div class="text-right">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Profile
+                            </button>
+                        </div>
+                    </form>
+
+                    <h5>Saved Profiles</h5>
+                    @if($profiles->isEmpty())
+                        <p class="text-muted mb-0">No profiles yet. Create one with item names and quantities, then load it into a market bulk import box.</p>
+                    @else
+                        <div class="market-seeding-profile-list">
+                            @foreach($profiles as $profile)
+                                @php
+                                    $profileCollapseId = 'market-seeding-profile-' . $profile->id;
+                                @endphp
+                                <div class="market-seeding-profile-row">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>{{ $profile->name }}</strong>
+                                            @if($profile->description)
+                                                <div class="text-muted small">{{ $profile->description }}</div>
+                                            @endif
+                                        </div>
+                                        <div class="market-seeding-profile-actions">
+                                            <button type="button" class="btn btn-default btn-xs" data-toggle="collapse" data-target="#{{ $profileCollapseId }}" aria-expanded="false" aria-controls="{{ $profileCollapseId }}">
+                                                Edit
+                                            </button>
+                                            <form action="{{ route('market-seeding.profiles.destroy', $profile->id) }}" method="POST" onsubmit="return confirm('Delete this market profile?');">
+                                                {{ csrf_field() }}
+                                                {{ method_field('DELETE') }}
+                                                <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <div class="collapse mt-3" id="{{ $profileCollapseId }}">
+                                        <form action="{{ route('market-seeding.profiles.update', $profile->id) }}" method="POST">
+                                            {{ csrf_field() }}
+                                            {{ method_field('PUT') }}
+                                            <div class="form-row">
+                                                <div class="form-group col-md-5">
+                                                    <label>Name</label>
+                                                    <input type="text" class="form-control" name="name" value="{{ $profile->name }}" required>
+                                                </div>
+                                                <div class="form-group col-md-7">
+                                                    <label>Description</label>
+                                                    <input type="text" class="form-control" name="description" value="{{ $profile->description }}">
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Stock List</label>
+                                                <textarea name="stock_list" class="form-control" rows="8" required>{{ $profile->stock_list }}</textarea>
+                                            </div>
+                                            <div class="text-right">
+                                                <button type="submit" class="btn btn-primary btn-sm">Save Profile</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
 
@@ -314,8 +457,26 @@
                             <h5>Bulk Import</h5>
                             <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                 {{ csrf_field() }}
+                                @if($profiles->isNotEmpty())
+                                    <div class="market-seeding-profile-loader">
+                                        <label>Load Market Profile</label>
+                                        <div class="input-group">
+                                            <select class="form-control market-seeding-profile-selector">
+                                                <option value="">Choose a saved profile</option>
+                                                @foreach($profiles as $profile)
+                                                    <option value="{{ $profile->id }}">{{ $profile->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-default market-seeding-load-profile">
+                                                    <i class="fas fa-layer-group"></i> Load
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
                                 <div class="form-group">
-                                    <textarea name="stock_list" class="form-control" rows="6" placeholder="[Caracal, Doctrine]
+                                    <textarea name="stock_list" class="form-control market-seeding-stock-list" rows="6" placeholder="[Caracal, Doctrine]
 Heavy Missile Launcher II
 Scourge Fury Heavy Missile x5000
 Caracal 10" required></textarea>
@@ -433,6 +594,9 @@ Caracal 10" required></textarea>
     <script>
         $(function () {
             var csrfToken = @json(csrf_token());
+            var marketProfiles = @json($profiles->mapWithKeys(function ($profile) {
+                return [$profile->id => $profile->stock_list];
+            }));
             var settingsTables = null;
 
             if ($.fn.DataTable) {
@@ -519,6 +683,23 @@ Caracal 10" required></textarea>
                 }).always(function () {
                     $button.prop('disabled', false);
                 });
+            });
+
+            $('.market-seeding-load-profile').on('click', function () {
+                var $form = $(this).closest('.market-seeding-import-form');
+                var profileId = $form.find('.market-seeding-profile-selector').val();
+                var profileText = marketProfiles[profileId] || '';
+                var $textarea = $form.find('.market-seeding-stock-list');
+
+                if (!profileText) {
+                    return;
+                }
+
+                if ($.trim($textarea.val()) !== '' && !confirm('Replace the current bulk import text with this profile?')) {
+                    return;
+                }
+
+                $textarea.val(profileText).trigger('focus');
             });
 
             $('.item-selector').select2({

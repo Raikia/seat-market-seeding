@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding;
 
 use Raikia\SeatMarketSeeding\Console\Commands\RefreshMarketSeedingMarkets;
+use Raikia\SeatMarketSeeding\Database\Seeders\ProfileSeeder;
 use Raikia\SeatMarketSeeding\Database\Seeders\ScheduleSeeder;
 use Seat\Services\AbstractSeatPlugin;
 
@@ -33,7 +34,10 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
         $this->mergeConfigFrom(
             __DIR__ . '/Config/market-seeding.sidebar.php', 'package.sidebar'
         );
-        $this->registerDatabaseSeeders(ScheduleSeeder::class);
+        $this->registerDatabaseSeeders([
+            ScheduleSeeder::class,
+            ProfileSeeder::class,
+        ]);
     }
 
     /**

@@ -32,6 +32,18 @@ Route::group([
             'as' => 'market-seeding.markets.destroy',
             'uses' => 'SettingsController@destroyMarket',
         ]);
+        Route::post('/profiles', [
+            'as' => 'market-seeding.profiles.store',
+            'uses' => 'SettingsController@storeProfile',
+        ]);
+        Route::put('/profiles/{profile}', [
+            'as' => 'market-seeding.profiles.update',
+            'uses' => 'SettingsController@updateProfile',
+        ]);
+        Route::delete('/profiles/{profile}', [
+            'as' => 'market-seeding.profiles.destroy',
+            'uses' => 'SettingsController@destroyProfile',
+        ]);
         Route::post('/markets/refresh', [
             'as' => 'market-seeding.markets.refresh-all',
             'uses' => 'SettingsController@refreshMarkets',
