@@ -39,11 +39,27 @@
         .market-seeding-card .card-header {
             align-items: center;
             display: flex;
+            gap: 1rem;
             justify-content: space-between;
+        }
+        .market-seeding-card .card-header > div:first-child {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .market-seeding-card .card-title {
+            float: none;
+        }
+        .market-seeding-card .card-subtitle {
+            display: block;
+            margin-top: .2rem;
         }
         .market-seeding-card .card-tools {
             display: flex;
+            flex: 0 0 auto;
+            flex-wrap: wrap;
             gap: .35rem;
+            justify-content: flex-end;
+            margin-left: auto;
         }
         .market-seeding-metrics {
             display: grid;
@@ -208,7 +224,6 @@
                 $market = $marketReport['market'];
                 $exportId = 'market-seeding-export-' . $market->id;
                 $collapseId = 'market-seeding-market-' . $market->id;
-                $expanded = $index === 0;
             @endphp
 
             <div class="card mb-3 market-seeding-card" data-market-id="{{ $market->id }}">
@@ -218,13 +233,13 @@
                             {{ $market->name }}
                             <small class="text-muted">({{ $market->location_name }})</small>
                         </h3>
-                        <small class="text-muted">
+                        <small class="text-muted card-subtitle">
                             Missing {{ $whole($marketReport['totals']['missing_lines']) }} line(s) &middot;
                             Restock {{ $isk($marketReport['totals']['restock_cost']) }}
                         </small>
                     </div>
                     <div class="card-tools">
-                        <button type="button" class="btn btn-sm btn-default" data-toggle="collapse" data-target="#{{ $collapseId }}" aria-expanded="{{ $expanded ? 'true' : 'false' }}" aria-controls="{{ $collapseId }}">
+                        <button type="button" class="btn btn-sm btn-default" data-toggle="collapse" data-target="#{{ $collapseId }}" aria-expanded="false" aria-controls="{{ $collapseId }}">
                             <i class="fas fa-chevron-down"></i>
                         </button>
                         <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#{{ $exportId }}-modal">
@@ -235,7 +250,7 @@
                         </a>
                     </div>
                 </div>
-                <div id="{{ $collapseId }}" class="collapse {{ $expanded ? 'show' : '' }}">
+                <div id="{{ $collapseId }}" class="collapse">
                     <div class="card-body">
                         <div class="market-seeding-metrics">
                             <div class="market-seeding-metric">

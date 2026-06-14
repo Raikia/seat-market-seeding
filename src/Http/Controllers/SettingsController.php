@@ -61,19 +61,27 @@ class SettingsController extends Controller
             'desired_quantity' => 'required|integer|min:1',
             'warning_quantity' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
+            'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
         $type = InvType::where('typeID', $data['type_id'])->firstOrFail();
 
-        $market->items()->updateOrCreate(
-            ['type_id' => $type->typeID],
-            [
-                'type_name' => $type->typeName,
-                'desired_quantity' => $data['desired_quantity'],
-                'warning_quantity' => $data['warning_quantity'] ?: $data['desired_quantity'],
-                'notes' => $data['notes'] ?? null,
-            ]
-        );
+        $item = $market->items()->firstOrNew(['type_id' => $type->typeID]);
+        $item->type_name = $type->typeName;
+        $item->desired_quantity = ($data['keep_higher_quantity'] ?? false) && $item->exists
+            ? max((int) $item->desired_quantity, (int) $data['desired_quantity'])
+            : (int) $item->desired_quantity + (int) $data['desired_quantity'];
+        $item->warning_quantity = $data['warning_quantity'] ?: ($item->warning_quantity ?: $item->desired_quantity);
+        $item->notes = $data['notes'] ?? $item->notes;
+        $item->save();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Item saved successfully.',
+                'created' => $item->wasRecentlyCreated,
+                'item' => $this->itemPayload($item),
+            ]);
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', 'Item saved successfully.');
     }
@@ -84,10 +92,15 @@ class SettingsController extends Controller
             'stock_list' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
             'mode' => 'required|in:add,replace',
+            'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
         $items = $parser->parse($data['stock_list'], (int) ($data['multiplier'] ?? 1));
-        $count = $importer->import($market, $items, $data['mode']);
+        $count = $importer->import($market, $items, $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false));
+
+        if ($request->expectsJson()) {
+            return response()->json($this->importPayload($market, $count, 'stock line(s) imported successfully.'));
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock line(s) imported successfully.');
     }
@@ -98,11 +111,16 @@ class SettingsController extends Controller
             'saved_fitting' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
             'mode' => 'required|in:add,replace',
+            'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
         [$source, $sourceId] = array_pad(explode(':', $data['saved_fitting'], 2), 2, null);
         $items = $savedFittings->items($source, (int) $sourceId, (int) ($data['multiplier'] ?? 1));
-        $count = $importer->import($market, $items, $data['mode']);
+        $count = $importer->import($market, $items, $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false));
+
+        if ($request->expectsJson()) {
+            return response()->json($this->importPayload($market, $count, 'saved fitting item(s) imported successfully.'));
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' saved fitting item(s) imported successfully.');
     }
@@ -244,6 +262,33 @@ class SettingsController extends Controller
         $data['role_id'] = $data['role_id'] ?: null;
 
         return $data;
+    }
+
+    private function itemPayload(SeededMarketItem $item): array
+    {
+        return [
+            'id' => $item->id,
+            'type_name' => $item->type_name,
+            'desired_quantity' => $item->desired_quantity,
+            'warning_quantity' => $item->warning_quantity,
+            'update_url' => route('market-seeding.items.update', $item->id),
+            'destroy_url' => route('market-seeding.items.destroy', $item->id),
+        ];
+    }
+
+    private function importPayload(SeededMarket $market, int $count, string $message): array
+    {
+        $market->load(['items' => function ($query) {
+            $query->orderBy('type_name');
+        }]);
+
+        return [
+            'message' => $count . ' ' . $message,
+            'tracked_count' => $market->items->count(),
+            'items' => $market->items->map(function (SeededMarketItem $item) {
+                return $this->itemPayload($item);
+            })->values(),
+        ];
     }
 
     private function escapeLike(string $value): string

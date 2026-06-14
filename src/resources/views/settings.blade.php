@@ -185,7 +185,11 @@
             <div class="card-header">
                 <div>
                     <h3 class="card-title mb-0">{{ $market->name }}</h3>
-                    <small class="text-muted card-subtitle">{{ $market->location_name }} &middot; {{ $market->items->count() }} tracked items</small>
+                    <small class="text-muted card-subtitle">
+                        {{ $market->location_name }} &middot;
+                        <span class="market-seeding-tracked-count" data-count="{{ $market->items->count() }}">{{ $market->items->count() }}</span>
+                        tracked items
+                    </small>
                 </div>
                 <div class="card-tools">
                     <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
@@ -274,7 +278,7 @@
                     <div class="market-seeding-import-grid market-seeding-subsection">
                         <div>
                             <h5>Add One Item</h5>
-                            <form action="{{ route('market-seeding.items.store', $market->id) }}" method="POST">
+                            <form action="{{ route('market-seeding.items.store', $market->id) }}" method="POST" class="market-seeding-add-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                 {{ csrf_field() }}
                                 <div class="form-group">
                                     <label>Item</label>
@@ -294,12 +298,19 @@
                                         <button type="submit" class="btn btn-primary btn-block">Add</button>
                                     </div>
                                 </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-add-{{ $market->id }}" checked>
+                                    <label class="form-check-label" for="keep-higher-add-{{ $market->id }}">
+                                        Keep higher existing targets instead of adding smaller duplicate quantities
+                                    </label>
+                                </div>
+                                <div class="market-seeding-add-feedback small" style="display: none;"></div>
                             </form>
                         </div>
 
                         <div>
                             <h5>Bulk Import</h5>
-                            <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST">
+                            <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                 {{ csrf_field() }}
                                 <div class="form-group">
                                     <textarea name="stock_list" class="form-control" rows="6" placeholder="[Caracal, Doctrine]
@@ -324,13 +335,20 @@ Caracal 10" required></textarea>
                                         <button type="submit" class="btn btn-success btn-block">Import Items</button>
                                     </div>
                                 </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-import-{{ $market->id }}" checked>
+                                    <label class="form-check-label" for="keep-higher-import-{{ $market->id }}">
+                                        Keep higher existing targets instead of adding smaller duplicate quantities (add mode only)
+                                    </label>
+                                </div>
+                                <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
                             </form>
                         </div>
 
                         @if($savedFittingsAvailable)
                             <div>
                                 <h5>Import Saved Fit or Doctrine</h5>
-                                <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST">
+                                <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST" class="market-seeding-import-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                     {{ csrf_field() }}
                                     <div class="form-group">
                                         <label>Saved Source</label>
@@ -353,6 +371,13 @@ Caracal 10" required></textarea>
                                             <button type="submit" class="btn btn-success btn-block">Import Saved Source</button>
                                         </div>
                                     </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-saved-{{ $market->id }}" checked>
+                                        <label class="form-check-label" for="keep-higher-saved-{{ $market->id }}">
+                                            Keep higher existing targets instead of adding smaller duplicate quantities (add mode only)
+                                        </label>
+                                    </div>
+                                    <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
                                 </form>
                             </div>
                         @endif
@@ -370,17 +395,17 @@ Caracal 10" required></textarea>
                             </thead>
                             <tbody>
                                 @foreach($market->items->sortBy('type_name') as $item)
-                                    <tr>
+                                    <tr data-item-id="{{ $item->id }}">
                                         <td>{{ $item->type_name }}</td>
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->desired_quantity }}">
                                             <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST">
                                                 {{ csrf_field() }}
                                                 {{ method_field('PUT') }}
                                                 <input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="{{ $item->desired_quantity }}" min="1">
+                                            </form>
                                         </td>
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->warning_quantity }}">
-                                                <input type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
-                                            </form>
+                                            <input form="item-update-{{ $item->id }}" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
                                         </td>
                                         <td class="text-right" style="width: 160px;">
                                             <button type="submit" class="btn btn-primary btn-xs" form="item-update-{{ $item->id }}">Save</button>
@@ -405,6 +430,7 @@ Caracal 10" required></textarea>
 @push('javascript')
     <script>
         $(function () {
+            var csrfToken = @json(csrf_token());
             var settingsTables = null;
 
             if ($.fn.DataTable) {
@@ -429,6 +455,68 @@ Caracal 10" required></textarea>
                 if (settingsTables) {
                     settingsTables.columns.adjust();
                 }
+            });
+
+            $('.market-seeding-add-item-form').on('submit', function (event) {
+                event.preventDefault();
+
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var $feedback = $form.find('.market-seeding-add-feedback');
+
+                $button.prop('disabled', true);
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    upsertItemRow($form.data('table'), response.item);
+
+                    if (response.created) {
+                        updateTrackedCount($form.closest('.market-seeding-card'), null, 1);
+                    }
+
+                    $form.find('select[name="type_id"]').val(null).trigger('change');
+                    $form.find('input[name="desired_quantity"], input[name="warning_quantity"]').val('');
+                    $feedback.addClass('text-success').text(response.message || 'Item saved successfully.').show();
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false);
+                });
+            });
+
+            $('.market-seeding-import-form').on('submit', function (event) {
+                event.preventDefault();
+
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var $feedback = $form.find('.market-seeding-import-feedback');
+
+                $button.prop('disabled', true);
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    replaceItemRows($form.data('table'), response.items || []);
+                    updateTrackedCount($form.closest('.market-seeding-card'), response.tracked_count);
+                    $feedback.addClass('text-success').text(response.message || 'Import completed successfully.').show();
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false);
+                });
             });
 
             $('.item-selector').select2({
@@ -504,6 +592,119 @@ Caracal 10" required></textarea>
             $('.manual-location-id, .manual-location-name, .manual-region-id, .manual-is-structure').on('input change', function () {
                 var target = $(this).data('target');
                 $(target).val($(this).val());
+            });
+
+            function upsertItemRow(tableSelector, item) {
+                var row = $(itemRowHtml(item));
+
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+                    var table = $(tableSelector).DataTable();
+                    var existingRow = null;
+
+                    table.rows().every(function () {
+                        if ($(this.node()).data('item-id') == item.id) {
+                            existingRow = this;
+                        }
+                    });
+
+                    if (existingRow) {
+                        existingRow.remove();
+                    }
+
+                    table.row.add(row[0]).draw(false);
+                    return;
+                }
+
+                var existing = $(tableSelector).find('tbody tr[data-item-id="' + item.id + '"]');
+                if (existing.length) {
+                    existing.replaceWith(row);
+                } else {
+                    $(tableSelector).find('tbody').append(row);
+                }
+            }
+
+            function replaceItemRows(tableSelector, items) {
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+                    var table = $(tableSelector).DataTable();
+                    table.clear();
+                    $.each(items, function (index, item) {
+                        table.row.add($(itemRowHtml(item))[0]);
+                    });
+                    table.draw(false);
+                    return;
+                }
+
+                var rows = $.map(items, function (item) {
+                    return itemRowHtml(item);
+                });
+                $(tableSelector).find('tbody').html(rows.join(''));
+            }
+
+            function updateTrackedCount($card, count, increment) {
+                var $count = $card.find('.market-seeding-tracked-count');
+
+                if (typeof count === 'number') {
+                    $count.data('count', count);
+                    $count.text(count);
+                    return;
+                }
+
+                $count.data('count', Number($count.data('count')) + (increment || 0));
+                $count.text($count.data('count'));
+            }
+
+            function itemRowHtml(item) {
+                var updateFormId = 'item-update-' + item.id;
+
+                return '' +
+                    '<tr data-item-id="' + item.id + '">' +
+                        '<td>' + escapeHtml(item.type_name) + '</td>' +
+                        '<td class="text-right" style="width: 140px;" data-order="' + item.desired_quantity + '">' +
+                            '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST">' +
+                                '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +
+                                '<input type="hidden" name="_method" value="PUT">' +
+                                '<input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="' + item.desired_quantity + '" min="1">' +
+                            '</form>' +
+                        '</td>' +
+                        '<td class="text-right" style="width: 140px;" data-order="' + item.warning_quantity + '">' +
+                            '<input form="' + updateFormId + '" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="' + item.warning_quantity + '" min="0">' +
+                        '</td>' +
+                        '<td class="text-right" style="width: 160px;">' +
+                            '<button type="submit" class="btn btn-primary btn-xs" form="' + updateFormId + '">Save</button> ' +
+                            '<form action="' + escapeAttr(item.destroy_url) + '" method="POST" style="display: inline-block;" onsubmit="return confirm(\'Remove this item?\');">' +
+                                '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +
+                                '<input type="hidden" name="_method" value="DELETE">' +
+                                '<button type="submit" class="btn btn-danger btn-xs">Delete</button>' +
+                            '</form>' +
+                        '</td>' +
+                    '</tr>';
+            }
+
+            function errorMessage(xhr) {
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    var messages = [];
+                    $.each(xhr.responseJSON.errors, function (field, fieldMessages) {
+                        messages = messages.concat(fieldMessages);
+                    });
+
+                    if (messages.length) {
+                        return messages.join(' ');
+                    }
+                }
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    return xhr.responseJSON.message;
+                }
+
+                return 'Item could not be saved.';
+            }
+
+            function escapeHtml(value) {
+                return $('<div>').text(value || '').html();
+            }
+
+            function escapeAttr(value) {
+                return escapeHtml(value).replace(/"/g, '&quot;');
             }
         });
     </script>
