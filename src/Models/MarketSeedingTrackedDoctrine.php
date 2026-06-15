@@ -16,6 +16,7 @@ class MarketSeedingTrackedDoctrine extends Model
         'doctrine_id',
         'doctrine_name',
         'multiplier',
+        'warning_percentage',
         'merge_mode',
         'last_synced_at',
         'last_sync_status',
@@ -26,6 +27,7 @@ class MarketSeedingTrackedDoctrine extends Model
         'market_id' => 'integer',
         'doctrine_id' => 'integer',
         'multiplier' => 'integer',
+        'warning_percentage' => 'integer',
         'last_synced_at' => 'datetime',
     ];
 

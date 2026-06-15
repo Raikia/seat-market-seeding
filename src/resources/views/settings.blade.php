@@ -554,32 +554,9 @@
                         </div>
                     </div>
 
-                    @if($seatFittingAvailable && $market->trackedDoctrines->isNotEmpty())
-                        <div class="market-seeding-doctrine-summary">
-                            @foreach($market->trackedDoctrines->sortBy('doctrine_name') as $trackedDoctrine)
-                                @php
-                                    $syncBadge = [
-                                        'success' => 'badge-success',
-                                        'skipped' => 'badge-warning',
-                                        'missing' => 'badge-warning',
-                                        'error' => 'badge-danger',
-                                    ][$trackedDoctrine->last_sync_status] ?? 'badge-secondary';
-                                @endphp
-                                <div class="market-seeding-doctrine-pill">
-                                    <strong>{{ $trackedDoctrine->doctrine_name }}</strong>
-                                    <span class="small text-muted">
-                                        x{{ number_format($trackedDoctrine->multiplier) }}
-                                        &middot;
-                                        {{ $trackedDoctrine->merge_mode === 'add' ? 'adds to manual target' : 'higher of manual or doctrine' }}
-                                    </span>
-                                    <div class="small mt-1">
-                                        <span class="badge {{ $syncBadge }}">{{ ucfirst($trackedDoctrine->last_sync_status ?: 'not synced') }}</span>
-                                        @if($trackedDoctrine->last_synced_at)
-                                            <span class="text-muted">{{ $trackedDoctrine->last_synced_at->diffForHumans() }}</span>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
+                    @if($seatFittingAvailable)
+                        <div class="market-seeding-doctrine-summary-shell" data-market-id="{{ $market->id }}">
+                            @include('seat-market-seeding::partials.tracked-doctrine-summary', ['market' => $market])
                         </div>
                     @endif
 
@@ -757,6 +734,67 @@
 
                 $('#market-seeding-import-preview-modal').modal('hide');
                 previewImportForm.trigger('submit');
+            });
+
+            $(document).on('submit', '.market-seeding-tracked-doctrine-form', function (event) {
+                event.preventDefault();
+
+                var $form = $(this);
+                var $button = trackedDoctrineSubmitButton($form);
+                var $feedback = doctrineFeedbackForForm($form);
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving');
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: serializeInlineItemForm($form),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    updateDoctrineUi($form.data('market-id'), response);
+                    replaceItemRows('#market-seeding-settings-table-' + $form.data('market-id'), response.items || []);
+                    updateTrackedCount($('#market-seeding-card-' + $form.data('market-id')), response.tracked_count);
+                    $form.find('.doctrine-selector').val(null).trigger('change');
+                    $feedback.addClass('text-success').text(response.message || 'Doctrine tracking updated successfully.').show();
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false).html(originalButtonHtml || 'Save');
+                });
+            });
+
+            $(document).on('submit', '.market-seeding-delete-tracked-doctrine-form', function (event) {
+                event.preventDefault();
+
+                if (!confirm('Stop tracking this doctrine for this market?')) {
+                    return;
+                }
+
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    updateDoctrineUi($form.data('market-id'), response);
+                    replaceItemRows('#market-seeding-settings-table-' + $form.data('market-id'), response.items || []);
+                    updateTrackedCount($('#market-seeding-card-' + $form.data('market-id')), response.tracked_count);
+                }).fail(function (xhr) {
+                    alert(errorMessage(xhr));
+                    $button.prop('disabled', false).html(originalButtonHtml);
+                });
             });
 
             $(document).on('submit', '.market-seeding-update-item-form', function (event) {
@@ -1066,6 +1104,31 @@
                 var cardSelector = $form.data('card');
 
                 return cardSelector ? $(cardSelector) : $form.closest('.market-seeding-card');
+            }
+
+            function doctrineFeedbackForForm($form) {
+                var $feedback = $form.find('.market-seeding-doctrine-feedback');
+
+                if ($feedback.length) {
+                    return $feedback;
+                }
+
+                return $form.closest('.market-seeding-tracked-doctrine-list, .tab-pane').find('.market-seeding-doctrine-feedback').first();
+            }
+
+            function trackedDoctrineSubmitButton($form) {
+                var formId = $form.attr('id');
+
+                if (formId) {
+                    return $('[form="' + formId + '"][type="submit"]').first();
+                }
+
+                return $form.find('button[type="submit"]').first();
+            }
+
+            function updateDoctrineUi(marketId, response) {
+                $('.market-seeding-doctrine-summary-shell[data-market-id="' + marketId + '"]').html(response.summary_html || '');
+                $('.market-seeding-tracked-doctrine-list[data-market-id="' + marketId + '"]').html(response.list_html || '');
             }
 
             function serializeInlineItemForm($form) {

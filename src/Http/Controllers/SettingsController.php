@@ -188,10 +188,15 @@ class SettingsController extends Controller
         ], [
             'doctrine_name' => $doctrine->name,
             'multiplier' => (int) $data['multiplier'],
+            'warning_percentage' => (int) $data['warning_percentage'],
             'merge_mode' => $data['merge_mode'],
         ]);
 
         $sync->syncDoctrine($trackedDoctrine);
+
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedDoctrinePayload($market->fresh('trackedDoctrines'), 'Doctrine tracking updated successfully.'));
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking updated successfully.');
     }
@@ -200,16 +205,21 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'multiplier' => 'required|integer|min:1|max:10000',
+            'warning_percentage' => 'required|integer|min:1|max:100',
             'merge_mode' => 'required|in:max,add',
         ]);
 
         $trackedDoctrine->update($data);
         $sync->syncDoctrine($trackedDoctrine);
 
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedDoctrinePayload($trackedDoctrine->market->fresh('trackedDoctrines'), 'Doctrine tracking updated successfully.'));
+        }
+
         return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking updated successfully.');
     }
 
-    public function destroyTrackedDoctrine(MarketSeedingTrackedDoctrine $trackedDoctrine, StockTargetProjector $projector)
+    public function destroyTrackedDoctrine(Request $request, MarketSeedingTrackedDoctrine $trackedDoctrine, StockTargetProjector $projector)
     {
         $market = $trackedDoctrine->market;
 
@@ -220,6 +230,10 @@ class SettingsController extends Controller
                 $projector->recalculateMarket($market);
             }
         });
+
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedDoctrinePayload($market->fresh('trackedDoctrines'), 'Doctrine tracking removed successfully.'));
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking removed successfully.');
     }
@@ -496,6 +510,7 @@ class SettingsController extends Controller
         return [
             'doctrine_id' => 'required|integer',
             'multiplier' => 'required|integer|min:1|max:10000',
+            'warning_percentage' => 'required|integer|min:1|max:100',
             'merge_mode' => 'required|in:max,add',
         ];
     }
@@ -545,6 +560,24 @@ class SettingsController extends Controller
 
         return [
             'message' => $count . ' ' . $message,
+            'tracked_count' => $market->items->count(),
+            'items' => $market->items->map(function (SeededMarketItem $item) {
+                return $this->itemPayload($item);
+            })->values(),
+        ];
+    }
+
+    private function trackedDoctrinePayload(SeededMarket $market, string $message): array
+    {
+        $market->load(['trackedDoctrines', 'items' => function ($query) {
+            $query->orderBy('type_name');
+        }]);
+
+        return [
+            'message' => $message,
+            'summary_html' => view('seat-market-seeding::partials.tracked-doctrine-summary', compact('market'))->render(),
+            'list_html' => view('seat-market-seeding::partials.tracked-doctrine-list', compact('market'))->render(),
+            'tracked_doctrines_count' => $market->trackedDoctrines->count(),
             'tracked_count' => $market->items->count(),
             'items' => $market->items->map(function (SeededMarketItem $item) {
                 return $this->itemPayload($item);

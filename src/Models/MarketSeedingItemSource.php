@@ -20,6 +20,7 @@ class MarketSeedingItemSource extends Model
         'type_id',
         'type_name',
         'quantity',
+        'warning_quantity',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class MarketSeedingItemSource extends Model
         'tracked_doctrine_id' => 'integer',
         'type_id' => 'integer',
         'quantity' => 'integer',
+        'warning_quantity' => 'integer',
     ];
 
     public function market()
