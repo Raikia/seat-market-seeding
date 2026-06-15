@@ -6,6 +6,13 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 
 class StockTargetPreviewer
 {
+    private StockTargetQuantity $quantities;
+
+    public function __construct(StockTargetQuantity $quantities)
+    {
+        $this->quantities = $quantities;
+    }
+
     public function preview(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false): array
     {
         $market->loadMissing('items');
@@ -15,7 +22,7 @@ class StockTargetPreviewer
             $current = $existing->get($item['type_id']);
             $currentQuantity = $current ? (int) $current->desired_quantity : 0;
             $importQuantity = (int) $item['quantity'];
-            $newQuantity = $this->newQuantity($currentQuantity, $importQuantity, (bool) $current, $mode, $keepHigherQuantity);
+            $newQuantity = $this->quantities->desiredQuantity($current, $importQuantity, $mode, $keepHigherQuantity);
 
             return [
                 'type_id' => (int) $item['type_id'],
@@ -23,7 +30,7 @@ class StockTargetPreviewer
                 'current_quantity' => $currentQuantity,
                 'import_quantity' => $importQuantity,
                 'new_quantity' => $newQuantity,
-                'warning_quantity' => $this->defaultWarningQuantity($newQuantity),
+                'warning_quantity' => $this->quantities->warningQuantity($current, $newQuantity, $mode),
                 'action' => $this->action($currentQuantity, $newQuantity, (bool) $current, $mode),
             ];
         })->values();
@@ -41,19 +48,6 @@ class StockTargetPreviewer
         ];
     }
 
-    private function newQuantity(int $currentQuantity, int $importQuantity, bool $exists, string $mode, bool $keepHigherQuantity): int
-    {
-        if ($mode !== 'add') {
-            return $importQuantity;
-        }
-
-        if ($keepHigherQuantity && $exists) {
-            return max($currentQuantity, $importQuantity);
-        }
-
-        return $currentQuantity + $importQuantity;
-    }
-
     private function action(int $currentQuantity, int $newQuantity, bool $exists, string $mode): string
     {
         if (!$exists) {
@@ -69,10 +63,5 @@ class StockTargetPreviewer
         }
 
         return $newQuantity > $currentQuantity ? 'increase' : 'unchanged';
-    }
-
-    private function defaultWarningQuantity(int $desiredQuantity): int
-    {
-        return max(1, (int) ceil($desiredQuantity * 0.33));
     }
 }

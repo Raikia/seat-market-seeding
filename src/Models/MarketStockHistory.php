@@ -11,6 +11,7 @@ class MarketStockHistory extends Model
     protected $fillable = [
         'market_id',
         'item_id',
+        'role_id',
         'type_id',
         'market_name',
         'location_name',
@@ -25,6 +26,7 @@ class MarketStockHistory extends Model
     protected $casts = [
         'market_id' => 'integer',
         'item_id' => 'integer',
+        'role_id' => 'integer',
         'type_id' => 'integer',
         'current_quantity' => 'integer',
         'warning_quantity' => 'integer',

@@ -42,18 +42,7 @@ class MarketSeedingController extends Controller
             ->orderBy('name')
             ->get();
 
-        $visibleMarketIds = $markets->pluck('id');
-
-        $history = MarketStockHistory::query()
-            ->when($visibleMarketIds->isEmpty(), function ($query) {
-                $query->whereRaw('1 = 0');
-            })
-            ->when($visibleMarketIds->isNotEmpty(), function ($query) use ($visibleMarketIds) {
-                $query->where(function ($query) use ($visibleMarketIds) {
-                    $query->whereIn('market_id', $visibleMarketIds)
-                        ->orWhereNull('market_id');
-                });
-            })
+        $history = $this->visibleHistory()
             ->when($request->filled('market_id'), function ($query) use ($request) {
                 $query->where('market_id', $request->integer('market_id'));
             })
@@ -65,6 +54,21 @@ class MarketSeedingController extends Controller
             ->appends($request->only('market_id', 'status'));
 
         return view('seat-market-seeding::history', compact('history', 'markets'));
+    }
+
+    private function visibleHistory()
+    {
+        $user = auth()->user();
+
+        if ($user->isAdmin()) {
+            return MarketStockHistory::query();
+        }
+
+        $roleIds = $user->roles->pluck('id');
+
+        return MarketStockHistory::query()
+            ->whereNull('role_id')
+            ->orWhereIn('role_id', $roleIds);
     }
 
     private function visibleMarkets()

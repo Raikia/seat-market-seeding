@@ -7,6 +7,13 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 
 class StockTargetImporter
 {
+    private StockTargetQuantity $quantities;
+
+    public function __construct(StockTargetQuantity $quantities)
+    {
+        $this->quantities = $quantities;
+    }
+
     public function import(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false): int
     {
         return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity) {
@@ -20,30 +27,12 @@ class StockTargetImporter
                 ]);
 
                 $target->type_name = $item['type_name'];
-                $target->desired_quantity = $this->desiredQuantity($target, (int) $item['quantity'], $mode, $keepHigherQuantity);
-                $target->warning_quantity = $target->warning_quantity ?: $this->defaultWarningQuantity($target->desired_quantity);
+                $target->desired_quantity = $this->quantities->desiredQuantity($target, (int) $item['quantity'], $mode, $keepHigherQuantity);
+                $target->warning_quantity = $this->quantities->warningQuantity($target, $target->desired_quantity, $mode);
                 $target->save();
             }
 
             return count($items);
         });
-    }
-
-    private function desiredQuantity($target, int $quantity, string $mode, bool $keepHigherQuantity): int
-    {
-        if ($mode !== 'add') {
-            return $quantity;
-        }
-
-        if ($keepHigherQuantity && $target->exists) {
-            return max((int) $target->desired_quantity, $quantity);
-        }
-
-        return (int) $target->desired_quantity + $quantity;
-    }
-
-    private function defaultWarningQuantity(int $desiredQuantity): int
-    {
-        return max(1, (int) ceil($desiredQuantity * 0.33));
     }
 }

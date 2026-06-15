@@ -7,6 +7,7 @@ use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
+use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
@@ -19,7 +20,7 @@ use Seat\Web\Http\Controllers\Controller;
 
 class SettingsController extends Controller
 {
-    public function index(SavedFittingSource $savedFittings)
+    public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
     {
         $markets = SeededMarket::with('items', 'role')
             ->orderBy('sort_order')
@@ -28,8 +29,20 @@ class SettingsController extends Controller
         $roles = \Seat\Web\Models\Acl\Role::all();
         $profiles = MarketSeedingProfile::orderBy('name')->get();
         $savedFittingsAvailable = $savedFittings->isAvailable();
+        $historyRetentionDays = $settings->historyRetentionDays();
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'historyRetentionDays'));
+    }
+
+    public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
+    {
+        $data = $request->validate([
+            'history_retention_days' => 'required|integer|min:1|max:3650',
+        ]);
+
+        $settings->setHistoryRetentionDays((int) $data['history_retention_days']);
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Market seeding settings updated successfully.');
     }
 
     public function storeMarket(Request $request)

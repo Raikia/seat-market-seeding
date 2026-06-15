@@ -25,6 +25,10 @@ Route::group([
             'as' => 'market-seeding.settings',
             'uses' => 'SettingsController@index',
         ]);
+        Route::post('/settings/general', [
+            'as' => 'market-seeding.settings.general',
+            'uses' => 'SettingsController@updateGeneralSettings',
+        ]);
         Route::post('/markets', [
             'as' => 'market-seeding.markets.store',
             'uses' => 'SettingsController@storeMarket',

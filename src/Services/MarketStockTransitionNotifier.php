@@ -21,8 +21,17 @@ class MarketStockTransitionNotifier
     const ALERT_LOW_STOCK = 'market_seeding_low_stock';
     const ALERT_EMPTY_STOCK = 'market_seeding_empty_stock';
 
+    private MarketSeedingSettings $settings;
+
+    public function __construct(MarketSeedingSettings $settings)
+    {
+        $this->settings = $settings;
+    }
+
     public function checkMarket(SeededMarket $market): int
     {
+        $this->pruneHistory();
+
         if (!class_exists(NotificationGroup::class)) {
             return 0;
         }
@@ -137,6 +146,7 @@ class MarketStockTransitionNotifier
         MarketStockHistory::create([
             'market_id' => $market->id,
             'item_id' => $item->id,
+            'role_id' => $market->role_id,
             'type_id' => $item->type_id,
             'market_name' => $market->name,
             'location_name' => $market->location_name,
@@ -147,5 +157,12 @@ class MarketStockTransitionNotifier
             'warning_quantity' => $item->warning_quantity ?: $item->desired_quantity,
             'desired_quantity' => $item->desired_quantity,
         ]);
+    }
+
+    private function pruneHistory(): void
+    {
+        MarketStockHistory::query()
+            ->where('created_at', '<', now()->subDays($this->settings->historyRetentionDays()))
+            ->delete();
     }
 }

@@ -172,6 +172,24 @@
     <div class="market-seeding-settings-shell {{ $marketSeedingThemeClass }}">
     <div class="card mb-4 market-seeding-card">
         <div class="card-header">
+            <h3 class="card-title mb-0">General Settings</h3>
+        </div>
+        <div class="card-body">
+            <form action="{{ route('market-seeding.settings.general') }}" method="POST" class="form-inline">
+                {{ csrf_field() }}
+                <div class="form-group mb-2 mr-2">
+                    <label for="history_retention_days" class="mr-2">Restock history retention</label>
+                    <input type="number" class="form-control" name="history_retention_days" id="history_retention_days" value="{{ $historyRetentionDays }}" min="1" max="3650" required>
+                </div>
+                <span class="text-muted mb-2 mr-2">days</span>
+                <button type="submit" class="btn btn-primary mb-2">Save Settings</button>
+            </form>
+            <small class="text-muted">History older than this is pruned during market refresh checks. Default is 365 days.</small>
+        </div>
+    </div>
+
+    <div class="card mb-4 market-seeding-card">
+        <div class="card-header">
             <h3 class="card-title mb-0">Add Market</h3>
             <div class="card-tools">
                 <button type="button" class="btn btn-default btn-sm" data-toggle="modal" data-target="#market-seeding-profiles-modal">
@@ -348,49 +366,7 @@
         </div>
     </div>
 
-    <div class="modal fade market-seeding-profile-modal {{ $marketSeedingThemeClass }}" id="market-seeding-import-preview-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-import-preview-modal-label" aria-hidden="true">
-        <div class="modal-dialog modal-xl" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div>
-                        <h5 class="modal-title" id="market-seeding-import-preview-modal-label">Import Preview</h5>
-                        <small class="text-muted">Review target changes before applying the import.</small>
-                    </div>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-light border market-seeding-preview-summary mb-3">
-                        Preview has not been loaded yet.
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Action</th>
-                                    <th class="text-right">Current</th>
-                                    <th class="text-right">Import</th>
-                                    <th class="text-right">After Import</th>
-                                    <th class="text-right">Default Warning</th>
-                                </tr>
-                            </thead>
-                            <tbody class="market-seeding-preview-rows">
-                                <tr>
-                                    <td colspan="6" class="text-muted">No preview loaded.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-success market-seeding-run-previewed-import">Import These Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    @include('seat-market-seeding::partials.import-preview-modal')
 
     @foreach($markets as $market)
         @php
@@ -840,7 +816,11 @@ Caracal 10" required></textarea>
                 }).done(function (response) {
                     upsertItemRow($form.data('table'), response.item);
                     markItemRowSaved($form.data('table'), response.item.id);
-                    showButtonSuccess($button, originalButtonHtml, 'Saved');
+                    showButtonSuccess(
+                        rowForItem($form.data('table'), response.item.id).find('.market-seeding-save-item'),
+                        originalButtonHtml,
+                        'Saved'
+                    );
                 }).fail(function (xhr) {
                     alert(errorMessage(xhr));
                     $button.prop('disabled', false).html(originalButtonHtml);
