@@ -65,6 +65,10 @@ Route::group([
             'as' => 'market-seeding.items.store',
             'uses' => 'SettingsController@storeItem',
         ]);
+        Route::delete('/markets/{market}/items', [
+            'as' => 'market-seeding.items.clear-market',
+            'uses' => 'SettingsController@clearMarketItems',
+        ]);
         Route::post('/markets/{market}/items/import', [
             'as' => 'market-seeding.items.import',
             'uses' => 'SettingsController@importItems',
@@ -80,6 +84,18 @@ Route::group([
         Route::post('/markets/{market}/items/preview-saved-fitting', [
             'as' => 'market-seeding.items.preview-saved-fitting',
             'uses' => 'SettingsController@previewSavedFitting',
+        ]);
+        Route::post('/markets/{market}/tracked-doctrines', [
+            'as' => 'market-seeding.tracked-doctrines.store',
+            'uses' => 'SettingsController@storeTrackedDoctrine',
+        ]);
+        Route::put('/tracked-doctrines/{trackedDoctrine}', [
+            'as' => 'market-seeding.tracked-doctrines.update',
+            'uses' => 'SettingsController@updateTrackedDoctrine',
+        ]);
+        Route::delete('/tracked-doctrines/{trackedDoctrine}', [
+            'as' => 'market-seeding.tracked-doctrines.destroy',
+            'uses' => 'SettingsController@destroyTrackedDoctrine',
         ]);
         Route::put('/items/{item}', [
             'as' => 'market-seeding.items.update',
@@ -100,6 +116,10 @@ Route::group([
         Route::get('/search/saved-fittings', [
             'as' => 'market-seeding.search.saved-fittings',
             'uses' => 'SettingsController@searchSavedFittings',
+        ]);
+        Route::get('/search/doctrines', [
+            'as' => 'market-seeding.search.doctrines',
+            'uses' => 'SettingsController@searchDoctrines',
         ]);
     });
 });

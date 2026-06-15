@@ -19,7 +19,8 @@ class MarketSeedingRefreshAll
             'skipped' => [],
         ];
 
-        $markets = SeededMarket::with('items')
+        $markets = SeededMarket::with('items', 'trackedDoctrines')
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
 
@@ -29,6 +30,7 @@ class MarketSeedingRefreshAll
 
         $refresh = app(EsiMarketOrderRefresh::class);
         $notifier = app(MarketStockTransitionNotifier::class);
+        $doctrineSync = app(DoctrineTrackingSync::class);
 
         foreach ($markets as $market) {
             if ($market->is_structure && !$structureToken) {
@@ -39,6 +41,9 @@ class MarketSeedingRefreshAll
             }
 
             try {
+                $doctrineSync->syncMarket($market);
+                $market->load('items');
+
                 $orders = $refresh->refresh($market, $market->is_structure ? $structureToken : null);
                 $results['orders'] += $orders;
                 $results['notifications'] += $notifier->checkMarket($market);

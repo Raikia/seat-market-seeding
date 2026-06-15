@@ -3,6 +3,8 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 
 class StockTargetPreviewer
 {
@@ -15,14 +17,20 @@ class StockTargetPreviewer
 
     public function preview(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false): array
     {
-        $market->loadMissing('items');
+        $market->loadMissing('items', 'itemSources.trackedDoctrine');
 
         $existing = $market->items->keyBy('type_id');
-        $rows = collect($items)->map(function (array $item) use ($existing, $mode, $keepHigherQuantity) {
+        $sources = $market->itemSources->groupBy('type_id');
+        $manualSources = $market->itemSources
+            ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
+            ->keyBy('type_id');
+        $rows = collect($items)->map(function (array $item) use ($existing, $sources, $manualSources, $mode, $keepHigherQuantity) {
             $current = $existing->get($item['type_id']);
             $currentQuantity = $current ? (int) $current->desired_quantity : 0;
+            $currentManualQuantity = (int) optional($manualSources->get($item['type_id']))->quantity;
             $importQuantity = (int) $item['quantity'];
-            $newQuantity = $this->quantities->desiredQuantity($current, $importQuantity, $mode, $keepHigherQuantity);
+            $newManualQuantity = $this->manualQuantity($currentManualQuantity, $importQuantity, $mode, $keepHigherQuantity);
+            $newQuantity = $this->effectiveQuantity($sources->get($item['type_id'], collect()), $newManualQuantity);
 
             return [
                 'type_id' => (int) $item['type_id'],
@@ -46,6 +54,40 @@ class StockTargetPreviewer
             ],
             'rows' => $rows,
         ];
+    }
+
+    private function manualQuantity(int $currentManualQuantity, int $importQuantity, string $mode, bool $keepHigherQuantity): int
+    {
+        if ($mode !== 'add') {
+            return $importQuantity;
+        }
+
+        if ($keepHigherQuantity) {
+            return max($currentManualQuantity, $importQuantity);
+        }
+
+        return $currentManualQuantity + $importQuantity;
+    }
+
+    private function effectiveQuantity($sources, int $manualQuantity): int
+    {
+        $addQuantity = 0;
+        $maxQuantity = 0;
+
+        collect($sources)
+            ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
+            ->each(function (MarketSeedingItemSource $source) use (&$addQuantity, &$maxQuantity) {
+                $mergeMode = optional($source->trackedDoctrine)->merge_mode ?: MarketSeedingTrackedDoctrine::MERGE_MAX;
+
+                if ($mergeMode === MarketSeedingTrackedDoctrine::MERGE_ADD) {
+                    $addQuantity += (int) $source->quantity;
+                    return;
+                }
+
+                $maxQuantity = max($maxQuantity, (int) $source->quantity);
+            });
+
+        return max($manualQuantity, $maxQuantity) + $addQuantity;
     }
 
     private function action(int $currentQuantity, int $newQuantity, bool $exists, string $mode): string

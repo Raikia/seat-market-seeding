@@ -42,10 +42,34 @@
             margin-top: 1rem;
             padding-top: 1rem;
         }
-        .market-seeding-import-grid {
-            display: grid;
-            gap: 1rem;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        .market-seeding-add-toolbar {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: space-between;
+        }
+        .market-seeding-add-toolbar .text-muted {
+            flex: 1 1 auto;
+            min-width: 220px;
+        }
+        .market-seeding-add-toolbar .btn-group form {
+            display: inline-flex;
+        }
+        .market-seeding-doctrine-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-top: .75rem;
+        }
+        .market-seeding-doctrine-pill {
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            padding: .45rem .6rem;
+        }
+        .market-seeding-doctrine-pill strong {
+            display: block;
+            line-height: 1.2;
         }
         .market-seeding-profile-list {
             display: grid;
@@ -73,6 +97,13 @@
             max-height: 75vh;
             overflow-y: auto;
         }
+        .market-seeding-add-modal .modal-body {
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+        .market-seeding-add-modal .nav-tabs {
+            margin-bottom: 1rem;
+        }
         .market-seeding-dark-skin .text-muted {
             color: #b8c7ce !important;
         }
@@ -85,21 +116,36 @@
             color: #e9ecef;
         }
         .market-seeding-dark-skin .market-seeding-profile-row,
-        .market-seeding-dark-skin .market-seeding-profile-loader {
+        .market-seeding-dark-skin .market-seeding-profile-loader,
+        .market-seeding-dark-skin .market-seeding-doctrine-pill {
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
         }
         .market-seeding-dark-skin.market-seeding-profile-modal .modal-content,
-        .market-seeding-dark-skin .market-seeding-profile-modal .modal-content {
+        .market-seeding-dark-skin .market-seeding-profile-modal .modal-content,
+        .market-seeding-dark-skin.market-seeding-add-modal .modal-content,
+        .market-seeding-dark-skin .market-seeding-add-modal .modal-content {
             background: #222d32;
             color: #e9ecef;
         }
         .market-seeding-dark-skin.market-seeding-profile-modal .modal-header,
         .market-seeding-dark-skin.market-seeding-profile-modal .modal-footer,
         .market-seeding-dark-skin .market-seeding-profile-modal .modal-header,
-        .market-seeding-dark-skin .market-seeding-profile-modal .modal-footer {
+        .market-seeding-dark-skin .market-seeding-profile-modal .modal-footer,
+        .market-seeding-dark-skin.market-seeding-add-modal .modal-header,
+        .market-seeding-dark-skin.market-seeding-add-modal .modal-footer,
+        .market-seeding-dark-skin .market-seeding-add-modal .modal-header,
+        .market-seeding-dark-skin .market-seeding-add-modal .modal-footer {
             border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-add-modal .nav-tabs {
+            border-bottom-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-add-modal .nav-tabs .nav-link.active {
+            background: #1f2d3d;
+            border-color: #3c4b54 #3c4b54 #1f2d3d;
+            color: #e9ecef;
         }
         .market-seeding-dark-skin .table {
             color: #e9ecef;
@@ -374,7 +420,7 @@
             $manualCollapseId = 'manual-location-fields-' . $market->id;
         @endphp
 
-        <div class="card mb-4 market-seeding-card">
+        <div class="card mb-4 market-seeding-card" id="market-seeding-card-{{ $market->id }}">
             <div class="card-header">
                 <div>
                     <h3 class="card-title mb-0">{{ $market->name }}</h3>
@@ -490,137 +536,52 @@
                         </div>
                     </form>
 
-                    <div class="market-seeding-import-grid market-seeding-subsection">
-                        <div>
-                            <h5>Add One Item</h5>
-                            <form action="{{ route('market-seeding.items.store', $market->id) }}" method="POST" class="market-seeding-add-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
+                    <div class="market-seeding-subsection market-seeding-add-toolbar">
+                        <div class="text-muted">
+                            Manage manual targets, bulk imports, saved fits, and tracked doctrines from one place.
+                        </div>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-success" data-toggle="modal" data-target="#market-add-modal-{{ $market->id }}">
+                                <i class="fas fa-plus"></i> Add or Import
+                            </button>
+                            <form action="{{ route('market-seeding.items.clear-market', $market->id) }}" method="POST" onsubmit="return confirm({{ json_encode('Clear all tracked items for ' . $market->name . '? This also removes tracked doctrines for this market and cannot be undone.') }});">
                                 {{ csrf_field() }}
-                                <div class="form-group">
-                                    <label>Item</label>
-                                    <select name="type_id" class="form-control item-selector" style="width: 100%;" required></select>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group col-md-5">
-                                        <label>Target Quantity</label>
-                                        <input type="number" class="form-control" name="desired_quantity" min="1" required>
-                                    </div>
-                                    <div class="form-group col-md-5">
-                                        <label>Low Warning</label>
-                                        <input type="number" class="form-control" name="warning_quantity" min="0">
-                                    </div>
-                                    <div class="form-group col-md-2">
-                                        <label>&nbsp;</label>
-                                        <button type="submit" class="btn btn-primary btn-block">Add</button>
-                                    </div>
-                                </div>
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-add-{{ $market->id }}" checked>
-                                    <label class="form-check-label" for="keep-higher-add-{{ $market->id }}">
-                                        Keep higher existing targets instead of adding smaller duplicate quantities
-                                    </label>
-                                </div>
-                                <div class="market-seeding-add-feedback small" style="display: none;"></div>
+                                {{ method_field('DELETE') }}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-broom"></i> Clear Market Items
+                                </button>
                             </form>
                         </div>
-
-                        <div>
-                            <h5>Bulk Import</h5>
-                            <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview', $market->id) }}" data-table="#market-seeding-settings-table-{{ $market->id }}">
-                                {{ csrf_field() }}
-                                @if($profiles->isNotEmpty())
-                                    <div class="market-seeding-profile-loader">
-                                        <label>Load Market Profile</label>
-                                        <div class="input-group">
-                                            <select class="form-control market-seeding-profile-selector">
-                                                <option value="">Choose a saved profile</option>
-                                                @foreach($profiles as $profile)
-                                                    <option value="{{ $profile->id }}">{{ $profile->name }}</option>
-                                                @endforeach
-                                            </select>
-                                            <div class="input-group-append">
-                                                <button type="button" class="btn btn-default market-seeding-load-profile">
-                                                    <i class="fas fa-layer-group"></i> Load
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-                                <div class="form-group">
-                                    <textarea name="stock_list" class="form-control market-seeding-stock-list" rows="6" placeholder="[Caracal, Doctrine]
-Heavy Missile Launcher II
-Scourge Fury Heavy Missile x5000
-Caracal 10" required></textarea>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group col-md-3">
-                                        <label>Multiplier</label>
-                                        <input type="number" class="form-control" name="multiplier" value="1" min="1">
-                                    </div>
-                                    <div class="form-group col-md-4">
-                                        <label>Import Mode</label>
-                                        <select name="mode" class="form-control">
-                                            <option value="add">Add to targets</option>
-                                            <option value="replace">Replace list</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col-md-5">
-                                        <label>&nbsp;</label>
-                                        <div class="btn-group btn-block">
-                                            <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
-                                            <button type="submit" class="btn btn-success">Import Items</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-import-{{ $market->id }}" checked>
-                                    <label class="form-check-label" for="keep-higher-import-{{ $market->id }}">
-                                        Keep higher existing targets instead of adding smaller duplicate quantities (add mode only)
-                                    </label>
-                                </div>
-                                <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
-                            </form>
-                        </div>
-
-                        @if($savedFittingsAvailable)
-                            <div>
-                                <h5>Import Saved Fit or Doctrine</h5>
-                                <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview-saved-fitting', $market->id) }}" data-table="#market-seeding-settings-table-{{ $market->id }}">
-                                    {{ csrf_field() }}
-                                    <div class="form-group">
-                                        <label>Saved Source</label>
-                                        <select name="saved_fitting" class="form-control saved-fitting-selector" style="width: 100%;" required></select>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group col-md-3">
-                                            <label>Multiplier</label>
-                                            <input type="number" class="form-control" name="multiplier" value="1" min="1">
-                                        </div>
-                                        <div class="form-group col-md-4">
-                                            <label>Import Mode</label>
-                                            <select name="mode" class="form-control">
-                                                <option value="add">Add to targets</option>
-                                                <option value="replace">Replace list</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group col-md-5">
-                                            <label>&nbsp;</label>
-                                            <div class="btn-group btn-block">
-                                                <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
-                                                <button type="submit" class="btn btn-success">Import Saved Source</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-saved-{{ $market->id }}" checked>
-                                        <label class="form-check-label" for="keep-higher-saved-{{ $market->id }}">
-                                            Keep higher existing targets instead of adding smaller duplicate quantities (add mode only)
-                                        </label>
-                                    </div>
-                                    <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
-                                </form>
-                            </div>
-                        @endif
                     </div>
+
+                    @if($seatFittingAvailable && $market->trackedDoctrines->isNotEmpty())
+                        <div class="market-seeding-doctrine-summary">
+                            @foreach($market->trackedDoctrines->sortBy('doctrine_name') as $trackedDoctrine)
+                                @php
+                                    $syncBadge = [
+                                        'success' => 'badge-success',
+                                        'skipped' => 'badge-warning',
+                                        'missing' => 'badge-warning',
+                                        'error' => 'badge-danger',
+                                    ][$trackedDoctrine->last_sync_status] ?? 'badge-secondary';
+                                @endphp
+                                <div class="market-seeding-doctrine-pill">
+                                    <strong>{{ $trackedDoctrine->doctrine_name }}</strong>
+                                    <span class="small text-muted">
+                                        x{{ number_format($trackedDoctrine->multiplier) }}
+                                        &middot;
+                                        {{ $trackedDoctrine->merge_mode === 'add' ? 'adds to manual target' : 'higher of manual or doctrine' }}
+                                    </span>
+                                    <div class="small mt-1">
+                                        <span class="badge {{ $syncBadge }}">{{ ucfirst($trackedDoctrine->last_sync_status ?: 'not synced') }}</span>
+                                        @if($trackedDoctrine->last_synced_at)
+                                            <span class="text-muted">{{ $trackedDoctrine->last_synced_at->diffForHumans() }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
 
                     <div class="table-responsive market-seeding-subsection market-seeding-table-shell">
                         <table class="table table-sm table-hover market-seeding-settings-table" id="market-seeding-settings-table-{{ $market->id }}">
@@ -662,6 +623,7 @@ Caracal 10" required></textarea>
                 </div>
             </div>
         </div>
+        @include('seat-market-seeding::partials.market-add-modal', ['market' => $market])
     @endforeach
     </div>
 @endsection
@@ -721,7 +683,7 @@ Caracal 10" required></textarea>
                     upsertItemRow($form.data('table'), response.item);
 
                     if (response.created) {
-                        updateTrackedCount($form.closest('.market-seeding-card'), null, 1);
+                        updateTrackedCount(marketCardForForm($form), null, 1);
                     }
 
                     $form.find('select[name="type_id"]').val(null).trigger('change');
@@ -747,13 +709,13 @@ Caracal 10" required></textarea>
                 $.ajax({
                     url: $form.attr('action'),
                     method: 'POST',
-                    data: $form.serialize(),
+                    data: serializeInlineItemForm($form),
                     headers: {
                         Accept: 'application/json'
                     }
                 }).done(function (response) {
                     replaceItemRows($form.data('table'), response.items || []);
-                    updateTrackedCount($form.closest('.market-seeding-card'), response.tracked_count);
+                    updateTrackedCount(marketCardForForm($form), response.tracked_count);
                     $feedback.addClass('text-success').text(response.message || 'Import completed successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -853,7 +815,12 @@ Caracal 10" required></textarea>
                         Accept: 'application/json'
                     }
                 }).done(function (response) {
-                    removeItemRow($form.data('table'), response.item_id);
+                    if (response.item) {
+                        upsertItemRow($form.data('table'), response.item);
+                        markItemRowSaved($form.data('table'), response.item.id);
+                    } else {
+                        removeItemRow($form.data('table'), response.item_id);
+                    }
 
                     if (typeof response.tracked_count === 'number') {
                         updateTrackedCount($card, response.tracked_count);
@@ -883,36 +850,61 @@ Caracal 10" required></textarea>
                 $textarea.val(profileText).trigger('focus');
             });
 
-            $('.item-selector').select2({
-                ajax: {
-                    url: '{{ route('market-seeding.search.items') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return { q: params.term };
+            $('.item-selector').each(function () {
+                $(this).select2({
+                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                    ajax: {
+                        url: '{{ route('market-seeding.search.items') }}',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term };
+                        },
+                        processResults: function (data) {
+                            return data;
+                        }
                     },
-                    processResults: function (data) {
-                        return data;
-                    }
-                },
-                minimumInputLength: 2,
-                placeholder: 'Search item name'
+                    minimumInputLength: 2,
+                    placeholder: 'Search item name'
+                });
             });
 
-            $('.saved-fitting-selector').select2({
-                ajax: {
-                    url: '{{ route('market-seeding.search.saved-fittings') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return { q: params.term };
+            $('.saved-fitting-selector').each(function () {
+                $(this).select2({
+                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                    ajax: {
+                        url: '{{ route('market-seeding.search.saved-fittings') }}',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term };
+                        },
+                        processResults: function (data) {
+                            return data;
+                        }
                     },
-                    processResults: function (data) {
-                        return data;
-                    }
-                },
-                minimumInputLength: 2,
-                placeholder: 'Search saved fit or doctrine'
+                    minimumInputLength: 2,
+                    placeholder: 'Search saved fit or doctrine'
+                });
+            });
+
+            $('.doctrine-selector').each(function () {
+                $(this).select2({
+                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                    ajax: {
+                        url: '{{ route('market-seeding.search.doctrines') }}',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term };
+                        },
+                        processResults: function (data) {
+                            return data;
+                        }
+                    },
+                    minimumInputLength: 2,
+                    placeholder: 'Search Seat-Fitting doctrine'
+                });
             });
 
             $('.market-location-selector').select2({
@@ -1068,6 +1060,12 @@ Caracal 10" required></textarea>
                         .prop('disabled', false)
                         .html(originalButtonHtml);
                 }, 1200);
+            }
+
+            function marketCardForForm($form) {
+                var cardSelector = $form.data('card');
+
+                return cardSelector ? $(cardSelector) : $form.closest('.market-seeding-card');
             }
 
             function serializeInlineItemForm($form) {

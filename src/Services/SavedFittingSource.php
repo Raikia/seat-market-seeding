@@ -31,6 +31,25 @@ class SavedFittingSource
             ->all();
     }
 
+    public function searchDoctrines(string $query): array
+    {
+        $query = trim($query);
+
+        if (strlen($query) < 2 || !SeatFittingPluginHelper::pluginIsAvailable()) {
+            return [];
+        }
+
+        return SeatFittingPluginHelper::searchDoctrines($query)
+            ->map(function ($doctrine) {
+                return [
+                    'id' => $doctrine->id,
+                    'text' => $doctrine->name,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     public function items(string $source, int $id, int $multiplier = 1): array
     {
         $multiplier = max(1, $multiplier);

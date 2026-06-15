@@ -30,6 +30,11 @@ class SeededMarketItem extends Model
         return $this->belongsTo(SeededMarket::class, 'market_id');
     }
 
+    public function sources()
+    {
+        return $this->hasMany(MarketSeedingItemSource::class, 'item_id');
+    }
+
     public function type()
     {
         return $this->hasOne(InvType::class, 'typeID', 'type_id');

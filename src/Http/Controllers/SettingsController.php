@@ -3,15 +3,20 @@
 namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
+use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
+use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
 use Seat\Eveapi\Models\RefreshToken;
 use Seat\Eveapi\Models\Sde\InvType;
 use Seat\Eveapi\Models\Sde\StaStation;
@@ -22,16 +27,17 @@ class SettingsController extends Controller
 {
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
     {
-        $markets = SeededMarket::with('items', 'role')
+        $markets = SeededMarket::with('items', 'role', 'trackedDoctrines')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
         $roles = \Seat\Web\Models\Acl\Role::all();
         $profiles = MarketSeedingProfile::orderBy('name')->get();
         $savedFittingsAvailable = $savedFittings->isAvailable();
+        $seatFittingAvailable = SeatFittingPluginHelper::pluginIsAvailable();
         $historyRetentionDays = $settings->historyRetentionDays();
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'historyRetentionDays'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays'));
     }
 
     public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
@@ -123,7 +129,7 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', 'Market profile deleted successfully.');
     }
 
-    public function storeItem(Request $request, SeededMarket $market)
+    public function storeItem(Request $request, SeededMarket $market, StockTargetProjector $projector)
     {
         $data = $request->validate([
             'type_id' => 'required|integer',
@@ -134,25 +140,88 @@ class SettingsController extends Controller
         ]);
 
         $type = InvType::where('typeID', $data['type_id'])->firstOrFail();
+        $hadItem = $market->items()->where('type_id', $type->typeID)->exists();
 
-        $item = $market->items()->firstOrNew(['type_id' => $type->typeID]);
-        $item->type_name = $type->typeName;
-        $item->desired_quantity = ($data['keep_higher_quantity'] ?? false) && $item->exists
-            ? max((int) $item->desired_quantity, (int) $data['desired_quantity'])
-            : (int) $item->desired_quantity + (int) $data['desired_quantity'];
-        $item->warning_quantity = $data['warning_quantity'] ?: ($item->warning_quantity ?: $item->desired_quantity);
-        $item->notes = $data['notes'] ?? $item->notes;
-        $item->save();
+        $existing = $market->itemSources()
+            ->where('source_type', 'manual')
+            ->where('type_id', $type->typeID)
+            ->first();
+        $quantity = ($data['keep_higher_quantity'] ?? false) && $existing
+            ? max((int) $existing->quantity, (int) $data['desired_quantity'])
+            : (int) optional($existing)->quantity + (int) $data['desired_quantity'];
+        $item = $projector->setManualTarget(
+            $market,
+            (int) $type->typeID,
+            $type->typeName,
+            $quantity,
+            isset($data['warning_quantity']) ? (int) $data['warning_quantity'] : null,
+            $data['notes'] ?? null
+        );
 
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Item saved successfully.',
-                'created' => $item->wasRecentlyCreated,
+                'created' => !$hadItem,
                 'item' => $this->itemPayload($item),
             ]);
         }
 
         return redirect()->route('market-seeding.settings')->with('success', 'Item saved successfully.');
+    }
+
+    public function storeTrackedDoctrine(Request $request, SeededMarket $market, DoctrineTrackingSync $sync)
+    {
+        $data = $request->validate($this->trackedDoctrineRules());
+
+        if (!$sync->isAvailable()) {
+            abort(404);
+        }
+
+        $doctrine = SeatFittingPluginHelper::getDoctrineWithFittings((int) $data['doctrine_id']);
+
+        if (!$doctrine) {
+            return redirect()->route('market-seeding.settings')->with('error', 'The selected doctrine could not be found.');
+        }
+
+        $trackedDoctrine = $market->trackedDoctrines()->updateOrCreate([
+            'doctrine_id' => (int) $data['doctrine_id'],
+        ], [
+            'doctrine_name' => $doctrine->name,
+            'multiplier' => (int) $data['multiplier'],
+            'merge_mode' => $data['merge_mode'],
+        ]);
+
+        $sync->syncDoctrine($trackedDoctrine);
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking updated successfully.');
+    }
+
+    public function updateTrackedDoctrine(Request $request, MarketSeedingTrackedDoctrine $trackedDoctrine, DoctrineTrackingSync $sync)
+    {
+        $data = $request->validate([
+            'multiplier' => 'required|integer|min:1|max:10000',
+            'merge_mode' => 'required|in:max,add',
+        ]);
+
+        $trackedDoctrine->update($data);
+        $sync->syncDoctrine($trackedDoctrine);
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking updated successfully.');
+    }
+
+    public function destroyTrackedDoctrine(MarketSeedingTrackedDoctrine $trackedDoctrine, StockTargetProjector $projector)
+    {
+        $market = $trackedDoctrine->market;
+
+        DB::transaction(function () use ($trackedDoctrine, $market, $projector) {
+            $trackedDoctrine->delete();
+
+            if ($market) {
+                $projector->recalculateMarket($market);
+            }
+        });
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking removed successfully.');
     }
 
     public function importItems(Request $request, SeededMarket $market, StockListParser $parser, StockTargetImporter $importer)
@@ -172,6 +241,17 @@ class SettingsController extends Controller
         }
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock line(s) imported successfully.');
+    }
+
+    public function clearMarketItems(SeededMarket $market)
+    {
+        DB::transaction(function () use ($market) {
+            $market->trackedDoctrines()->delete();
+            $market->itemSources()->delete();
+            $market->items()->delete();
+        });
+
+        return redirect()->route('market-seeding.settings')->with('success', 'All tracked items were cleared from ' . $market->name . '.');
     }
 
     public function previewItems(Request $request, SeededMarket $market, StockListParser $parser, StockTargetPreviewer $previewer)
@@ -258,7 +338,7 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', $message);
     }
 
-    public function updateItem(Request $request, SeededMarketItem $item)
+    public function updateItem(Request $request, SeededMarketItem $item, StockTargetProjector $projector)
     {
         $data = $request->validate([
             'desired_quantity' => 'required|integer|min:1',
@@ -266,11 +346,14 @@ class SettingsController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $item->update([
-            'desired_quantity' => $data['desired_quantity'],
-            'warning_quantity' => $data['warning_quantity'] ?: $data['desired_quantity'],
-            'notes' => $data['notes'] ?? null,
-        ]);
+        $item = $projector->setManualTarget(
+            $item->market,
+            (int) $item->type_id,
+            $item->type_name,
+            (int) $data['desired_quantity'],
+            isset($data['warning_quantity']) ? (int) $data['warning_quantity'] : null,
+            $data['notes'] ?? null
+        );
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -282,15 +365,18 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', 'Item updated successfully.');
     }
 
-    public function destroyItem(Request $request, SeededMarketItem $item)
+    public function destroyItem(Request $request, SeededMarketItem $item, StockTargetProjector $projector)
     {
         $market = $item->market;
-        $item->delete();
+        $remainingItem = $projector->removeManualTarget($item);
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => 'Item removed successfully.',
+                'message' => $remainingItem
+                    ? 'Manual target removed. This item is still tracked by a doctrine.'
+                    : 'Item removed successfully.',
                 'item_id' => $item->id,
+                'item' => $remainingItem ? $this->itemPayload($remainingItem) : null,
                 'tracked_count' => $market ? $market->items()->count() : null,
             ]);
         }
@@ -375,6 +461,13 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function searchDoctrines(Request $request, SavedFittingSource $savedFittings)
+    {
+        return response()->json([
+            'results' => $savedFittings->searchDoctrines((string) $request->input('q', '')),
+        ]);
+    }
+
     private function marketRules(): array
     {
         return [
@@ -395,6 +488,15 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'stock_list' => 'required|string',
+        ];
+    }
+
+    private function trackedDoctrineRules(): array
+    {
+        return [
+            'doctrine_id' => 'required|integer',
+            'multiplier' => 'required|integer|min:1|max:10000',
+            'merge_mode' => 'required|in:max,add',
         ];
     }
 
