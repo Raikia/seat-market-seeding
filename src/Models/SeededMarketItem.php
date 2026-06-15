@@ -39,4 +39,19 @@ class SeededMarketItem extends Model
     {
         return $this->hasOne(InvType::class, 'typeID', 'type_id');
     }
+
+    public function sourceFlags(): array
+    {
+        $sources = $this->relationLoaded('sources')
+            ? $this->sources
+            : $this->sources()->get();
+
+        return [
+            'manual' => $sources->whereIn('source_type', [
+                MarketSeedingItemSource::SOURCE_MANUAL,
+                MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT,
+            ])->isNotEmpty(),
+            'doctrine' => $sources->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)->isNotEmpty(),
+        ];
+    }
 }

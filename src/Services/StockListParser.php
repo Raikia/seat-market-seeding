@@ -8,19 +8,44 @@ class StockListParser
 {
     public function parse(string $input, int $multiplier = 1): array
     {
-        $items = [];
+        return $this->parseWithReport($input, $multiplier)['items'];
+    }
 
-        foreach (preg_split('/\r\n|\r|\n/', $input) as $line) {
+    public function parseWithReport(string $input, int $multiplier = 1): array
+    {
+        $items = [];
+        $skipped = [];
+        $ignored = 0;
+        $processed = 0;
+
+        foreach (preg_split('/\r\n|\r|\n/', $input) as $lineNumber => $line) {
             $line = trim($line);
 
             if ($line === '' || $this->isIgnoredLine($line)) {
+                $ignored++;
                 continue;
             }
 
+            $processed++;
             [$name, $quantity] = $this->parseLine($line);
+
+            if ($name === '') {
+                $skipped[] = [
+                    'line' => $line,
+                    'line_number' => $lineNumber + 1,
+                    'reason' => 'No item name was found.',
+                ];
+                continue;
+            }
+
             $type = $this->resolveType($name);
 
             if (!$type) {
+                $skipped[] = [
+                    'line' => $line,
+                    'line_number' => $lineNumber + 1,
+                    'reason' => 'No published market item matched "' . $name . '".',
+                ];
                 continue;
             }
 
@@ -37,7 +62,16 @@ class StockListParser
             $items[$typeId]['quantity'] += max(1, $quantity) * max(1, $multiplier);
         }
 
-        return array_values($items);
+        return [
+            'items' => array_values($items),
+            'validation' => [
+                'processed_lines' => $processed,
+                'ignored_lines' => $ignored,
+                'valid_lines' => count($items),
+                'skipped_lines' => count($skipped),
+                'skipped' => $skipped,
+            ],
+        ];
     }
 
     private function isIgnoredLine(string $line): bool

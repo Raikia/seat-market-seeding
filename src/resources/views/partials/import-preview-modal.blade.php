@@ -14,6 +14,7 @@
                 <div class="alert alert-light border market-seeding-preview-summary mb-3">
                     Preview has not been loaded yet.
                 </div>
+                <div class="alert alert-warning market-seeding-preview-validation mb-3" style="display: none;"></div>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead>

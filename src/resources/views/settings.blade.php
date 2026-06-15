@@ -182,6 +182,41 @@
         .market-seeding-row-saved > td {
             animation: market-seeding-row-saved 1.8s ease-out;
         }
+        .market-seeding-source-icons {
+            display: inline-flex;
+            gap: .25rem;
+            vertical-align: middle;
+        }
+        .market-seeding-source-column {
+            text-align: center;
+            width: 74px;
+        }
+        .market-seeding-source-icon {
+            align-items: center;
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: .72rem;
+            height: 1.35rem;
+            justify-content: center;
+            width: 1.35rem;
+        }
+        .market-seeding-source-manual {
+            background: rgba(0, 123, 255, .14);
+            color: #0056b3;
+        }
+        .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .16);
+            color: #1e7e34;
+        }
+        .market-seeding-validation-list {
+            margin-bottom: 0;
+            max-height: 180px;
+            overflow-y: auto;
+            padding-left: 1.25rem;
+        }
+        .market-seeding-validation-line {
+            font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
         @keyframes market-seeding-row-saved {
             0% {
                 background: rgba(40, 167, 69, .25);
@@ -192,6 +227,14 @@
         }
         .market-seeding-dark-skin .market-seeding-row-saved > td {
             animation-name: market-seeding-row-saved-dark;
+        }
+        .market-seeding-dark-skin .market-seeding-source-manual {
+            background: rgba(60, 141, 188, .28);
+            color: #9fd3f2;
+        }
+        .market-seeding-dark-skin .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .28);
+            color: #9be7ad;
         }
         @keyframes market-seeding-row-saved-dark {
             0% {
@@ -230,14 +273,29 @@
                 <span class="text-muted mb-2 mr-2">days</span>
                 <button type="submit" class="btn btn-primary mb-2">Save Settings</button>
             </form>
-            <small class="text-muted">History older than this is pruned during market refresh checks. Default is 365 days.</small>
+            <div class="d-flex flex-wrap justify-content-between align-items-center mt-2">
+                <small class="text-muted mr-3">History older than this is pruned during market refresh checks. Default is 365 days.</small>
+                <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear all restock history? This cannot be undone.');">
+                    {{ csrf_field() }}
+                    {{ method_field('DELETE') }}
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="fas fa-history"></i> Clear Restock History
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 
     <div class="card mb-4 market-seeding-card">
         <div class="card-header">
-            <h3 class="card-title mb-0">Add Market</h3>
+            <div>
+                <h3 class="card-title mb-0">Markets</h3>
+                <small class="text-muted card-subtitle">Create markets, manage reusable profiles, or refresh all market orders.</small>
+            </div>
             <div class="card-tools">
+                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#market-seeding-add-market-modal">
+                    <i class="fas fa-plus"></i> Add Market
+                </button>
                 <button type="button" class="btn btn-default btn-sm" data-toggle="modal" data-target="#market-seeding-profiles-modal">
                     <i class="fas fa-layer-group"></i> Manage Profiles
                 </button>
@@ -249,15 +307,29 @@
                 </form>
             </div>
         </div>
-        <div class="card-body">
+    </div>
+
+    <div class="modal fade market-seeding-profile-modal {{ $marketSeedingThemeClass }}" id="market-seeding-add-market-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-add-market-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="market-seeding-add-market-modal-label">Add Market</h5>
+                        <small class="text-muted">Choose a station or known structure, then decide who can see it.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
             <form action="{{ route('market-seeding.markets.store') }}" method="POST">
                 {{ csrf_field() }}
-                <div class="form-row align-items-end">
-                    <div class="form-group col-lg-3 col-md-6">
+                <div class="form-row">
+                    <div class="form-group col-md-5">
                         <label for="name">Display Name</label>
                         <input type="text" class="form-control" name="name" id="name" placeholder="Home staging" required>
                     </div>
-                    <div class="form-group col-lg-5 col-md-6">
+                    <div class="form-group col-md-7">
                         <label for="location_selector">Station or Structure</label>
                         <select class="form-control market-location-selector" id="location_selector" style="width: 100%;"></select>
                         <input type="hidden" name="location_id" id="location_id" required>
@@ -266,7 +338,7 @@
                         <input type="hidden" name="solar_system_id" id="solar_system_id">
                         <input type="hidden" name="is_structure" id="is_structure" value="0">
                     </div>
-                    <div class="form-group col-lg-2 col-md-6">
+                    <div class="form-group col-md-5">
                         <label for="role_id">Visibility Role</label>
                         <select name="role_id" id="role_id" class="form-control">
                             <option value="">Public</option>
@@ -312,6 +384,8 @@
                     </div>
                 </div>
             </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -445,6 +519,9 @@
                     </small>
                 </div>
                 <div class="card-tools">
+                    <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
+                        <i class="fas fa-sliders-h"></i> Configure
+                    </button>
                     <form action="{{ route('market-seeding.markets.move', $market->id) }}" method="POST">
                         {{ csrf_field() }}
                         <input type="hidden" name="direction" value="up">
@@ -459,9 +536,6 @@
                             <i class="fas fa-arrow-down"></i>
                         </button>
                     </form>
-                    <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
-                        <i class="fas fa-sliders-h"></i> Configure
-                    </button>
                     <form action="{{ route('market-seeding.markets.destroy', $market->id) }}" method="POST" onsubmit="return confirm('Delete this seeded market and all of its stock targets?');">
                         {{ csrf_field() }}
                         {{ method_field('DELETE') }}
@@ -565,6 +639,7 @@
                             <thead>
                                 <tr>
                                     <th>Item</th>
+                                    <th class="market-seeding-source-column">Source</th>
                                     <th class="text-right">Target</th>
                                     <th class="text-right">Low Warning</th>
                                     <th class="text-right">Actions</th>
@@ -574,6 +649,9 @@
                                 @foreach($market->items->sortBy('type_name') as $item)
                                     <tr data-item-id="{{ $item->id }}">
                                         <td>{{ $item->type_name }}</td>
+                                        <td class="market-seeding-source-column">
+                                            @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->sourceFlags()])
+                                        </td>
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->desired_quantity }}">
                                             <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST" class="market-seeding-update-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                                 {{ csrf_field() }}
@@ -624,7 +702,7 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { orderable: false, searchable: false, targets: [3] }
+                        { orderable: false, searchable: false, targets: [1, 4] }
                     ],
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -949,20 +1027,23 @@
                 });
             });
 
-            $('.market-location-selector').select2({
-                ajax: {
-                    url: '{{ route('market-seeding.search.locations') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return { q: params.term };
+            $('.market-location-selector').each(function () {
+                $(this).select2({
+                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                    ajax: {
+                        url: '{{ route('market-seeding.search.locations') }}',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term };
+                        },
+                        processResults: function (data) {
+                            return data;
+                        }
                     },
-                    processResults: function (data) {
-                        return data;
-                    }
-                },
-                minimumInputLength: 3,
-                placeholder: 'Search station or known structure'
+                    minimumInputLength: 3,
+                    placeholder: 'Search station or known structure'
+                });
             }).on('select2:select', function (event) {
                 var data = event.params.data;
                 var prefix = $(this).data('prefix');
@@ -1182,6 +1263,7 @@
             function renderImportPreview(response) {
                 var summary = response.summary || {};
                 var rows = response.rows || [];
+                var validation = response.validation || {};
                 var summaryText = [
                     (summary.total || 0) + ' item(s)',
                     (summary.new || 0) + ' new',
@@ -1192,6 +1274,7 @@
                 ];
 
                 $('.market-seeding-preview-summary').text(summaryText.join(' · '));
+                renderImportValidation(validation);
 
                 if (!rows.length) {
                     $('.market-seeding-preview-rows').html('<tr><td colspan="6" class="text-muted">No valid item lines were found.</td></tr>');
@@ -1209,6 +1292,38 @@
                             '<td class="text-right">' + formatWhole(row.warning_quantity) + '</td>' +
                         '</tr>';
                 }).join(''));
+            }
+
+            function renderImportValidation(validation) {
+                var skipped = validation.skipped || [];
+                var processed = Number(validation.processed_lines || 0);
+                var ignored = Number(validation.ignored_lines || 0);
+                var $panel = $('.market-seeding-preview-validation');
+
+                if (!skipped.length && !ignored) {
+                    $panel.hide().empty();
+                    return;
+                }
+
+                var html = '<strong>Import validation:</strong> ' +
+                    formatWhole(processed) + ' parsed line(s), ' +
+                    formatWhole(ignored) + ' ignored EFT/header/blank line(s), ' +
+                    formatWhole(skipped.length) + ' skipped line(s).';
+
+                if (skipped.length) {
+                    html += '<ul class="market-seeding-validation-list mt-2">';
+                    $.each(skipped, function (index, skippedLine) {
+                        var prefix = skippedLine.line_number ? 'Line ' + skippedLine.line_number + ': ' : '';
+                        html += '<li>' +
+                            escapeHtml(prefix) +
+                            '<span class="market-seeding-validation-line">' + escapeHtml(skippedLine.line || '') + '</span>' +
+                            ' - ' + escapeHtml(skippedLine.reason || 'Could not import this line.') +
+                        '</li>';
+                    });
+                    html += '</ul>';
+                }
+
+                $panel.html(html).show();
             }
 
             function previewActionBadge(action) {
@@ -1243,6 +1358,7 @@
                 return '' +
                     '<tr data-item-id="' + item.id + '">' +
                         '<td>' + escapeHtml(item.type_name) + '</td>' +
+                        '<td class="market-seeding-source-column">' + (item.source_icons_html || '') + '</td>' +
                         '<td class="text-right" style="width: 140px;" data-order="' + item.desired_quantity + '">' +
                             '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST" class="market-seeding-update-item-form" data-table="' + escapeAttr(tableSelector) + '">' +
                                 '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +

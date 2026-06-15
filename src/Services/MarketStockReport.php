@@ -89,6 +89,9 @@ class MarketStockReport
             'restock_cost' => 0,
             'restock_volume' => 0,
             'missing_lines' => 0,
+            'desired_quantity' => 0,
+            'covered_quantity' => 0,
+            'health_score' => 100,
         ];
 
         foreach ($markets as $market) {
@@ -98,6 +101,9 @@ class MarketStockReport
                 'restock_cost' => 0,
                 'restock_volume' => 0,
                 'missing_lines' => 0,
+                'desired_quantity' => 0,
+                'covered_quantity' => 0,
+                'health_score' => 100,
             ];
 
             $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, &$marketTotals) {
@@ -120,15 +126,19 @@ class MarketStockReport
                 $restockVolume = $missingQuantity * $itemVolume;
                 $desiredValue = $item->desired_quantity * (float) $jitaPrice;
                 $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
+                $coveredQuantity = min($currentQuantity, (int) $item->desired_quantity);
 
                 $marketTotals['desired_value'] += $desiredValue;
                 $marketTotals['seeded_value'] += $seededValue;
                 $marketTotals['restock_cost'] += $restockCost;
                 $marketTotals['restock_volume'] += $restockVolume;
                 $marketTotals['missing_lines'] += $missingQuantity > 0 ? 1 : 0;
+                $marketTotals['desired_quantity'] += (int) $item->desired_quantity;
+                $marketTotals['covered_quantity'] += $coveredQuantity;
 
                 return [
                     'item' => $item,
+                    'source_flags' => $item->sourceFlags(),
                     'current_quantity' => $currentQuantity,
                     'missing_quantity' => $missingQuantity,
                     'local_price' => $localPrice,
@@ -144,6 +154,8 @@ class MarketStockReport
                 ];
             })->values();
 
+            $marketTotals['health_score'] = $this->healthScore($marketTotals['covered_quantity'], $marketTotals['desired_quantity']);
+
             foreach ($marketTotals as $key => $value) {
                 $totals[$key] += $value;
             }
@@ -156,6 +168,8 @@ class MarketStockReport
             ];
         }
 
+        $totals['health_score'] = $this->healthScore($totals['covered_quantity'], $totals['desired_quantity']);
+
         return [
             'markets' => $reports,
             'totals' => $totals,
@@ -165,14 +179,23 @@ class MarketStockReport
     private function loadMarketRelations(Collection $markets): void
     {
         if ($markets instanceof EloquentCollection) {
-            $markets->load('items', 'role');
+            $markets->load('items.sources', 'role');
 
             return;
         }
 
         $markets->each(function (SeededMarket $market) {
-            $market->loadMissing('items', 'role');
+            $market->loadMissing('items.sources', 'role');
         });
+    }
+
+    private function healthScore(int $coveredQuantity, int $desiredQuantity): float
+    {
+        if ($desiredQuantity <= 0) {
+            return 100.0;
+        }
+
+        return round(min(100, ($coveredQuantity / $desiredQuantity) * 100), 1);
     }
 
     private function packagedVolumes(Collection $typeIds): Collection

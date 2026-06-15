@@ -105,10 +105,45 @@
             display: block;
             font-size: 1rem;
         }
+        .market-seeding-source-icons {
+            display: inline-flex;
+            gap: .25rem;
+            margin-right: .35rem;
+            vertical-align: middle;
+        }
+        .market-seeding-source-icon {
+            align-items: center;
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: .72rem;
+            height: 1.35rem;
+            justify-content: center;
+            width: 1.35rem;
+        }
+        .market-seeding-source-manual {
+            background: rgba(0, 123, 255, .14);
+            color: #0056b3;
+        }
+        .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .16);
+            color: #1e7e34;
+        }
+        .market-seeding-health-badge {
+            font-size: .8rem;
+            margin-left: .35rem;
+        }
         .market-seeding-dark-skin .market-seeding-metric {
             background: #1f2d3d;
             border-left-color: #3c8dbc;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-source-manual {
+            background: rgba(60, 141, 188, .28);
+            color: #9fd3f2;
+        }
+        .market-seeding-dark-skin .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .28);
+            color: #9be7ad;
         }
         .market-seeding-dark-skin .market-seeding-metric span,
         .market-seeding-dark-skin .text-muted {
@@ -264,6 +299,11 @@
                         <h3 class="card-title mb-0">
                             {{ $market->name }}
                             <small class="text-muted">({{ $market->location_name }})</small>
+                            @php
+                                $healthScore = $marketReport['totals']['health_score'] ?? 100;
+                                $healthBadge = $healthScore >= 90 ? 'badge-success' : ($healthScore >= 60 ? 'badge-warning' : 'badge-danger');
+                            @endphp
+                            <span class="badge {{ $healthBadge }} market-seeding-health-badge">Health {{ $percent($healthScore) }}</span>
                         </h3>
                         <small class="text-muted card-subtitle">
                             Missing {{ $whole($marketReport['totals']['missing_lines']) }} line(s) &middot;
@@ -306,6 +346,10 @@
                     <div class="card-body">
                         <div class="market-seeding-metrics">
                             <div class="market-seeding-metric">
+                                <span>Health</span>
+                                <strong>{{ $percent($marketReport['totals']['health_score'] ?? 100) }}</strong>
+                            </div>
+                            <div class="market-seeding-metric">
                                 <span>Seeded</span>
                                 <strong>{{ $isk($marketReport['totals']['seeded_value']) }}</strong>
                             </div>
@@ -346,7 +390,10 @@
                                 <tbody>
                                     @foreach($marketReport['rows'] as $row)
                                         <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}">
-                                            <td>{{ $row['item']->type_name }}</td>
+                                            <td>
+                                                @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $row['source_flags']])
+                                                {{ $row['item']->type_name }}
+                                            </td>
                                             <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
                                             <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $row['missing_quantity'] }}">

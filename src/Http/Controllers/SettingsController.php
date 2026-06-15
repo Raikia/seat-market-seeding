@@ -5,8 +5,10 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
@@ -27,7 +29,7 @@ class SettingsController extends Controller
 {
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
     {
-        $markets = SeededMarket::with('items', 'role', 'trackedDoctrines')
+        $markets = SeededMarket::with('items.sources', 'role', 'trackedDoctrines')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -49,6 +51,15 @@ class SettingsController extends Controller
         $settings->setHistoryRetentionDays((int) $data['history_retention_days']);
 
         return redirect()->route('market-seeding.settings')->with('success', 'Market seeding settings updated successfully.');
+    }
+
+    public function clearHistory()
+    {
+        $count = MarketStockHistory::query()->count();
+
+        MarketStockHistory::query()->delete();
+
+        return redirect()->route('market-seeding.settings')->with('success', $count . ' restock history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
     }
 
     public function storeMarket(Request $request)
@@ -143,7 +154,7 @@ class SettingsController extends Controller
         $hadItem = $market->items()->where('type_id', $type->typeID)->exists();
 
         $existing = $market->itemSources()
-            ->where('source_type', 'manual')
+            ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
             ->where('type_id', $type->typeID)
             ->first();
         $quantity = ($data['keep_higher_quantity'] ?? false) && $existing
@@ -248,11 +259,11 @@ class SettingsController extends Controller
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
-        $items = $parser->parse($data['stock_list'], (int) ($data['multiplier'] ?? 1));
-        $count = $importer->import($market, $items, $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false), (int) $data['warning_percentage']);
+        $parsed = $parser->parseWithReport($data['stock_list'], (int) ($data['multiplier'] ?? 1));
+        $count = $importer->import($market, $parsed['items'], $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false), (int) $data['warning_percentage']);
 
         if ($request->expectsJson()) {
-            return response()->json($this->importPayload($market, $count, 'stock line(s) imported successfully.'));
+            return response()->json($this->importPayload($market, $count, 'stock line(s) imported successfully.', $parsed['validation']));
         }
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock line(s) imported successfully.');
@@ -279,15 +290,18 @@ class SettingsController extends Controller
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
-        $items = $parser->parse($data['stock_list'], (int) ($data['multiplier'] ?? 1));
+        $parsed = $parser->parseWithReport($data['stock_list'], (int) ($data['multiplier'] ?? 1));
 
-        return response()->json($previewer->preview(
+        $preview = $previewer->preview(
             $market,
-            $items,
+            $parsed['items'],
             $data['mode'],
             (bool) ($data['keep_higher_quantity'] ?? false),
             (int) $data['warning_percentage']
-        ));
+        );
+        $preview['validation'] = $parsed['validation'];
+
+        return response()->json($preview);
     }
 
     public function importSavedFitting(Request $request, SeededMarket $market, SavedFittingSource $savedFittings, StockTargetImporter $importer)
@@ -324,13 +338,16 @@ class SettingsController extends Controller
         [$source, $sourceId] = array_pad(explode(':', $data['saved_fitting'], 2), 2, null);
         $items = $savedFittings->items($source, (int) $sourceId, (int) ($data['multiplier'] ?? 1));
 
-        return response()->json($previewer->preview(
+        $preview = $previewer->preview(
             $market,
             $items,
             $data['mode'],
             (bool) ($data['keep_higher_quantity'] ?? false),
             (int) $data['warning_percentage']
-        ));
+        );
+        $preview['validation'] = $this->savedFittingValidation(count($items));
+
+        return response()->json($preview);
     }
 
     public function refreshMarkets(MarketSeedingRefreshAll $refreshAll)
@@ -546,25 +563,31 @@ class SettingsController extends Controller
 
     private function itemPayload(SeededMarketItem $item): array
     {
+        $item->loadMissing('sources');
+        $sourceFlags = $item->sourceFlags();
+
         return [
             'id' => $item->id,
             'type_name' => $item->type_name,
             'desired_quantity' => $item->desired_quantity,
             'warning_quantity' => $item->warning_quantity,
+            'source_flags' => $sourceFlags,
+            'source_icons_html' => view('seat-market-seeding::partials.source-icons', compact('sourceFlags'))->render(),
             'update_url' => route('market-seeding.items.update', $item->id),
             'destroy_url' => route('market-seeding.items.destroy', $item->id),
         ];
     }
 
-    private function importPayload(SeededMarket $market, int $count, string $message): array
+    private function importPayload(SeededMarket $market, int $count, string $message, ?array $validation = null): array
     {
         $market->load(['items' => function ($query) {
-            $query->orderBy('type_name');
+            $query->with('sources')->orderBy('type_name');
         }]);
 
         return [
             'message' => $count . ' ' . $message,
             'tracked_count' => $market->items->count(),
+            'validation' => $validation,
             'items' => $market->items->map(function (SeededMarketItem $item) {
                 return $this->itemPayload($item);
             })->values(),
@@ -574,7 +597,7 @@ class SettingsController extends Controller
     private function trackedDoctrinePayload(SeededMarket $market, string $message): array
     {
         $market->load(['trackedDoctrines', 'items' => function ($query) {
-            $query->orderBy('type_name');
+            $query->with('sources')->orderBy('type_name');
         }]);
 
         return [
@@ -594,6 +617,21 @@ class SettingsController extends Controller
         $percentage = max(0, min(100, $percentage));
 
         return max(0, (int) ceil(max(1, $quantity) * ($percentage / 100)));
+    }
+
+    private function savedFittingValidation(int $itemCount): array
+    {
+        return [
+            'processed_lines' => $itemCount,
+            'ignored_lines' => 0,
+            'valid_lines' => $itemCount,
+            'skipped_lines' => $itemCount > 0 ? 0 : 1,
+            'skipped' => $itemCount > 0 ? [] : [[
+                'line' => 'Saved fitting source',
+                'line_number' => null,
+                'reason' => 'No importable items were found in this saved source.',
+            ]],
+        ];
     }
 
     private function escapeLike(string $value): string
