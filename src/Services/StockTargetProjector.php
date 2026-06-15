@@ -61,13 +61,14 @@ class StockTargetProjector
                 ->with('trackedDoctrine')
                 ->where('type_id', $item->type_id)
                 ->get();
-            $doctrineProjection = $this->doctrineProjection($sources);
-            $doctrineFloor = $doctrineProjection['max_quantity'] + $doctrineProjection['add_quantity'];
+            $baseProjection = $this->projectSources($sources, null, null, false);
+            $adjustmentQuantity = max(0, $desiredQuantity - $baseProjection['quantity']);
+            $adjustmentWarningQuantity = $warningQuantity ?? $this->quantities->defaultWarningQuantity($desiredQuantity);
 
-            if ($desiredQuantity <= $doctrineFloor) {
+            if ($adjustmentQuantity < 1) {
                 $market->itemSources()
                     ->where('type_id', $item->type_id)
-                    ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
+                    ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
                     ->delete();
 
                 $this->recalculateMarket($market);
@@ -75,18 +76,16 @@ class StockTargetProjector
                 return $market->items()->where('type_id', $item->type_id)->firstOrFail()->fresh();
             }
 
-            $manualQuantity = $desiredQuantity - $doctrineProjection['add_quantity'];
-
             MarketSeedingItemSource::updateOrCreate([
                 'market_id' => $market->id,
-                'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
-                'source_key' => 'manual',
+                'source_type' => MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT,
+                'source_key' => 'inline-adjustment',
                 'type_id' => $item->type_id,
             ], [
                 'tracked_doctrine_id' => null,
                 'type_name' => $item->type_name,
-                'quantity' => $manualQuantity,
-                'warning_quantity' => $warningQuantity ?? $this->quantities->defaultWarningQuantity($manualQuantity),
+                'quantity' => $adjustmentQuantity,
+                'warning_quantity' => $adjustmentWarningQuantity,
             ]);
 
             $this->recalculateMarket($market);
@@ -110,7 +109,7 @@ class StockTargetProjector
             MarketSeedingItemSource::query()
                 ->where('market_id', $item->market_id)
                 ->where('type_id', $item->type_id)
-                ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
+                ->whereIn('source_type', [MarketSeedingItemSource::SOURCE_MANUAL, MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT])
                 ->delete();
 
             if (!$market) {
@@ -129,7 +128,7 @@ class StockTargetProjector
         return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity, $warningPercentage) {
             if ($mode === 'replace') {
                 $market->itemSources()
-                    ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
+                    ->whereIn('source_type', [MarketSeedingItemSource::SOURCE_MANUAL, MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT])
                     ->delete();
             }
 
@@ -244,11 +243,16 @@ class StockTargetProjector
             ->update(['item_id' => null]);
     }
 
-    public function projectSources(Collection $sources, ?int $manualQuantityOverride = null, ?int $manualWarningQuantityOverride = null): array
+    public function projectSources(Collection $sources, ?int $manualQuantityOverride = null, ?int $manualWarningQuantityOverride = null, bool $includeAdjustments = true): array
     {
         $manualSources = $sources->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL);
         $manualQuantity = $manualQuantityOverride ?? (int) $manualSources->sum('quantity');
         $manualWarningQuantity = $manualWarningQuantityOverride ?? (int) $manualSources->sum('warning_quantity');
+        $adjustmentSources = $includeAdjustments
+            ? $sources->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
+            : collect();
+        $adjustmentQuantity = (int) $adjustmentSources->sum('quantity');
+        $adjustmentWarningQuantity = (int) $adjustmentSources->sum('warning_quantity');
         $typeName = optional($sources->first())->type_name;
         $doctrineProjection = $this->doctrineProjection($sources);
 
@@ -261,12 +265,18 @@ class StockTargetProjector
         $baseWarningQuantity = $manualQuantity >= $doctrineProjection['max_quantity']
             ? $manualWarningQuantity
             : $doctrineProjection['max_warning_quantity'];
-        $quantity = max($manualQuantity, $doctrineProjection['max_quantity']) + $doctrineProjection['add_quantity'];
+        $quantity = max($manualQuantity, $doctrineProjection['max_quantity'])
+            + $doctrineProjection['add_quantity']
+            + $adjustmentQuantity;
+
+        $warningQuantity = $adjustmentSources->isNotEmpty()
+            ? $adjustmentWarningQuantity
+            : $baseWarningQuantity + $doctrineProjection['add_warning_quantity'];
 
         return [
             'type_name' => $typeName,
             'quantity' => $quantity,
-            'warning_quantity' => max(0, $baseWarningQuantity + $doctrineProjection['add_warning_quantity']),
+            'warning_quantity' => max(0, $warningQuantity),
         ];
     }
 

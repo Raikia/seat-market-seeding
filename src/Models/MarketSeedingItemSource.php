@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class MarketSeedingItemSource extends Model
 {
     const SOURCE_MANUAL = 'manual';
+    const SOURCE_MANUAL_ADJUSTMENT = 'manual_adjustment';
     const SOURCE_DOCTRINE = 'doctrine';
 
     protected $table = 'seat_market_seeding_item_sources';

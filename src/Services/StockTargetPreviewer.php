@@ -32,7 +32,8 @@ class StockTargetPreviewer
             $projection = $this->projector->projectSources(
                 $sources->get($item['type_id'], collect()),
                 $newManualQuantity,
-                $this->warningQuantityFromPercentage($newManualQuantity, $warningPercentage)
+                $this->warningQuantityFromPercentage($newManualQuantity, $warningPercentage),
+                $mode !== 'replace'
             );
 
             return [
