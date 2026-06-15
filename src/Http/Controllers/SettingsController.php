@@ -21,6 +21,7 @@ class SettingsController extends Controller
     public function index(SavedFittingSource $savedFittings)
     {
         $markets = SeededMarket::with('items', 'role')
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
         $roles = \Seat\Web\Models\Acl\Role::all();
@@ -35,6 +36,7 @@ class SettingsController extends Controller
         $data = $request->validate($this->marketRules());
 
         $data = $this->normalizeMarketData($data);
+        $data['sort_order'] = ((int) SeededMarket::max('sort_order')) + 10;
         SeededMarket::create($data);
 
         return redirect()->route('market-seeding.settings')->with('success', 'Market created successfully.');
@@ -47,6 +49,36 @@ class SettingsController extends Controller
         $market->update($this->normalizeMarketData($data));
 
         return redirect()->route('market-seeding.settings')->with('success', 'Market updated successfully.');
+    }
+
+    public function moveMarket(Request $request, SeededMarket $market)
+    {
+        $data = $request->validate([
+            'direction' => 'required|in:up,down',
+        ]);
+
+        $this->normalizeMarketSortOrder();
+        $market->refresh();
+
+        $neighbor = SeededMarket::query()
+            ->when($data['direction'] === 'up', function ($query) use ($market) {
+                $query->where('sort_order', '<', $market->sort_order)
+                    ->orderByDesc('sort_order');
+            })
+            ->when($data['direction'] === 'down', function ($query) use ($market) {
+                $query->where('sort_order', '>', $market->sort_order)
+                    ->orderBy('sort_order');
+            })
+            ->first();
+
+        if ($neighbor) {
+            $currentOrder = $market->sort_order;
+
+            $market->update(['sort_order' => $neighbor->sort_order]);
+            $neighbor->update(['sort_order' => $currentOrder]);
+        }
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Market order updated successfully.');
     }
 
     public function destroyMarket(SeededMarket $market)
@@ -304,6 +336,22 @@ class SettingsController extends Controller
         $data['role_id'] = $data['role_id'] ?: null;
 
         return $data;
+    }
+
+    private function normalizeMarketSortOrder(): void
+    {
+        SeededMarket::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get()
+            ->each(function (SeededMarket $market, int $index) {
+                $desiredOrder = ($index + 1) * 10;
+
+                if ($market->sort_order !== $desiredOrder) {
+                    $market->update(['sort_order' => $desiredOrder]);
+                }
+            });
     }
 
     private function itemPayload(SeededMarketItem $item): array

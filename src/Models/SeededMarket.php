@@ -9,6 +9,7 @@ class SeededMarket extends Model
     protected $table = 'seat_market_seeding_markets';
 
     protected $fillable = [
+        'sort_order',
         'name',
         'location_id',
         'location_name',
@@ -21,6 +22,7 @@ class SeededMarket extends Model
 
     protected $casts = [
         'location_id' => 'integer',
+        'sort_order' => 'integer',
         'region_id' => 'integer',
         'solar_system_id' => 'integer',
         'is_structure' => 'boolean',

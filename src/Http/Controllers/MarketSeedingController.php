@@ -12,6 +12,7 @@ class MarketSeedingController extends Controller
     {
         $markets = $this->visibleMarkets()
             ->with('items')
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
 

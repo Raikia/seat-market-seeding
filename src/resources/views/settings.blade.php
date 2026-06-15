@@ -343,6 +343,20 @@
                     </small>
                 </div>
                 <div class="card-tools">
+                    <form action="{{ route('market-seeding.markets.move', $market->id) }}" method="POST">
+                        {{ csrf_field() }}
+                        <input type="hidden" name="direction" value="up">
+                        <button type="submit" class="btn btn-default btn-sm" title="Move up" {{ $loop->first ? 'disabled' : '' }}>
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                    </form>
+                    <form action="{{ route('market-seeding.markets.move', $market->id) }}" method="POST">
+                        {{ csrf_field() }}
+                        <input type="hidden" name="direction" value="down">
+                        <button type="submit" class="btn btn-default btn-sm" title="Move down" {{ $loop->last ? 'disabled' : '' }}>
+                            <i class="fas fa-arrow-down"></i>
+                        </button>
+                    </form>
                     <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketCollapseId }}" aria-expanded="false" aria-controls="{{ $marketCollapseId }}">
                         <i class="fas fa-sliders-h"></i> Configure
                     </button>

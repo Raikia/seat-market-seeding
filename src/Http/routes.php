@@ -28,6 +28,10 @@ Route::group([
             'as' => 'market-seeding.markets.update',
             'uses' => 'SettingsController@updateMarket',
         ]);
+        Route::post('/markets/{market}/move', [
+            'as' => 'market-seeding.markets.move',
+            'uses' => 'SettingsController@moveMarket',
+        ]);
         Route::delete('/markets/{market}', [
             'as' => 'market-seeding.markets.destroy',
             'uses' => 'SettingsController@destroyMarket',
