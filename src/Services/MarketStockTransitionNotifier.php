@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
+use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Seat\Eveapi\Models\Market\MarketOrder;
@@ -41,6 +42,7 @@ class MarketStockTransitionNotifier
             $previousStatus = $item->stock_status;
 
             if ($previousStatus && $previousStatus !== $currentStatus) {
+                $this->recordHistory($market, $item, $previousStatus, $currentStatus, $currentQuantity);
                 $notifications += $this->dispatchTransition($market, $item, $previousStatus, $currentStatus, $currentQuantity);
             }
 
@@ -128,5 +130,22 @@ class MarketStockTransitionNotifier
         });
 
         return 1;
+    }
+
+    private function recordHistory(SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): void
+    {
+        MarketStockHistory::create([
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'previous_status' => $previousStatus,
+            'current_status' => $currentStatus,
+            'current_quantity' => $currentQuantity,
+            'warning_quantity' => $item->warning_quantity ?: $item->desired_quantity,
+            'desired_quantity' => $item->desired_quantity,
+        ]);
     }
 }

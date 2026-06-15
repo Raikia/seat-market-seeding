@@ -326,6 +326,50 @@
         </div>
     </div>
 
+    <div class="modal fade market-seeding-profile-modal {{ $marketSeedingThemeClass }}" id="market-seeding-import-preview-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-import-preview-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="market-seeding-import-preview-modal-label">Import Preview</h5>
+                        <small class="text-muted">Review target changes before applying the import.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-light border market-seeding-preview-summary mb-3">
+                        Preview has not been loaded yet.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Action</th>
+                                    <th class="text-right">Current</th>
+                                    <th class="text-right">Import</th>
+                                    <th class="text-right">After Import</th>
+                                    <th class="text-right">Default Warning</th>
+                                </tr>
+                            </thead>
+                            <tbody class="market-seeding-preview-rows">
+                                <tr>
+                                    <td colspan="6" class="text-muted">No preview loaded.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success market-seeding-run-previewed-import">Import These Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @foreach($markets as $market)
         @php
             $marketCollapseId = 'market-settings-body-' . $market->id;
@@ -340,6 +384,20 @@
                         {{ $market->location_name }} &middot;
                         <span class="market-seeding-tracked-count" data-count="{{ $market->items->count() }}">{{ $market->items->count() }}</span>
                         tracked items
+                        @if($market->last_refreshed_at)
+                            &middot;
+                            @php
+                                $refreshBadge = [
+                                    'success' => 'badge-success',
+                                    'skipped' => 'badge-warning',
+                                    'error' => 'badge-danger',
+                                ][$market->last_refresh_status] ?? 'badge-secondary';
+                            @endphp
+                            <span class="badge {{ $refreshBadge }}">{{ ucfirst($market->last_refresh_status ?: 'unknown') }}</span>
+                            refreshed {{ $market->last_refreshed_at->format('Y-m-d H:i') }}
+                        @else
+                            &middot; <span class="badge badge-secondary">Never refreshed</span>
+                        @endif
                     </small>
                 </div>
                 <div class="card-tools">
@@ -469,7 +527,7 @@
 
                         <div>
                             <h5>Bulk Import</h5>
-                            <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
+                            <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview', $market->id) }}" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                 {{ csrf_field() }}
                                 @if($profiles->isNotEmpty())
                                     <div class="market-seeding-profile-loader">
@@ -509,7 +567,10 @@ Caracal 10" required></textarea>
                                     </div>
                                     <div class="form-group col-md-5">
                                         <label>&nbsp;</label>
-                                        <button type="submit" class="btn btn-success btn-block">Import Items</button>
+                                        <div class="btn-group btn-block">
+                                            <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
+                                            <button type="submit" class="btn btn-success">Import Items</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-check">
@@ -525,7 +586,7 @@ Caracal 10" required></textarea>
                         @if($savedFittingsAvailable)
                             <div>
                                 <h5>Import Saved Fit or Doctrine</h5>
-                                <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST" class="market-seeding-import-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
+                                <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview-saved-fitting', $market->id) }}" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                     {{ csrf_field() }}
                                     <div class="form-group">
                                         <label>Saved Source</label>
@@ -545,7 +606,10 @@ Caracal 10" required></textarea>
                                         </div>
                                         <div class="form-group col-md-5">
                                             <label>&nbsp;</label>
-                                            <button type="submit" class="btn btn-success btn-block">Import Saved Source</button>
+                                            <div class="btn-group btn-block">
+                                                <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
+                                                <button type="submit" class="btn btn-success">Import Saved Source</button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-check">
@@ -612,6 +676,7 @@ Caracal 10" required></textarea>
                 return [$profile->id => $profile->stock_list];
             }));
             var settingsTables = null;
+            var previewImportForm = null;
 
             if ($.fn.DataTable) {
                 settingsTables = $('.market-seeding-settings-table').DataTable({
@@ -697,6 +762,41 @@ Caracal 10" required></textarea>
                 }).always(function () {
                     $button.prop('disabled', false);
                 });
+            });
+
+            $('.market-seeding-preview-import').on('click', function () {
+                var $form = $(this).closest('.market-seeding-import-form');
+                var $button = $(this);
+                var $feedback = $form.find('.market-seeding-import-feedback');
+
+                $button.prop('disabled', true);
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.data('preview-url'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    previewImportForm = $form;
+                    renderImportPreview(response);
+                    $('#market-seeding-import-preview-modal').modal('show');
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false);
+                });
+            });
+
+            $('.market-seeding-run-previewed-import').on('click', function () {
+                if (!previewImportForm) {
+                    return;
+                }
+
+                $('#market-seeding-import-preview-modal').modal('hide');
+                previewImportForm.trigger('submit');
             });
 
             $('.market-seeding-load-profile').on('click', function () {
@@ -837,6 +937,51 @@ Caracal 10" required></textarea>
                 $(tableSelector).find('tbody').html(rows.join(''));
             }
 
+            function renderImportPreview(response) {
+                var summary = response.summary || {};
+                var rows = response.rows || [];
+                var summaryText = [
+                    (summary.total || 0) + ' item(s)',
+                    (summary.new || 0) + ' new',
+                    (summary.increase || 0) + ' increased',
+                    (summary.replace || 0) + ' replaced',
+                    (summary.reduce || 0) + ' reduced',
+                    (summary.unchanged || 0) + ' unchanged'
+                ];
+
+                $('.market-seeding-preview-summary').text(summaryText.join(' · '));
+
+                if (!rows.length) {
+                    $('.market-seeding-preview-rows').html('<tr><td colspan="6" class="text-muted">No valid item lines were found.</td></tr>');
+                    return;
+                }
+
+                $('.market-seeding-preview-rows').html($.map(rows, function (row) {
+                    return '' +
+                        '<tr>' +
+                            '<td>' + escapeHtml(row.type_name) + '</td>' +
+                            '<td>' + previewActionBadge(row.action) + '</td>' +
+                            '<td class="text-right">' + formatWhole(row.current_quantity) + '</td>' +
+                            '<td class="text-right">' + formatWhole(row.import_quantity) + '</td>' +
+                            '<td class="text-right">' + formatWhole(row.new_quantity) + '</td>' +
+                            '<td class="text-right">' + formatWhole(row.warning_quantity) + '</td>' +
+                        '</tr>';
+                }).join(''));
+            }
+
+            function previewActionBadge(action) {
+                var labels = {
+                    new: ['New', 'badge-success'],
+                    increase: ['Increase', 'badge-info'],
+                    replace: ['Replace', 'badge-primary'],
+                    reduce: ['Reduce', 'badge-warning'],
+                    unchanged: ['Unchanged', 'badge-secondary']
+                };
+                var label = labels[action] || [action || 'Unknown', 'badge-secondary'];
+
+                return '<span class="badge ' + label[1] + '">' + escapeHtml(label[0]) + '</span>';
+            }
+
             function updateTrackedCount($card, count, increment) {
                 var $count = $card.find('.market-seeding-tracked-count');
 
@@ -902,6 +1047,12 @@ Caracal 10" required></textarea>
 
             function escapeAttr(value) {
                 return escapeHtml(value).replace(/"/g, '&quot;');
+            }
+
+            function formatWhole(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    maximumFractionDigits: 0
+                });
             }
         });
     </script>

@@ -1,0 +1,159 @@
+@extends('web::layouts.grids.12')
+
+@section('title', 'Market Seeding Restock History')
+@section('page_header', 'Market Seeding Restock History')
+
+@section('content')
+    @php
+        $activeSkin = setting('skin') ?: 'default';
+        $marketSeedingThemeClass = in_array($activeSkin, ['jet', 'iuligigi', 'gigigraphite'], true)
+            ? 'market-seeding-dark-skin'
+            : '';
+        $whole = function ($value) {
+            return number_format((float) $value, 0, '.', ',');
+        };
+        $statusBadge = function ($status) {
+            return [
+                'stocked' => 'badge-success',
+                'low' => 'badge-warning',
+                'empty' => 'badge-danger',
+            ][$status] ?? 'badge-secondary';
+        };
+    @endphp
+
+    <style>
+        .market-seeding-history-shell .card-header {
+            align-items: center;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+        }
+        .market-seeding-history-shell .card-title {
+            float: none;
+        }
+        .market-seeding-history-shell .history-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+        }
+        .market-seeding-history-shell .history-filters .form-control {
+            min-width: 220px;
+        }
+        .market-seeding-dark-skin .card,
+        .market-seeding-dark-skin .card-header,
+        .market-seeding-dark-skin .card-body {
+            background: #222d32;
+            border-color: #3c4b54;
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin .text-muted {
+            color: #b8c7ce !important;
+        }
+        .market-seeding-dark-skin .table {
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin .table thead th,
+        .market-seeding-dark-skin .table td {
+            border-color: #3c4b54;
+        }
+    </style>
+
+    <div class="market-seeding-history-shell {{ $marketSeedingThemeClass }}">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title mb-0">Restock History</h3>
+                    <small class="text-muted">Stock status transitions recorded during ESI refreshes.</small>
+                </div>
+                <a href="{{ route('market-seeding.index') }}" class="btn btn-default btn-sm">
+                    <i class="fas fa-chart-line"></i> Dashboard
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ route('market-seeding.history') }}" class="history-filters mb-3">
+                    <select name="market_id" class="form-control">
+                        <option value="">All Markets</option>
+                        @foreach($markets as $market)
+                            <option value="{{ $market->id }}" {{ request('market_id') == $market->id ? 'selected' : '' }}>
+                                {{ $market->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <select name="status" class="form-control">
+                        <option value="">All Statuses</option>
+                        <option value="low" {{ request('status') === 'low' ? 'selected' : '' }}>Low</option>
+                        <option value="empty" {{ request('status') === 'empty' ? 'selected' : '' }}>Empty</option>
+                        <option value="stocked" {{ request('status') === 'stocked' ? 'selected' : '' }}>Recovered / Stocked</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="{{ route('market-seeding.history') }}" class="btn btn-default">Reset</a>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover market-seeding-history-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Market</th>
+                                <th>Item</th>
+                                <th>Status</th>
+                                <th class="text-right">Current</th>
+                                <th class="text-right">Warning</th>
+                                <th class="text-right">Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($history as $event)
+                                <tr>
+                                    <td data-order="{{ optional($event->created_at)->timestamp }}">{{ optional($event->created_at)->format('Y-m-d H:i') }}</td>
+                                    <td>
+                                        {{ $event->market_name }}
+                                        <div class="text-muted small">{{ $event->location_name }}</div>
+                                    </td>
+                                    <td>{{ $event->type_name }}</td>
+                                    <td>
+                                        <span class="badge {{ $statusBadge($event->current_status) }}">
+                                            {{ ucfirst($event->current_status) }}
+                                        </span>
+                                        @if($event->previous_status)
+                                            <span class="text-muted small">{{ $event->previous_status }} &rarr; {{ $event->current_status }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-right" data-order="{{ $event->current_quantity }}">{{ $whole($event->current_quantity) }}</td>
+                                    <td class="text-right" data-order="{{ $event->warning_quantity }}">{{ $whole($event->warning_quantity) }}</td>
+                                    <td class="text-right" data-order="{{ $event->desired_quantity }}">{{ $whole($event->desired_quantity) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if($history->isEmpty())
+                    <p class="text-muted mb-0">No stock transitions have been recorded yet.</p>
+                @endif
+
+                {{ $history->links() }}
+            </div>
+        </div>
+    </div>
+@endsection
+
+@push('javascript')
+    <script>
+        $(function () {
+            if ($.fn.DataTable) {
+                $('.market-seeding-history-table').DataTable({
+                    order: [[0, 'desc']],
+                    paging: false,
+                    searching: true,
+                    info: false,
+                    autoWidth: false,
+                    language: {
+                        emptyTable: 'No stock transitions have been recorded yet.',
+                        zeroRecords: 'No history entries match this search.'
+                    }
+                });
+            }
+        });
+    </script>
+@endpush

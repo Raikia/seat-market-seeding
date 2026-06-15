@@ -2,6 +2,8 @@
 
 namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
+use Illuminate\Http\Request;
+use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
 use Seat\Web\Http\Controllers\Controller;
@@ -31,6 +33,38 @@ class MarketSeedingController extends Controller
         return response($export, 200, [
             'Content-Type' => 'text/plain',
         ]);
+    }
+
+    public function history(Request $request)
+    {
+        $markets = $this->visibleMarkets()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $visibleMarketIds = $markets->pluck('id');
+
+        $history = MarketStockHistory::query()
+            ->when($visibleMarketIds->isEmpty(), function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($visibleMarketIds->isNotEmpty(), function ($query) use ($visibleMarketIds) {
+                $query->where(function ($query) use ($visibleMarketIds) {
+                    $query->whereIn('market_id', $visibleMarketIds)
+                        ->orWhereNull('market_id');
+                });
+            })
+            ->when($request->filled('market_id'), function ($query) use ($request) {
+                $query->where('market_id', $request->integer('market_id'));
+            })
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $query->where('current_status', $request->input('status'));
+            })
+            ->latest()
+            ->paginate(50)
+            ->appends($request->only('market_id', 'status'));
+
+        return view('seat-market-seeding::history', compact('history', 'markets'));
     }
 
     private function visibleMarkets()

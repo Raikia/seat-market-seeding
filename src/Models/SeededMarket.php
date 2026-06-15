@@ -18,6 +18,10 @@ class SeededMarket extends Model
         'is_structure',
         'role_id',
         'notes',
+        'last_refreshed_at',
+        'last_refresh_status',
+        'last_refresh_message',
+        'last_refresh_orders',
     ];
 
     protected $casts = [
@@ -26,6 +30,8 @@ class SeededMarket extends Model
         'region_id' => 'integer',
         'solar_system_id' => 'integer',
         'is_structure' => 'boolean',
+        'last_refreshed_at' => 'datetime',
+        'last_refresh_orders' => 'integer',
     ];
 
     public function items()
@@ -36,5 +42,10 @@ class SeededMarket extends Model
     public function role()
     {
         return $this->belongsTo(\Seat\Web\Models\Acl\Role::class, 'role_id');
+    }
+
+    public function stockHistory()
+    {
+        return $this->hasMany(MarketStockHistory::class, 'market_id');
     }
 }

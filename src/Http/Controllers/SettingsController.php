@@ -9,6 +9,7 @@ use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
+use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
 use Seat\Eveapi\Models\RefreshToken;
 use Seat\Eveapi\Models\Sde\InvType;
@@ -160,6 +161,25 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock line(s) imported successfully.');
     }
 
+    public function previewItems(Request $request, SeededMarket $market, StockListParser $parser, StockTargetPreviewer $previewer)
+    {
+        $data = $request->validate([
+            'stock_list' => 'required|string',
+            'multiplier' => 'nullable|integer|min:1|max:10000',
+            'mode' => 'required|in:add,replace',
+            'keep_higher_quantity' => 'nullable|boolean',
+        ]);
+
+        $items = $parser->parse($data['stock_list'], (int) ($data['multiplier'] ?? 1));
+
+        return response()->json($previewer->preview(
+            $market,
+            $items,
+            $data['mode'],
+            (bool) ($data['keep_higher_quantity'] ?? false)
+        ));
+    }
+
     public function importSavedFitting(Request $request, SeededMarket $market, SavedFittingSource $savedFittings, StockTargetImporter $importer)
     {
         $data = $request->validate([
@@ -178,6 +198,26 @@ class SettingsController extends Controller
         }
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' saved fitting item(s) imported successfully.');
+    }
+
+    public function previewSavedFitting(Request $request, SeededMarket $market, SavedFittingSource $savedFittings, StockTargetPreviewer $previewer)
+    {
+        $data = $request->validate([
+            'saved_fitting' => 'required|string',
+            'multiplier' => 'nullable|integer|min:1|max:10000',
+            'mode' => 'required|in:add,replace',
+            'keep_higher_quantity' => 'nullable|boolean',
+        ]);
+
+        [$source, $sourceId] = array_pad(explode(':', $data['saved_fitting'], 2), 2, null);
+        $items = $savedFittings->items($source, (int) $sourceId, (int) ($data['multiplier'] ?? 1));
+
+        return response()->json($previewer->preview(
+            $market,
+            $items,
+            $data['mode'],
+            (bool) ($data['keep_higher_quantity'] ?? false)
+        ));
     }
 
     public function refreshMarkets(MarketSeedingRefreshAll $refreshAll)

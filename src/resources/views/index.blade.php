@@ -72,6 +72,10 @@
             display: block;
             margin-top: .2rem;
         }
+        .market-seeding-refresh-status {
+            display: block;
+            margin-top: .2rem;
+        }
         .market-seeding-card .card-tools {
             display: flex;
             flex: 0 0 auto;
@@ -265,6 +269,25 @@
                             Missing {{ $whole($marketReport['totals']['missing_lines']) }} line(s) &middot;
                             Restock {{ $isk($marketReport['totals']['restock_cost']) }} &middot;
                             {{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;
+                        </small>
+                        <small class="text-muted market-seeding-refresh-status">
+                            @if($market->last_refreshed_at)
+                                @php
+                                    $refreshBadge = [
+                                        'success' => 'badge-success',
+                                        'skipped' => 'badge-warning',
+                                        'error' => 'badge-danger',
+                                    ][$market->last_refresh_status] ?? 'badge-secondary';
+                                @endphp
+                                <span class="badge {{ $refreshBadge }}">{{ ucfirst($market->last_refresh_status ?: 'unknown') }}</span>
+                                Refreshed {{ $market->last_refreshed_at->format('Y-m-d H:i') }}
+                                &middot; {{ $whole($market->last_refresh_orders) }} order(s)
+                                @if($market->last_refresh_message)
+                                    &middot; {{ $market->last_refresh_message }}
+                                @endif
+                            @else
+                                <span class="badge badge-secondary">Never refreshed</span>
+                            @endif
                         </small>
                     </div>
                     <div class="card-tools">

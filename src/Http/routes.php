@@ -10,6 +10,11 @@ Route::group([
         'uses' => 'MarketSeedingController@index',
     ]);
 
+    Route::get('/history', [
+        'as' => 'market-seeding.history',
+        'uses' => 'MarketSeedingController@history',
+    ]);
+
     Route::get('/markets/{market}/export', [
         'as' => 'market-seeding.export',
         'uses' => 'MarketSeedingController@export',
@@ -60,9 +65,17 @@ Route::group([
             'as' => 'market-seeding.items.import',
             'uses' => 'SettingsController@importItems',
         ]);
+        Route::post('/markets/{market}/items/preview', [
+            'as' => 'market-seeding.items.preview',
+            'uses' => 'SettingsController@previewItems',
+        ]);
         Route::post('/markets/{market}/items/import-saved-fitting', [
             'as' => 'market-seeding.items.import-saved-fitting',
             'uses' => 'SettingsController@importSavedFitting',
+        ]);
+        Route::post('/markets/{market}/items/preview-saved-fitting', [
+            'as' => 'market-seeding.items.preview-saved-fitting',
+            'uses' => 'SettingsController@previewSavedFitting',
         ]);
         Route::put('/items/{item}', [
             'as' => 'market-seeding.items.update',
