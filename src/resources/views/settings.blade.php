@@ -664,7 +664,8 @@
                     }
 
                     $form.find('select[name="type_id"]').val(null).trigger('change');
-                    $form.find('input[name="desired_quantity"], input[name="warning_quantity"]').val('');
+                    $form.find('input[name="desired_quantity"]').val('1');
+                    $form.find('input[name="warning_percentage"]').val('33');
                     $feedback.addClass('text-success').text(response.message || 'Item saved successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -693,6 +694,7 @@
                 }).done(function (response) {
                     replaceItemRows($form.data('table'), response.items || []);
                     updateTrackedCount(marketCardForForm($form), response.tracked_count);
+                    resetImportForm($form);
                     $feedback.addClass('text-success').text(response.message || 'Import completed successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -705,6 +707,7 @@
                 var $form = $(this).closest('.market-seeding-import-form');
                 var $button = $(this);
                 var $feedback = $form.find('.market-seeding-import-feedback');
+                var $sourceModal = $form.closest('.modal');
 
                 $button.prop('disabled', true);
                 $feedback.hide().removeClass('text-success text-danger').text('');
@@ -719,7 +722,7 @@
                 }).done(function (response) {
                     previewImportForm = $form;
                     renderImportPreview(response);
-                    $('#market-seeding-import-preview-modal').modal('show');
+                    showImportPreviewModal($sourceModal);
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
                 }).always(function () {
@@ -1129,6 +1132,28 @@
             function updateDoctrineUi(marketId, response) {
                 $('.market-seeding-doctrine-summary-shell[data-market-id="' + marketId + '"]').html(response.summary_html || '');
                 $('.market-seeding-tracked-doctrine-list[data-market-id="' + marketId + '"]').html(response.list_html || '');
+            }
+
+            function showImportPreviewModal($sourceModal) {
+                if ($sourceModal.length && $sourceModal.is(':visible')) {
+                    $sourceModal.one('hidden.bs.modal', function () {
+                        $('#market-seeding-import-preview-modal').modal('show');
+                    });
+                    $sourceModal.modal('hide');
+                    return;
+                }
+
+                $('#market-seeding-import-preview-modal').modal('show');
+            }
+
+            function resetImportForm($form) {
+                $form.find('.market-seeding-stock-list').val('');
+                $form.find('.market-seeding-profile-selector').val('');
+                $form.find('.saved-fitting-selector').val(null).trigger('change');
+                $form.find('input[name="multiplier"]').val('1');
+                $form.find('input[name="warning_percentage"]').val('33');
+                $form.find('select[name="mode"]').val('add');
+                $form.find('input[name="keep_higher_quantity"]').prop('checked', true);
             }
 
             function serializeInlineItemForm($form) {

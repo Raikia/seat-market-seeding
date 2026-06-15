@@ -13,8 +13,8 @@ class StockTargetImporter
         $this->projector = $projector;
     }
 
-    public function import(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false): int
+    public function import(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): int
     {
-        return $this->projector->importManualTargets($market, $items, $mode, $keepHigherQuantity);
+        return $this->projector->importManualTargets($market, $items, $mode, $keepHigherQuantity, $warningPercentage);
     }
 }

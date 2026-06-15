@@ -75,9 +75,9 @@ class StockTargetProjector
         });
     }
 
-    public function importManualTargets(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false): int
+    public function importManualTargets(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): int
     {
-        return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity) {
+        return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity, $warningPercentage) {
             if ($mode === 'replace') {
                 $market->itemSources()
                     ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
@@ -112,7 +112,7 @@ class StockTargetProjector
                     'tracked_doctrine_id' => null,
                     'type_name' => $item['type_name'],
                     'quantity' => max(1, $quantity),
-                    'warning_quantity' => $this->quantities->defaultWarningQuantity(max(1, $quantity)),
+                    'warning_quantity' => $this->warningQuantityFromPercentage(max(1, $quantity), $warningPercentage),
                 ]);
             }
 
@@ -249,7 +249,12 @@ class StockTargetProjector
 
     private function warningQuantityForDoctrineSource(MarketSeedingTrackedDoctrine $trackedDoctrine, int $quantity): int
     {
-        $percentage = max(1, min(100, (int) ($trackedDoctrine->warning_percentage ?: 33)));
+        return $this->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?: 33));
+    }
+
+    private function warningQuantityFromPercentage(int $quantity, int $percentage): int
+    {
+        $percentage = max(1, min(100, $percentage));
 
         return max(1, (int) ceil($quantity * ($percentage / 100)));
     }

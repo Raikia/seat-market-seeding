@@ -48,11 +48,11 @@
                             <div class="form-row">
                                 <div class="form-group col-md-5">
                                     <label>Target Quantity</label>
-                                    <input type="number" class="form-control" name="desired_quantity" min="1" required>
+                                    <input type="number" class="form-control" name="desired_quantity" value="1" min="1" required>
                                 </div>
                                 <div class="form-group col-md-5">
-                                    <label>Low Warning</label>
-                                    <input type="number" class="form-control" name="warning_quantity" min="0">
+                                    <label>Low Warning %</label>
+                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
                                 </div>
                                 <div class="form-group col-md-2">
                                     <label>&nbsp;</label>
@@ -101,19 +101,20 @@ Caracal 10" required></textarea>
                                     <label>Multiplier</label>
                                     <input type="number" class="form-control" name="multiplier" value="1" min="1">
                                 </div>
-                                <div class="form-group col-md-4">
+                                <div class="form-group col-md-3">
+                                    <label>Low Warning %</label>
+                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
+                                </div>
+                                <div class="form-group col-md-3">
                                     <label>Import Mode</label>
                                     <select name="mode" class="form-control">
                                         <option value="add">Add to targets</option>
                                         <option value="replace">Replace manual list</option>
                                     </select>
                                 </div>
-                                <div class="form-group col-md-5">
+                                <div class="form-group col-md-3">
                                     <label>&nbsp;</label>
-                                    <div class="btn-group btn-block">
-                                        <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
-                                        <button type="submit" class="btn btn-success">Import Items</button>
-                                    </div>
+                                    <button type="button" class="btn btn-success btn-block market-seeding-preview-import">Preview Import</button>
                                 </div>
                             </div>
                             <div class="form-check">
@@ -139,19 +140,20 @@ Caracal 10" required></textarea>
                                         <label>Multiplier</label>
                                         <input type="number" class="form-control" name="multiplier" value="1" min="1">
                                     </div>
-                                    <div class="form-group col-md-4">
+                                    <div class="form-group col-md-3">
+                                        <label>Low Warning %</label>
+                                        <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
+                                    </div>
+                                    <div class="form-group col-md-3">
                                         <label>Import Mode</label>
                                         <select name="mode" class="form-control">
                                             <option value="add">Add to targets</option>
                                             <option value="replace">Replace manual list</option>
                                         </select>
                                     </div>
-                                    <div class="form-group col-md-5">
+                                    <div class="form-group col-md-3">
                                         <label>&nbsp;</label>
-                                        <div class="btn-group btn-block">
-                                            <button type="button" class="btn btn-default market-seeding-preview-import">Preview</button>
-                                            <button type="submit" class="btn btn-success">Import Saved Source</button>
-                                        </div>
+                                        <button type="button" class="btn btn-success btn-block market-seeding-preview-import">Preview Import</button>
                                     </div>
                                 </div>
                                 <div class="form-check">
