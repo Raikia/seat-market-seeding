@@ -84,7 +84,7 @@ class MarketStockTransitionNotifier
             return self::STATUS_EMPTY;
         }
 
-        $warningQuantity = $item->warning_quantity ?: $item->desired_quantity;
+        $warningQuantity = (int) $item->warning_quantity;
 
         if ($currentQuantity < $warningQuantity) {
             return self::STATUS_LOW;
@@ -126,7 +126,7 @@ class MarketStockTransitionNotifier
             'type_id' => $item->type_id,
             'type_name' => $item->type_name,
             'desired_quantity' => $item->desired_quantity,
-            'warning_quantity' => $item->warning_quantity ?: $item->desired_quantity,
+            'warning_quantity' => (int) $item->warning_quantity,
             'current_quantity' => $currentQuantity,
             'previous_status' => $previousStatus,
             'current_status' => $currentStatus,
@@ -154,7 +154,7 @@ class MarketStockTransitionNotifier
             'previous_status' => $previousStatus,
             'current_status' => $currentStatus,
             'current_quantity' => $currentQuantity,
-            'warning_quantity' => $item->warning_quantity ?: $item->desired_quantity,
+            'warning_quantity' => (int) $item->warning_quantity,
             'desired_quantity' => $item->desired_quantity,
         ]);
     }

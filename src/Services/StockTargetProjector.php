@@ -36,7 +36,7 @@ class StockTargetProjector
                 'tracked_doctrine_id' => null,
                 'type_name' => $typeName,
                 'quantity' => max(1, $quantity),
-                'warning_quantity' => $warningQuantity ?: $this->quantities->defaultWarningQuantity(max(1, $quantity)),
+                'warning_quantity' => $warningQuantity ?? $this->quantities->defaultWarningQuantity(max(1, $quantity)),
             ]);
 
             $this->recalculateMarket($market);
@@ -48,6 +48,55 @@ class StockTargetProjector
             }
 
             $item->save();
+
+            return $item->fresh();
+        });
+    }
+
+    public function setEffectiveTarget(SeededMarketItem $item, int $desiredQuantity, ?int $warningQuantity = null, ?string $notes = null): SeededMarketItem
+    {
+        return DB::transaction(function () use ($item, $desiredQuantity, $warningQuantity, $notes) {
+            $market = $item->market;
+            $sources = $market->itemSources()
+                ->with('trackedDoctrine')
+                ->where('type_id', $item->type_id)
+                ->get();
+            $doctrineProjection = $this->doctrineProjection($sources);
+            $doctrineFloor = $doctrineProjection['max_quantity'] + $doctrineProjection['add_quantity'];
+
+            if ($desiredQuantity <= $doctrineFloor) {
+                $market->itemSources()
+                    ->where('type_id', $item->type_id)
+                    ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
+                    ->delete();
+
+                $this->recalculateMarket($market);
+
+                return $market->items()->where('type_id', $item->type_id)->firstOrFail()->fresh();
+            }
+
+            $manualQuantity = $desiredQuantity - $doctrineProjection['add_quantity'];
+
+            MarketSeedingItemSource::updateOrCreate([
+                'market_id' => $market->id,
+                'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
+                'source_key' => 'manual',
+                'type_id' => $item->type_id,
+            ], [
+                'tracked_doctrine_id' => null,
+                'type_name' => $item->type_name,
+                'quantity' => $manualQuantity,
+                'warning_quantity' => $warningQuantity ?? $this->quantities->defaultWarningQuantity($manualQuantity),
+            ]);
+
+            $this->recalculateMarket($market);
+
+            $item = $market->items()->where('type_id', $item->type_id)->firstOrFail();
+
+            if ($notes !== null) {
+                $item->notes = $notes;
+                $item->save();
+            }
 
             return $item->fresh();
         });
@@ -159,7 +208,7 @@ class StockTargetProjector
         $effectiveTypeIds = [];
 
         foreach ($sources as $typeId => $typeSources) {
-            $projection = $this->projectionForSources($typeSources);
+            $projection = $this->projectSources($typeSources);
 
             if ($projection['quantity'] < 1) {
                 continue;
@@ -195,67 +244,77 @@ class StockTargetProjector
             ->update(['item_id' => null]);
     }
 
-    private function projectionForSources(Collection $sources): array
+    public function projectSources(Collection $sources, ?int $manualQuantityOverride = null, ?int $manualWarningQuantityOverride = null): array
     {
-        $manualQuantity = (int) $sources
-            ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
-            ->sum('quantity');
-        $manualWarningQuantity = (int) $sources
-            ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL)
-            ->sum('warning_quantity');
+        $manualSources = $sources->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL);
+        $manualQuantity = $manualQuantityOverride ?? (int) $manualSources->sum('quantity');
+        $manualWarningQuantity = $manualWarningQuantityOverride ?? (int) $manualSources->sum('warning_quantity');
+        $typeName = optional($sources->first())->type_name;
+        $doctrineProjection = $this->doctrineProjection($sources);
+
+        if ($manualWarningQuantity < 1 && $manualQuantity > 0 && $manualSources->every(fn ($source) => $source->warning_quantity === null)) {
+            $manualWarningQuantity = $manualWarningQuantityOverride === null
+                ? $this->quantities->defaultWarningQuantity($manualQuantity)
+                : $manualWarningQuantity;
+        }
+
+        $baseWarningQuantity = $manualQuantity >= $doctrineProjection['max_quantity']
+            ? $manualWarningQuantity
+            : $doctrineProjection['max_warning_quantity'];
+        $quantity = max($manualQuantity, $doctrineProjection['max_quantity']) + $doctrineProjection['add_quantity'];
+
+        return [
+            'type_name' => $typeName,
+            'quantity' => $quantity,
+            'warning_quantity' => max(0, $baseWarningQuantity + $doctrineProjection['add_warning_quantity']),
+        ];
+    }
+
+    public function doctrineProjection(Collection $sources): array
+    {
         $addQuantity = 0;
         $addWarningQuantity = 0;
         $maxQuantity = 0;
         $maxWarningQuantity = 0;
-        $typeName = optional($sources->first())->type_name;
 
         $sources
             ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
-            ->each(function (MarketSeedingItemSource $source) use (&$addQuantity, &$addWarningQuantity, &$maxQuantity, &$maxWarningQuantity, &$typeName) {
-                $typeName = $source->type_name ?: $typeName;
+            ->each(function (MarketSeedingItemSource $source) use (&$addQuantity, &$addWarningQuantity, &$maxQuantity, &$maxWarningQuantity) {
                 $mergeMode = optional($source->trackedDoctrine)->merge_mode ?: MarketSeedingTrackedDoctrine::MERGE_MAX;
                 $quantity = (int) $source->quantity;
-                $warningQuantity = (int) ($source->warning_quantity ?: $this->quantities->defaultWarningQuantity($quantity));
+                $warningQuantity = $source->warning_quantity ?? $this->quantities->defaultWarningQuantity($quantity);
 
                 if ($mergeMode === MarketSeedingTrackedDoctrine::MERGE_ADD) {
                     $addQuantity += $quantity;
-                    $addWarningQuantity += $warningQuantity;
+                    $addWarningQuantity += (int) $warningQuantity;
                     return;
                 }
 
                 if ($quantity > $maxQuantity) {
                     $maxQuantity = $quantity;
-                    $maxWarningQuantity = $warningQuantity;
+                    $maxWarningQuantity = (int) $warningQuantity;
                 } elseif ($quantity === $maxQuantity) {
-                    $maxWarningQuantity = max($maxWarningQuantity, $warningQuantity);
+                    $maxWarningQuantity = max($maxWarningQuantity, (int) $warningQuantity);
                 }
             });
 
-        if ($manualWarningQuantity < 1 && $manualQuantity > 0) {
-            $manualWarningQuantity = $this->quantities->defaultWarningQuantity($manualQuantity);
-        }
-
-        $baseWarningQuantity = $manualQuantity >= $maxQuantity
-            ? $manualWarningQuantity
-            : $maxWarningQuantity;
-        $quantity = max($manualQuantity, $maxQuantity) + $addQuantity;
-
         return [
-            'type_name' => $typeName,
-            'quantity' => $quantity,
-            'warning_quantity' => max(1, $baseWarningQuantity + $addWarningQuantity),
+            'add_quantity' => $addQuantity,
+            'add_warning_quantity' => $addWarningQuantity,
+            'max_quantity' => $maxQuantity,
+            'max_warning_quantity' => $maxWarningQuantity,
         ];
     }
 
     private function warningQuantityForDoctrineSource(MarketSeedingTrackedDoctrine $trackedDoctrine, int $quantity): int
     {
-        return $this->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?: 33));
+        return $this->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?? 33));
     }
 
     private function warningQuantityFromPercentage(int $quantity, int $percentage): int
     {
-        $percentage = max(1, min(100, $percentage));
+        $percentage = max(0, min(100, $percentage));
 
-        return max(1, (int) ceil($quantity * ($percentage / 100)));
+        return max(0, (int) ceil($quantity * ($percentage / 100)));
     }
 }

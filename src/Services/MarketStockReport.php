@@ -113,7 +113,7 @@ class MarketStockReport
                 }
 
                 $missingQuantity = max(0, $item->desired_quantity - $currentQuantity);
-                $warningQuantity = $item->warning_quantity ?: $item->desired_quantity;
+                $warningQuantity = (int) $item->warning_quantity;
                 $isLow = $currentQuantity < $warningQuantity;
                 $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
                 $restockCost = $missingQuantity * (float) $jitaPrice;

@@ -134,7 +134,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'type_id' => 'required|integer',
             'desired_quantity' => 'required|integer|min:1',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'notes' => 'nullable|string',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
@@ -205,7 +205,7 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'multiplier' => 'required|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'merge_mode' => 'required|in:max,add',
         ]);
 
@@ -243,7 +243,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'stock_list' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
@@ -274,7 +274,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'stock_list' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
@@ -295,7 +295,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'saved_fitting' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
@@ -316,7 +316,7 @@ class SettingsController extends Controller
         $data = $request->validate([
             'saved_fitting' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
@@ -366,12 +366,10 @@ class SettingsController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $item = $projector->setManualTarget(
-            $item->market,
-            (int) $item->type_id,
-            $item->type_name,
+        $item = $projector->setEffectiveTarget(
+            $item,
             (int) $data['desired_quantity'],
-            isset($data['warning_quantity']) ? (int) $data['warning_quantity'] : null,
+            array_key_exists('warning_quantity', $data) ? (int) $data['warning_quantity'] : null,
             $data['notes'] ?? null
         );
 
@@ -516,7 +514,7 @@ class SettingsController extends Controller
         return [
             'doctrine_id' => 'required|integer',
             'multiplier' => 'required|integer|min:1|max:10000',
-            'warning_percentage' => 'required|integer|min:1|max:100',
+            'warning_percentage' => 'required|integer|min:0|max:100',
             'merge_mode' => 'required|in:max,add',
         ];
     }
@@ -593,9 +591,9 @@ class SettingsController extends Controller
 
     private function warningQuantityFromPercentage(int $quantity, int $percentage): int
     {
-        $percentage = max(1, min(100, $percentage));
+        $percentage = max(0, min(100, $percentage));
 
-        return max(1, (int) ceil(max(1, $quantity) * ($percentage / 100)));
+        return max(0, (int) ceil(max(1, $quantity) * ($percentage / 100)));
     }
 
     private function escapeLike(string $value): string

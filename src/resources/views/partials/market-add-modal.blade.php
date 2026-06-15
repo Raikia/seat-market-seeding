@@ -52,7 +52,7 @@
                                 </div>
                                 <div class="form-group col-md-5">
                                     <label>Low Warning %</label>
-                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
+                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
                                 </div>
                                 <div class="form-group col-md-2">
                                     <label>&nbsp;</label>
@@ -103,7 +103,7 @@ Caracal 10" required></textarea>
                                 </div>
                                 <div class="form-group col-md-3">
                                     <label>Low Warning %</label>
-                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
+                                    <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
                                 </div>
                                 <div class="form-group col-md-3">
                                     <label>Import Mode</label>
@@ -142,7 +142,7 @@ Caracal 10" required></textarea>
                                     </div>
                                     <div class="form-group col-md-3">
                                         <label>Low Warning %</label>
-                                        <input type="number" class="form-control" name="warning_percentage" value="33" min="1" max="100" required>
+                                        <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
                                     </div>
                                     <div class="form-group col-md-3">
                                         <label>Import Mode</label>
@@ -182,7 +182,7 @@ Caracal 10" required></textarea>
                                     </div>
                                     <div class="form-group col-md-2">
                                         <label>Low Warning %</label>
-                                        <input type="number" name="warning_percentage" class="form-control" value="33" min="1" max="100" required>
+                                        <input type="number" name="warning_percentage" class="form-control" value="33" min="0" max="100" required>
                                     </div>
                                     <div class="form-group col-md-3">
                                         <label>Merge Mode</label>

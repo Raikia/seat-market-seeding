@@ -2,17 +2,16 @@
 
 namespace Raikia\SeatMarketSeeding\Services;
 
-use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
-use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\SeededMarket;
 
 class StockTargetPreviewer
 {
-    private StockTargetQuantity $quantities;
+    private StockTargetProjector $projector;
 
-    public function __construct(StockTargetQuantity $quantities)
+    public function __construct(StockTargetProjector $projector)
     {
-        $this->quantities = $quantities;
+        $this->projector = $projector;
     }
 
     public function preview(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): array
@@ -30,7 +29,11 @@ class StockTargetPreviewer
             $currentManualQuantity = (int) optional($manualSources->get($item['type_id']))->quantity;
             $importQuantity = (int) $item['quantity'];
             $newManualQuantity = $this->manualQuantity($currentManualQuantity, $importQuantity, $mode, $keepHigherQuantity);
-            $projection = $this->effectiveProjection($sources->get($item['type_id'], collect()), $newManualQuantity, $warningPercentage);
+            $projection = $this->projector->projectSources(
+                $sources->get($item['type_id'], collect()),
+                $newManualQuantity,
+                $this->warningQuantityFromPercentage($newManualQuantity, $warningPercentage)
+            );
 
             return [
                 'type_id' => (int) $item['type_id'],
@@ -69,50 +72,11 @@ class StockTargetPreviewer
         return $currentManualQuantity + $importQuantity;
     }
 
-    private function effectiveProjection($sources, int $manualQuantity, int $warningPercentage): array
-    {
-        $addQuantity = 0;
-        $addWarningQuantity = 0;
-        $maxQuantity = 0;
-        $maxWarningQuantity = 0;
-
-        collect($sources)
-            ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
-            ->each(function (MarketSeedingItemSource $source) use (&$addQuantity, &$addWarningQuantity, &$maxQuantity, &$maxWarningQuantity) {
-                $mergeMode = optional($source->trackedDoctrine)->merge_mode ?: MarketSeedingTrackedDoctrine::MERGE_MAX;
-                $quantity = (int) $source->quantity;
-                $warningQuantity = (int) ($source->warning_quantity ?: $this->quantities->defaultWarningQuantity($quantity));
-
-                if ($mergeMode === MarketSeedingTrackedDoctrine::MERGE_ADD) {
-                    $addQuantity += $quantity;
-                    $addWarningQuantity += $warningQuantity;
-                    return;
-                }
-
-                if ($quantity > $maxQuantity) {
-                    $maxQuantity = $quantity;
-                    $maxWarningQuantity = $warningQuantity;
-                } elseif ($quantity === $maxQuantity) {
-                    $maxWarningQuantity = max($maxWarningQuantity, $warningQuantity);
-                }
-            });
-
-        $manualWarningQuantity = $this->warningQuantityFromPercentage($manualQuantity, $warningPercentage);
-        $baseWarningQuantity = $manualQuantity >= $maxQuantity
-            ? $manualWarningQuantity
-            : $maxWarningQuantity;
-
-        return [
-            'quantity' => max($manualQuantity, $maxQuantity) + $addQuantity,
-            'warning_quantity' => max(1, $baseWarningQuantity + $addWarningQuantity),
-        ];
-    }
-
     private function warningQuantityFromPercentage(int $quantity, int $percentage): int
     {
-        $percentage = max(1, min(100, $percentage));
+        $percentage = max(0, min(100, $percentage));
 
-        return max(1, (int) ceil(max(1, $quantity) * ($percentage / 100)));
+        return max(0, (int) ceil(max(1, $quantity) * ($percentage / 100)));
     }
 
     private function action(int $currentQuantity, int $newQuantity, bool $exists, string $mode): string

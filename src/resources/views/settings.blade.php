@@ -695,6 +695,7 @@
                     replaceItemRows($form.data('table'), response.items || []);
                     updateTrackedCount(marketCardForForm($form), response.tracked_count);
                     resetImportForm($form);
+                    showSettingsNotice(response.message || 'Import completed successfully.', 'success');
                     $feedback.addClass('text-success').text(response.message || 'Import completed successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -786,7 +787,7 @@
                 $.ajax({
                     url: $form.attr('action'),
                     method: 'POST',
-                    data: $form.serialize(),
+                    data: serializeInlineItemForm($form),
                     headers: {
                         Accept: 'application/json'
                     }
@@ -1144,6 +1145,21 @@
                 }
 
                 $('#market-seeding-import-preview-modal').modal('show');
+            }
+
+            function showSettingsNotice(message, type) {
+                var alertClass = type === 'success' ? 'alert-success' : 'alert-info';
+                var $notice = $(
+                    '<div class="alert ' + alertClass + ' alert-dismissible fade show market-seeding-runtime-notice" role="alert">' +
+                        escapeHtml(message) +
+                        '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
+                            '<span aria-hidden="true">&times;</span>' +
+                        '</button>' +
+                    '</div>'
+                );
+
+                $('.market-seeding-runtime-notice').remove();
+                $('.market-seeding-settings-shell').prepend($notice);
             }
 
             function resetImportForm($form) {

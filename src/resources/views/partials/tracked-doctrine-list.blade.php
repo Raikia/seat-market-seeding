@@ -28,7 +28,7 @@
                             </form>
                         </td>
                         <td class="text-right" style="width: 130px;">
-                            <input form="tracked-doctrine-{{ $trackedDoctrine->id }}" type="number" name="warning_percentage" class="form-control form-control-sm text-right" value="{{ $trackedDoctrine->warning_percentage }}" min="1" max="100">
+                            <input form="tracked-doctrine-{{ $trackedDoctrine->id }}" type="number" name="warning_percentage" class="form-control form-control-sm text-right" value="{{ $trackedDoctrine->warning_percentage }}" min="0" max="100">
                         </td>
                         <td style="width: 260px;">
                             <select form="tracked-doctrine-{{ $trackedDoctrine->id }}" name="merge_mode" class="form-control form-control-sm">
