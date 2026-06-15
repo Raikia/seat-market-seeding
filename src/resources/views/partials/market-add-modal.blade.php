@@ -169,7 +169,7 @@ Caracal 10" required></textarea>
 
                     @if($seatFittingAvailable)
                         <div class="tab-pane fade" id="{{ $doctrineTabId }}" role="tabpanel" aria-labelledby="{{ $doctrineTabId }}-tab">
-                            <form action="{{ route('market-seeding.tracked-doctrines.store', $market->id) }}" method="POST" class="market-seeding-tracked-doctrine-form" data-market-id="{{ $market->id }}">
+                            <form action="{{ route('market-seeding.tracked-doctrines.store', $market->id) }}" method="POST" class="market-seeding-tracked-doctrine-form" data-market-id="{{ $market->id }}" data-preview-url="{{ route('market-seeding.tracked-doctrines.preview', $market->id) }}">
                                 {{ csrf_field() }}
                                 <div class="form-row">
                                     <div class="form-group col-md-4">
@@ -193,7 +193,7 @@ Caracal 10" required></textarea>
                                     </div>
                                     <div class="form-group col-md-2">
                                         <label>&nbsp;</label>
-                                        <button type="submit" class="btn btn-primary btn-block">Track</button>
+                                        <button type="button" class="btn btn-success btn-block market-seeding-preview-doctrine">Preview Doctrine</button>
                                     </div>
                                 </div>
                                 <div class="market-seeding-doctrine-feedback small mb-2" style="display: none;"></div>

@@ -212,6 +212,32 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking updated successfully.');
     }
 
+    public function previewTrackedDoctrine(Request $request, SeededMarket $market, DoctrineTrackingSync $sync, StockTargetPreviewer $previewer)
+    {
+        $data = $request->validate($this->trackedDoctrineRules());
+
+        if (!$sync->isAvailable()) {
+            abort(404);
+        }
+
+        $doctrine = SeatFittingPluginHelper::getDoctrineWithFittings((int) $data['doctrine_id']);
+
+        if (!$doctrine) {
+            return response()->json([
+                'message' => 'The selected doctrine could not be found.',
+            ], 422);
+        }
+
+        return response()->json($previewer->previewDoctrine(
+            $market,
+            (int) $data['doctrine_id'],
+            $doctrine->name,
+            $sync->doctrineItems((int) $data['doctrine_id'], (int) $data['multiplier']),
+            (int) $data['warning_percentage'],
+            $data['merge_mode']
+        ));
+    }
+
     public function updateTrackedDoctrine(Request $request, MarketSeedingTrackedDoctrine $trackedDoctrine, DoctrineTrackingSync $sync)
     {
         $data = $request->validate([

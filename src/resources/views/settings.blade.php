@@ -692,6 +692,8 @@
             }));
             var settingsTables = null;
             var previewImportForm = null;
+            var previewSourceModal = null;
+            var previewApplying = false;
 
             if ($.fn.DataTable) {
                 settingsTables = $('.market-seeding-settings-table').DataTable({
@@ -809,13 +811,51 @@
                 });
             });
 
+            $('.market-seeding-preview-doctrine').on('click', function () {
+                var $form = $(this).closest('.market-seeding-tracked-doctrine-form');
+                var $button = $(this);
+                var $feedback = doctrineFeedbackForForm($form);
+                var $sourceModal = $form.closest('.modal');
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Previewing');
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.data('preview-url'),
+                    method: 'POST',
+                    data: serializeInlineItemForm($form),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    previewImportForm = $form;
+                    renderImportPreview(response);
+                    showImportPreviewModal($sourceModal);
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false).html('Preview Doctrine');
+                });
+            });
+
             $('.market-seeding-run-previewed-import').on('click', function () {
                 if (!previewImportForm) {
                     return;
                 }
 
+                previewApplying = true;
+                previewSourceModal = null;
                 $('#market-seeding-import-preview-modal').modal('hide');
                 previewImportForm.trigger('submit');
+            });
+
+            $('#market-seeding-import-preview-modal').on('hidden.bs.modal', function () {
+                if (previewSourceModal && previewSourceModal.length && !previewApplying) {
+                    previewSourceModal.modal('show');
+                }
+
+                previewApplying = false;
+                previewSourceModal = null;
             });
 
             $(document).on('submit', '.market-seeding-tracked-doctrine-form', function (event) {
@@ -1208,7 +1248,7 @@
                     return $('[form="' + formId + '"][type="submit"]').first();
                 }
 
-                return $form.find('button[type="submit"]').first();
+                return $form.find('button[type="submit"], .market-seeding-preview-doctrine').first();
             }
 
             function updateDoctrineUi(marketId, response) {
@@ -1217,6 +1257,9 @@
             }
 
             function showImportPreviewModal($sourceModal) {
+                previewApplying = false;
+                previewSourceModal = $sourceModal.length ? $sourceModal : null;
+
                 if ($sourceModal.length && $sourceModal.is(':visible')) {
                     $sourceModal.one('hidden.bs.modal', function () {
                         $('#market-seeding-import-preview-modal').modal('show');
@@ -1270,6 +1313,7 @@
                     (summary.increase || 0) + ' increased',
                     (summary.replace || 0) + ' replaced',
                     (summary.reduce || 0) + ' reduced',
+                    (summary.remove || 0) + ' removed',
                     (summary.unchanged || 0) + ' unchanged'
                 ];
 
@@ -1332,6 +1376,7 @@
                     increase: ['Increase', 'badge-info'],
                     replace: ['Replace', 'badge-primary'],
                     reduce: ['Reduce', 'badge-warning'],
+                    remove: ['Remove', 'badge-danger'],
                     unchanged: ['Unchanged', 'badge-secondary']
                 };
                 var label = labels[action] || [action || 'Unknown', 'badge-secondary'];

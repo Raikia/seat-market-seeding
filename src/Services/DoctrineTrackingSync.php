@@ -92,4 +92,9 @@ class DoctrineTrackingSync
             throw $e;
         }
     }
+
+    public function doctrineItems(int $doctrineId, int $multiplier): array
+    {
+        return $this->savedFittings->items('seat-fitting-doctrine', $doctrineId, $multiplier);
+    }
 }

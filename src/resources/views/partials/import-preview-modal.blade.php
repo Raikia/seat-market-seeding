@@ -37,7 +37,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success market-seeding-run-previewed-import">Import These Changes</button>
+                <button type="button" class="btn btn-success market-seeding-run-previewed-import">Apply These Changes</button>
             </div>
         </div>
     </div>

@@ -93,6 +93,10 @@ Route::group([
             'as' => 'market-seeding.tracked-doctrines.store',
             'uses' => 'SettingsController@storeTrackedDoctrine',
         ]);
+        Route::post('/markets/{market}/tracked-doctrines/preview', [
+            'as' => 'market-seeding.tracked-doctrines.preview',
+            'uses' => 'SettingsController@previewTrackedDoctrine',
+        ]);
         Route::put('/tracked-doctrines/{trackedDoctrine}', [
             'as' => 'market-seeding.tracked-doctrines.update',
             'uses' => 'SettingsController@updateTrackedDoctrine',

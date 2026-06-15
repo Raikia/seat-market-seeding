@@ -24,8 +24,8 @@ class SavedFittingSource
             return [];
         }
 
-        return $this->seatFittingSources($query)
-            ->merge($this->characterFittingSources($query))
+        return collect($this->seatFittingSources($query)->all())
+            ->merge(collect($this->characterFittingSources($query)->all()))
             ->sortBy('text')
             ->values()
             ->all();
