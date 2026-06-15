@@ -21,7 +21,7 @@ class StockTargetImporter
 
                 $target->type_name = $item['type_name'];
                 $target->desired_quantity = $this->desiredQuantity($target, (int) $item['quantity'], $mode, $keepHigherQuantity);
-                $target->warning_quantity = $target->warning_quantity ?: $target->desired_quantity;
+                $target->warning_quantity = $target->warning_quantity ?: $this->defaultWarningQuantity($target->desired_quantity);
                 $target->save();
             }
 
@@ -40,5 +40,10 @@ class StockTargetImporter
         }
 
         return (int) $target->desired_quantity + $quantity;
+    }
+
+    private function defaultWarningQuantity(int $desiredQuantity): int
+    {
+        return max(1, (int) ceil($desiredQuantity * 0.33));
     }
 }
