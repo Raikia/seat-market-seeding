@@ -127,8 +127,10 @@ class MarketSeedingController extends Controller
         $roleIds = $user->roles->pluck('id');
 
         return SeededMarket::query()
-            ->whereNull('role_id')
-            ->orWhereIn('role_id', $roleIds);
+            ->where(function ($query) use ($roleIds) {
+                $query->whereNull('role_id')
+                    ->orWhereIn('role_id', $roleIds);
+            });
     }
 
     private function canViewMarket(SeededMarket $market): bool

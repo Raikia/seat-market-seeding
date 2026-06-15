@@ -95,7 +95,8 @@ class SavedFittingSource
                 ];
             });
 
-        return $doctrines->merge($fits);
+        return collect($doctrines->all())
+            ->merge(collect($fits->all()));
     }
 
     private function characterFittingSources(string $query): Collection
