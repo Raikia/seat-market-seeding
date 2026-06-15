@@ -14,6 +14,7 @@ class MarketSeedingRefreshAll
         $results = [
             'markets' => 0,
             'orders' => 0,
+            'notifications' => 0,
             'errors' => [],
             'skipped' => [],
         ];
@@ -27,6 +28,7 @@ class MarketSeedingRefreshAll
             : $this->findStructureMarketToken();
 
         $refresh = app(EsiMarketOrderRefresh::class);
+        $notifier = app(MarketStockTransitionNotifier::class);
 
         foreach ($markets as $market) {
             if ($market->is_structure && !$structureToken) {
@@ -36,6 +38,7 @@ class MarketSeedingRefreshAll
 
             try {
                 $results['orders'] += $refresh->refresh($market, $market->is_structure ? $structureToken : null);
+                $results['notifications'] += $notifier->checkMarket($market);
                 $results['markets']++;
             } catch (\Throwable $e) {
                 $results['errors'][] = sprintf('%s: %s', $market->name, $e->getMessage());

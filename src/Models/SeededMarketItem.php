@@ -15,6 +15,7 @@ class SeededMarketItem extends Model
         'type_name',
         'desired_quantity',
         'warning_quantity',
+        'stock_status',
         'notes',
     ];
 

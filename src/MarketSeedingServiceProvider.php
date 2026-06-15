@@ -34,6 +34,7 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
         $this->mergeConfigFrom(
             __DIR__ . '/Config/market-seeding.sidebar.php', 'package.sidebar'
         );
+        $this->registerNotificationAlerts();
         $this->registerDatabaseSeeders([
             ScheduleSeeder::class,
             ProfileSeeder::class,
@@ -104,6 +105,15 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
                 RefreshMarketSeedingMarkets::class,
             ]);
         }
+    }
+
+    private function registerNotificationAlerts()
+    {
+        $alerts = require __DIR__ . '/Config/market-seeding.alerts.php';
+
+        config([
+            'notifications.alerts' => array_merge(config('notifications.alerts', []), $alerts),
+        ]);
     }
 
 }

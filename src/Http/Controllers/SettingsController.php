@@ -156,9 +156,10 @@ class SettingsController extends Controller
 
         $results = $refreshAll->refresh($refreshToken);
         $message = sprintf(
-            'Market refresh completed. %d market(s) refreshed, %d order(s) updated.',
+            'Market refresh completed. %d market(s) refreshed, %d order(s) updated, %d stock notification(s) queued.',
             $results['markets'],
-            $results['orders']
+            $results['orders'],
+            $results['notifications'] ?? 0
         );
 
         if (!empty($results['skipped'])) {

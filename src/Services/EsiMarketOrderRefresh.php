@@ -39,6 +39,7 @@ class EsiMarketOrderRefresh
 
         foreach ($market->items->pluck('type_id') as $typeId) {
             $page = 1;
+            $orders = collect();
 
             do {
                 $response = $client->setQueryString([
@@ -49,13 +50,16 @@ class EsiMarketOrderRefresh
                     'region_id' => $market->region_id,
                 ]);
 
-                $orders = collect($response->getBody())
-                    ->where('location_id', $market->location_id);
+                $orders = $orders->merge(
+                    collect($response->getBody())
+                        ->where('location_id', $market->location_id)
+                );
 
-                $count += $this->upsertOrders($orders);
                 $pages = $response->getPagesCount() ?: 1;
                 $page++;
             } while ($page <= $pages);
+
+            $count += $this->replaceSellOrders($market->location_id, [$typeId], $orders);
         }
 
         return $count;
@@ -68,6 +72,7 @@ class EsiMarketOrderRefresh
 
         foreach ($market->items->pluck('type_id') as $typeId) {
             $page = 1;
+            $orders = collect();
 
             do {
                 $response = $client->setQueryString([
@@ -78,13 +83,16 @@ class EsiMarketOrderRefresh
                     'region_id' => self::THE_FORGE_REGION_ID,
                 ]);
 
-                $orders = collect($response->getBody())
-                    ->where('location_id', self::JITA_STATION_ID);
+                $orders = $orders->merge(
+                    collect($response->getBody())
+                        ->where('location_id', self::JITA_STATION_ID)
+                );
 
-                $count += $this->upsertOrders($orders);
                 $pages = $response->getPagesCount() ?: 1;
                 $page++;
             } while ($page <= $pages);
+
+            $count += $this->replaceSellOrders(self::JITA_STATION_ID, [$typeId], $orders);
         }
 
         return $count;
@@ -101,6 +109,7 @@ class EsiMarketOrderRefresh
 
         $count = 0;
         $page = 1;
+        $orders = collect();
 
         do {
             $response = $client->setQueryString([
@@ -109,22 +118,34 @@ class EsiMarketOrderRefresh
                 'structure_id' => $market->location_id,
             ]);
 
-            $orders = collect($response->getBody())
-                ->where('is_buy_order', false)
-                ->whereIn('type_id', $trackedTypeIds)
-                ->map(function ($order) use ($market) {
-                    $order->location_id = $market->location_id;
-                    $order->system_id = $order->system_id ?? $market->solar_system_id ?? 0;
+            $orders = $orders->merge(
+                collect($response->getBody())
+                    ->where('is_buy_order', false)
+                    ->whereIn('type_id', $trackedTypeIds)
+                    ->map(function ($order) use ($market) {
+                        $order->location_id = $market->location_id;
+                        $order->system_id = $order->system_id ?? $market->solar_system_id ?? 0;
 
-                    return $order;
-                });
+                        return $order;
+                    })
+            );
 
-            $count += $this->upsertOrders($orders);
             $pages = $response->getPagesCount() ?: 1;
             $page++;
         } while ($page <= $pages);
 
-        return $count;
+        return $this->replaceSellOrders($market->location_id, $trackedTypeIds, $orders);
+    }
+
+    private function replaceSellOrders(int $locationId, array $typeIds, $orders): int
+    {
+        MarketOrder::query()
+            ->where('location_id', $locationId)
+            ->whereIn('type_id', $typeIds)
+            ->where('is_buy_order', false)
+            ->delete();
+
+        return $this->upsertOrders($orders);
     }
 
     private function upsertOrders($orders): int
