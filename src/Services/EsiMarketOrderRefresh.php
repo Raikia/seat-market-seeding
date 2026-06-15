@@ -13,6 +13,8 @@ class EsiMarketOrderRefresh
     const THE_FORGE_REGION_ID = 10000002;
     const JITA_STATION_ID = 60003760;
 
+    private array $refreshedLocationTypes = [];
+
     public function refresh(SeededMarket $market, ?RefreshToken $refreshToken = null): int
     {
         $market->load('items');
@@ -34,43 +36,32 @@ class EsiMarketOrderRefresh
 
     private function refreshStationMarket(SeededMarket $market): int
     {
-        $client = new EseyeClient();
-        $count = 0;
-
-        foreach ($market->items->pluck('type_id') as $typeId) {
-            $page = 1;
-            $orders = collect();
-
-            do {
-                $response = $client->setQueryString([
-                    'order_type' => 'sell',
-                    'type_id' => $typeId,
-                    'page' => $page,
-                ])->invoke('get', '/markets/{region_id}/orders/', [
-                    'region_id' => $market->region_id,
-                ]);
-
-                $orders = $orders->merge(
-                    collect($response->getBody())
-                        ->where('location_id', $market->location_id)
-                );
-
-                $pages = $response->getPagesCount() ?: 1;
-                $page++;
-            } while ($page <= $pages);
-
-            $count += $this->replaceSellOrders($market->location_id, [$typeId], $orders);
-        }
-
-        return $count;
+        return $this->refreshRegionLocationTypeOrders(
+            $market->region_id,
+            $market->location_id,
+            $market->items->pluck('type_id')->all()
+        );
     }
 
     private function refreshJitaOrders(SeededMarket $market): int
     {
+        return $this->refreshRegionLocationTypeOrders(
+            self::THE_FORGE_REGION_ID,
+            self::JITA_STATION_ID,
+            $market->items->pluck('type_id')->all()
+        );
+    }
+
+    private function refreshRegionLocationTypeOrders(int $regionId, int $locationId, array $typeIds): int
+    {
         $client = new EseyeClient();
         $count = 0;
 
-        foreach ($market->items->pluck('type_id') as $typeId) {
+        foreach (collect($typeIds)->map(fn ($typeId) => (int) $typeId)->unique() as $typeId) {
+            if ($this->hasRefreshedLocationType($locationId, $typeId)) {
+                continue;
+            }
+
             $page = 1;
             $orders = collect();
 
@@ -80,19 +71,20 @@ class EsiMarketOrderRefresh
                     'type_id' => $typeId,
                     'page' => $page,
                 ])->invoke('get', '/markets/{region_id}/orders/', [
-                    'region_id' => self::THE_FORGE_REGION_ID,
+                    'region_id' => $regionId,
                 ]);
 
                 $orders = $orders->merge(
                     collect($response->getBody())
-                        ->where('location_id', self::JITA_STATION_ID)
+                        ->where('location_id', $locationId)
                 );
 
                 $pages = $response->getPagesCount() ?: 1;
                 $page++;
             } while ($page <= $pages);
 
-            $count += $this->replaceSellOrders(self::JITA_STATION_ID, [$typeId], $orders);
+            $count += $this->replaceSellOrders($locationId, [$typeId], $orders);
+            $this->markLocationTypeRefreshed($locationId, $typeId);
         }
 
         return $count;
@@ -146,6 +138,21 @@ class EsiMarketOrderRefresh
             ->delete();
 
         return $this->upsertOrders($orders);
+    }
+
+    private function hasRefreshedLocationType(int $locationId, int $typeId): bool
+    {
+        return array_key_exists($this->locationTypeKey($locationId, $typeId), $this->refreshedLocationTypes);
+    }
+
+    private function markLocationTypeRefreshed(int $locationId, int $typeId): void
+    {
+        $this->refreshedLocationTypes[$this->locationTypeKey($locationId, $typeId)] = true;
+    }
+
+    private function locationTypeKey(int $locationId, int $typeId): string
+    {
+        return sprintf('%d:%d', $locationId, $typeId);
     }
 
     private function upsertOrders($orders): int
