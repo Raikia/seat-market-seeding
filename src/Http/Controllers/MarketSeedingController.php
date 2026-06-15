@@ -42,18 +42,61 @@ class MarketSeedingController extends Controller
             ->orderBy('name')
             ->get();
 
-        $history = $this->visibleHistory()
+        $history = $this->filteredVisibleHistory($request)
+            ->latest()
+            ->paginate(50)
+            ->appends($request->only('market_id', 'status'));
+
+        $chartData = $this->historyChartData($request);
+
+        return view('seat-market-seeding::history', compact('history', 'markets', 'chartData'));
+    }
+
+    private function filteredVisibleHistory(Request $request)
+    {
+        return $this->visibleHistory()
             ->when($request->filled('market_id'), function ($query) use ($request) {
                 $query->where('market_id', $request->integer('market_id'));
             })
             ->when($request->filled('status'), function ($query) use ($request) {
                 $query->where('current_status', $request->input('status'));
-            })
-            ->latest()
-            ->paginate(50)
-            ->appends($request->only('market_id', 'status'));
+            });
+    }
 
-        return view('seat-market-seeding::history', compact('history', 'markets'));
+    private function historyChartData(Request $request): array
+    {
+        $labels = collect(range(29, 0))
+            ->map(function (int $daysAgo) {
+                return now()->subDays($daysAgo)->format('Y-m-d');
+            });
+
+        $events = $this->filteredVisibleHistory($request)
+            ->where('created_at', '>=', now()->subDays(29)->startOfDay())
+            ->get(['current_status', 'created_at'])
+            ->groupBy(function (MarketStockHistory $event) {
+                return optional($event->created_at)->format('Y-m-d');
+            });
+
+        $series = [
+            'low' => [],
+            'empty' => [],
+            'stocked' => [],
+        ];
+
+        foreach ($labels as $label) {
+            $dayEvents = $events->get($label, collect());
+
+            foreach (array_keys($series) as $status) {
+                $series[$status][] = $dayEvents->where('current_status', $status)->count();
+            }
+        }
+
+        return [
+            'labels' => $labels->map(function (string $date) {
+                return \Carbon\Carbon::createFromFormat('Y-m-d', $date)->format('M j');
+            })->values(),
+            'series' => $series,
+        ];
     }
 
     private function visibleHistory()
@@ -67,8 +110,10 @@ class MarketSeedingController extends Controller
         $roleIds = $user->roles->pluck('id');
 
         return MarketStockHistory::query()
-            ->whereNull('role_id')
-            ->orWhereIn('role_id', $roleIds);
+            ->where(function ($query) use ($roleIds) {
+                $query->whereNull('role_id')
+                    ->orWhereIn('role_id', $roleIds);
+            });
     }
 
     private function visibleMarkets()

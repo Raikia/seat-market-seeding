@@ -39,6 +39,11 @@
         .market-seeding-history-shell .history-filters .form-control {
             min-width: 220px;
         }
+        .market-seeding-history-chart {
+            height: 260px;
+            margin-bottom: 1rem;
+            position: relative;
+        }
         .market-seeding-dark-skin .card,
         .market-seeding-dark-skin .card-header,
         .market-seeding-dark-skin .card-body {
@@ -65,9 +70,6 @@
                     <h3 class="card-title mb-0">Restock History</h3>
                     <small class="text-muted">Stock status transitions recorded during ESI refreshes.</small>
                 </div>
-                <a href="{{ route('market-seeding.index') }}" class="btn btn-default btn-sm">
-                    <i class="fas fa-chart-line"></i> Dashboard
-                </a>
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('market-seeding.history') }}" class="history-filters mb-3">
@@ -88,6 +90,10 @@
                     <button type="submit" class="btn btn-primary">Filter</button>
                     <a href="{{ route('market-seeding.history') }}" class="btn btn-default">Reset</a>
                 </form>
+
+                <div class="market-seeding-history-chart">
+                    <canvas id="market-seeding-history-chart"></canvas>
+                </div>
 
                 <div class="table-responsive">
                     <table class="table table-sm table-hover market-seeding-history-table">
@@ -141,6 +147,57 @@
 @push('javascript')
     <script>
         $(function () {
+            var chartData = @json($chartData);
+
+            if (window.Chart && document.getElementById('market-seeding-history-chart')) {
+                new Chart(document.getElementById('market-seeding-history-chart'), {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.labels || [],
+                        datasets: [
+                            {
+                                label: 'Low',
+                                data: (chartData.series || {}).low || [],
+                                backgroundColor: 'rgba(255, 193, 7, .75)'
+                            },
+                            {
+                                label: 'Empty',
+                                data: (chartData.series || {}).empty || [],
+                                backgroundColor: 'rgba(220, 53, 69, .75)'
+                            },
+                            {
+                                label: 'Recovered',
+                                data: (chartData.series || {}).stocked || [],
+                                backgroundColor: 'rgba(40, 167, 69, .75)'
+                            }
+                        ]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        responsive: true,
+                        scales: {
+                            xAxes: [{
+                                stacked: true
+                            }],
+                            yAxes: [{
+                                stacked: true,
+                                ticks: {
+                                    beginAtZero: true,
+                                    precision: 0
+                                }
+                            }]
+                        },
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Stock Transitions, Last 30 Days'
+                        }
+                    }
+                });
+            }
+
             if ($.fn.DataTable) {
                 $('.market-seeding-history-table').DataTable({
                     order: [[0, 'desc']],
