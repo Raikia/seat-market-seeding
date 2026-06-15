@@ -16,6 +16,9 @@
         $whole = function ($value) {
             return number_format((float) $value, 0, '.', ',');
         };
+        $volume = function ($value) {
+            return number_format((float) $value, 2, '.', ',');
+        };
         $percent = function ($value) {
             return number_format((float) $value, 1, '.', ',') . '%';
         };
@@ -25,6 +28,22 @@
         .market-seeding-shell .info-box-number {
             font-size: 1.05rem;
             white-space: normal;
+        }
+        .market-seeding-summary {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .market-seeding-summary > div {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        @media (min-width: 1400px) {
+            .market-seeding-summary {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+            }
         }
         .market-seeding-controls {
             align-items: center;
@@ -165,7 +184,7 @@
 
     <div class="market-seeding-shell {{ $marketSeedingThemeClass }}">
     <div class="row market-seeding-summary">
-        <div class="col-md-3">
+        <div>
             <div class="info-box">
                 <span class="info-box-icon bg-info"><i class="fas fa-store"></i></span>
                 <div class="info-box-content">
@@ -174,7 +193,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div>
             <div class="info-box">
                 <span class="info-box-icon bg-success"><i class="fas fa-bullseye"></i></span>
                 <div class="info-box-content">
@@ -183,7 +202,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div>
             <div class="info-box">
                 <span class="info-box-icon bg-warning"><i class="fas fa-shopping-cart"></i></span>
                 <div class="info-box-content">
@@ -192,12 +211,21 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div>
             <div class="info-box">
                 <span class="info-box-icon bg-danger"><i class="fas fa-exclamation-triangle"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Missing Lines</span>
                     <span class="info-box-number">{{ $whole($totals['missing_lines']) }}</span>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="info-box">
+                <span class="info-box-icon bg-primary"><i class="fas fa-cubes"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Restock Volume</span>
+                    <span class="info-box-number">{{ $volume($totals['restock_volume']) }} m&sup3;</span>
                 </div>
             </div>
         </div>
@@ -235,7 +263,8 @@
                         </h3>
                         <small class="text-muted card-subtitle">
                             Missing {{ $whole($marketReport['totals']['missing_lines']) }} line(s) &middot;
-                            Restock {{ $isk($marketReport['totals']['restock_cost']) }}
+                            Restock {{ $isk($marketReport['totals']['restock_cost']) }} &middot;
+                            {{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;
                         </small>
                     </div>
                     <div class="card-tools">
@@ -266,6 +295,10 @@
                                 <strong>{{ $isk($marketReport['totals']['restock_cost']) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
+                                <span>Restock Volume</span>
+                                <strong>{{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;</strong>
+                            </div>
+                            <div class="market-seeding-metric">
                                 <span>Missing</span>
                                 <strong>{{ $whole($marketReport['totals']['missing_lines']) }} lines</strong>
                             </div>
@@ -283,6 +316,7 @@
                                         <th class="text-right">Jita Price</th>
                                         <th class="text-right">vs Jita</th>
                                         <th class="text-right">Restock Cost</th>
+                                        <th class="text-right">Restock m&sup3;</th>
                                         <th class="text-right">Seeded Value</th>
                                     </tr>
                                 </thead>
@@ -309,6 +343,7 @@
                                                 @endif
                                             </td>
                                             <td class="text-right" data-order="{{ $row['restock_cost'] }}">{{ $isk($row['restock_cost']) }}</td>
+                                            <td class="text-right" data-order="{{ $row['restock_volume'] }}">{{ $volume($row['restock_volume']) }}</td>
                                             <td class="text-right" data-order="{{ $row['seeded_value'] }}">{{ $isk($row['seeded_value']) }}</td>
                                         </tr>
                                     @endforeach
@@ -329,6 +364,9 @@
                             </button>
                         </div>
                         <div class="modal-body">
+                            <p class="text-muted mb-2">
+                                Estimated restock volume: {{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;
+                            </p>
                             <textarea id="{{ $exportId }}" class="form-control" rows="10" readonly>{{ $marketReport['export'] }}</textarea>
                         </div>
                         <div class="modal-footer">
@@ -362,7 +400,7 @@
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
-                    order: [[3, 'desc'], [0, 'asc']],
+                    order: [[0, 'asc']],
                     paging: true,
                     pageLength: 25,
                     lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],

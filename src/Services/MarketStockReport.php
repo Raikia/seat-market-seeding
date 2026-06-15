@@ -7,10 +7,65 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\Market\Price;
+use Seat\Eveapi\Models\Sde\InvType;
 
 class MarketStockReport
 {
     const JITA_STATION_ID = 60003760;
+
+    const SHIP_CATEGORY_ID = 6;
+
+    const SHIP_PACKAGED_VOLUMES = [
+        'Capsule' => 500,
+        'Shuttle' => 500,
+        'Corvette' => 2500,
+        'Frigate' => 2500,
+        'Assault Frigate' => 2500,
+        'Covert Ops' => 2500,
+        'Electronic Attack Ship' => 2500,
+        'Expedition Frigate' => 2500,
+        'Interceptor' => 2500,
+        'Logistics Frigate' => 2500,
+        'Prototype Exploration Ship' => 2500,
+        'Stealth Bomber' => 2500,
+        'Destroyer' => 5000,
+        'Command Destroyer' => 5000,
+        'Interdictor' => 5000,
+        'Tactical Destroyer' => 5000,
+        'Cruiser' => 10000,
+        'Combat Recon Ship' => 10000,
+        'Flag Cruiser' => 10000,
+        'Force Recon Ship' => 10000,
+        'Heavy Assault Cruiser' => 10000,
+        'Heavy Interdiction Cruiser' => 10000,
+        'Logistics' => 10000,
+        'Strategic Cruiser' => 10000,
+        'Attack Battlecruiser' => 15000,
+        'Combat Battlecruiser' => 15000,
+        'Command Ship' => 15000,
+        'Battleship' => 50000,
+        'Black Ops' => 50000,
+        'Marauder' => 50000,
+        'Hauler' => 20000,
+        'Blockade Runner' => 20000,
+        'Deep Space Transport' => 20000,
+        'Mining Barge' => 3750,
+        'Exhumer' => 3750,
+        'Carrier' => 1300000,
+        'Capital Industrial Ship' => 1300000,
+        'Dreadnought' => 1300000,
+        'Force Auxiliary' => 1300000,
+        'Freighter' => 1300000,
+        'Jump Freighter' => 1300000,
+        'Lancer Dreadnought' => 1300000,
+        'Supercarrier' => 10000000,
+        'Titan' => 10000000,
+    ];
+
+    const TYPE_PACKAGED_VOLUME_OVERRIDES = [
+        'Orca' => 500000,
+        'Porpoise' => 5000,
+    ];
 
     public function build(Collection $markets): array
     {
@@ -25,12 +80,14 @@ class MarketStockReport
         $localOrders = $this->localSellOrders($locationIds, $typeIds);
         $jitaPrices = $this->jitaSellPrices($typeIds);
         $fallbackPrices = Price::whereIn('type_id', $typeIds)->get()->keyBy('type_id');
+        $typeVolumes = $this->packagedVolumes($typeIds);
 
         $reports = [];
         $totals = [
             'desired_value' => 0,
             'seeded_value' => 0,
             'restock_cost' => 0,
+            'restock_volume' => 0,
             'missing_lines' => 0,
         ];
 
@@ -39,15 +96,17 @@ class MarketStockReport
                 'desired_value' => 0,
                 'seeded_value' => 0,
                 'restock_cost' => 0,
+                'restock_volume' => 0,
                 'missing_lines' => 0,
             ];
 
-            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, &$marketTotals) {
+            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, &$marketTotals) {
                 $key = $market->location_id . ':' . $item->type_id;
                 $local = $localOrders->get($key);
                 $currentQuantity = $local ? (int) $local->quantity : 0;
                 $localPrice = $local ? (float) $local->price : null;
                 $jitaPrice = $jitaPrices->get($item->type_id);
+                $itemVolume = (float) $typeVolumes->get($item->type_id, 0);
 
                 if (!$jitaPrice && $fallbackPrices->has($item->type_id)) {
                     $jitaPrice = (float) ($fallbackPrices->get($item->type_id)->sell_price ?: $fallbackPrices->get($item->type_id)->average_price);
@@ -58,12 +117,14 @@ class MarketStockReport
                 $isLow = $currentQuantity < $warningQuantity;
                 $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
                 $restockCost = $missingQuantity * (float) $jitaPrice;
+                $restockVolume = $missingQuantity * $itemVolume;
                 $desiredValue = $item->desired_quantity * (float) $jitaPrice;
                 $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
 
                 $marketTotals['desired_value'] += $desiredValue;
                 $marketTotals['seeded_value'] += $seededValue;
                 $marketTotals['restock_cost'] += $restockCost;
+                $marketTotals['restock_volume'] += $restockVolume;
                 $marketTotals['missing_lines'] += $missingQuantity > 0 ? 1 : 0;
 
                 return [
@@ -74,6 +135,8 @@ class MarketStockReport
                     'jita_price' => $jitaPrice,
                     'price_delta' => $priceDelta,
                     'restock_cost' => $restockCost,
+                    'item_volume' => $itemVolume,
+                    'restock_volume' => $restockVolume,
                     'seeded_value' => $seededValue,
                     'desired_value' => $desiredValue,
                     'is_low' => $isLow,
@@ -110,6 +173,33 @@ class MarketStockReport
         $markets->each(function (SeededMarket $market) {
             $market->loadMissing('items', 'role');
         });
+    }
+
+    private function packagedVolumes(Collection $typeIds): Collection
+    {
+        if ($typeIds->isEmpty()) {
+            return collect();
+        }
+
+        return InvType::with('group')
+            ->whereIn('typeID', $typeIds)
+            ->get()
+            ->mapWithKeys(function (InvType $type) {
+                return [$type->typeID => $this->packagedVolume($type)];
+            });
+    }
+
+    private function packagedVolume(InvType $type): float
+    {
+        if (array_key_exists($type->typeName, self::TYPE_PACKAGED_VOLUME_OVERRIDES)) {
+            return (float) self::TYPE_PACKAGED_VOLUME_OVERRIDES[$type->typeName];
+        }
+
+        if ((int) optional($type->group)->categoryID !== self::SHIP_CATEGORY_ID) {
+            return (float) $type->volume;
+        }
+
+        return (float) (self::SHIP_PACKAGED_VOLUMES[$type->group->groupName] ?? $type->volume);
     }
 
     private function localSellOrders(Collection $locationIds, Collection $typeIds): Collection
