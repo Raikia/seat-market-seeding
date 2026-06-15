@@ -259,12 +259,28 @@ class SettingsController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Item updated successfully.',
+                'item' => $this->itemPayload($item->fresh()),
+            ]);
+        }
+
         return redirect()->route('market-seeding.settings')->with('success', 'Item updated successfully.');
     }
 
-    public function destroyItem(SeededMarketItem $item)
+    public function destroyItem(Request $request, SeededMarketItem $item)
     {
+        $market = $item->market;
         $item->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Item removed successfully.',
+                'item_id' => $item->id,
+                'tracked_count' => $market ? $market->items()->count() : null,
+            ]);
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', 'Item removed successfully.');
     }

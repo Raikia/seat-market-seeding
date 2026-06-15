@@ -133,6 +133,28 @@
             border-radius: .25rem;
             padding: .25rem .5rem;
         }
+        .market-seeding-row-saved > td {
+            animation: market-seeding-row-saved 1.8s ease-out;
+        }
+        @keyframes market-seeding-row-saved {
+            0% {
+                background: rgba(40, 167, 69, .25);
+            }
+            100% {
+                background: transparent;
+            }
+        }
+        .market-seeding-dark-skin .market-seeding-row-saved > td {
+            animation-name: market-seeding-row-saved-dark;
+        }
+        @keyframes market-seeding-row-saved-dark {
+            0% {
+                background: rgba(40, 167, 69, .35);
+            }
+            100% {
+                background: transparent;
+            }
+        }
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_info,
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter label,
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length label {
@@ -639,7 +661,7 @@ Caracal 10" required></textarea>
                                     <tr data-item-id="{{ $item->id }}">
                                         <td>{{ $item->type_name }}</td>
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->desired_quantity }}">
-                                            <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST">
+                                            <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST" class="market-seeding-update-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
                                                 {{ csrf_field() }}
                                                 {{ method_field('PUT') }}
                                                 <input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="{{ $item->desired_quantity }}" min="1">
@@ -649,8 +671,8 @@ Caracal 10" required></textarea>
                                             <input form="item-update-{{ $item->id }}" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
                                         </td>
                                         <td class="text-right" style="width: 160px;">
-                                            <button type="submit" class="btn btn-primary btn-xs" form="item-update-{{ $item->id }}">Save</button>
-                                            <form action="{{ route('market-seeding.items.destroy', $item->id) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('Remove this item?');">
+                                            <button type="submit" class="btn btn-primary btn-xs market-seeding-save-item" form="item-update-{{ $item->id }}">Save</button>
+                                            <form action="{{ route('market-seeding.items.destroy', $item->id) }}" method="POST" class="market-seeding-delete-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}" style="display: inline-block;">
                                                 {{ csrf_field() }}
                                                 {{ method_field('DELETE') }}
                                                 <button type="submit" class="btn btn-danger btn-xs">Delete</button>
@@ -715,7 +737,7 @@ Caracal 10" required></textarea>
                 $.ajax({
                     url: $form.attr('action'),
                     method: 'POST',
-                    data: $form.serialize(),
+                    data: serializeInlineItemForm($form),
                     headers: {
                         Accept: 'application/json'
                     }
@@ -797,6 +819,71 @@ Caracal 10" required></textarea>
 
                 $('#market-seeding-import-preview-modal').modal('hide');
                 previewImportForm.trigger('submit');
+            });
+
+            $(document).on('submit', '.market-seeding-update-item-form', function (event) {
+                event.preventDefault();
+
+                var $form = $(this);
+                var $button = $('[form="' + $form.attr('id') + '"].market-seeding-save-item');
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    upsertItemRow($form.data('table'), response.item);
+                    markItemRowSaved($form.data('table'), response.item.id);
+                    showButtonSuccess($button, originalButtonHtml, 'Saved');
+                }).fail(function (xhr) {
+                    alert(errorMessage(xhr));
+                    $button.prop('disabled', false).html(originalButtonHtml);
+                }).always(function () {
+                    if (!$button.data('restore-pending')) {
+                        $button.prop('disabled', false).html(originalButtonHtml);
+                    }
+                });
+            });
+
+            $(document).on('submit', '.market-seeding-delete-item-form', function (event) {
+                event.preventDefault();
+
+                if (!confirm('Remove this item?')) {
+                    return;
+                }
+
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var $card = $form.closest('.market-seeding-card');
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    removeItemRow($form.data('table'), response.item_id);
+
+                    if (typeof response.tracked_count === 'number') {
+                        updateTrackedCount($card, response.tracked_count);
+                    } else {
+                        updateTrackedCount($card, null, -1);
+                    }
+                }).fail(function (xhr) {
+                    alert(errorMessage(xhr));
+                    $button.prop('disabled', false).html(originalButtonHtml);
+                });
             });
 
             $('.market-seeding-load-profile').on('click', function () {
@@ -892,7 +979,7 @@ Caracal 10" required></textarea>
             });
 
             function upsertItemRow(tableSelector, item) {
-                var row = $(itemRowHtml(item));
+                var row = $(itemRowHtml(item, tableSelector));
 
                 if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
                     var table = $(tableSelector).DataTable();
@@ -925,16 +1012,89 @@ Caracal 10" required></textarea>
                     var table = $(tableSelector).DataTable();
                     table.clear();
                     $.each(items, function (index, item) {
-                        table.row.add($(itemRowHtml(item))[0]);
+                        table.row.add($(itemRowHtml(item, tableSelector))[0]);
                     });
                     table.draw(false);
                     return;
                 }
 
                 var rows = $.map(items, function (item) {
-                    return itemRowHtml(item);
+                    return itemRowHtml(item, tableSelector);
                 });
                 $(tableSelector).find('tbody').html(rows.join(''));
+            }
+
+            function removeItemRow(tableSelector, itemId) {
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+                    var table = $(tableSelector).DataTable();
+
+                    table.rows().every(function () {
+                        if ($(this.node()).data('item-id') == itemId) {
+                            this.remove();
+                        }
+                    });
+
+                    table.draw(false);
+                    return;
+                }
+
+                $(tableSelector).find('tbody tr[data-item-id="' + itemId + '"]').remove();
+            }
+
+            function markItemRowSaved(tableSelector, itemId) {
+                var $row = rowForItem(tableSelector, itemId);
+
+                $row.removeClass('market-seeding-row-saved');
+
+                window.setTimeout(function () {
+                    $row.addClass('market-seeding-row-saved');
+                }, 10);
+
+                window.setTimeout(function () {
+                    $row.removeClass('market-seeding-row-saved');
+                }, 1900);
+            }
+
+            function rowForItem(tableSelector, itemId) {
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+                    var table = $(tableSelector).DataTable();
+                    var row = $();
+
+                    table.rows().every(function () {
+                        if ($(this.node()).data('item-id') == itemId) {
+                            row = $(this.node());
+                        }
+                    });
+
+                    return row;
+                }
+
+                return $(tableSelector).find('tbody tr[data-item-id="' + itemId + '"]');
+            }
+
+            function showButtonSuccess($button, originalButtonHtml, label) {
+                $button
+                    .data('restore-pending', true)
+                    .removeClass('btn-primary')
+                    .addClass('btn-success')
+                    .prop('disabled', true)
+                    .html('<i class="fas fa-check"></i> ' + escapeHtml(label));
+
+                window.setTimeout(function () {
+                    $button
+                        .data('restore-pending', false)
+                        .removeClass('btn-success')
+                        .addClass('btn-primary')
+                        .prop('disabled', false)
+                        .html(originalButtonHtml);
+                }, 1200);
+            }
+
+            function serializeInlineItemForm($form) {
+                var formId = $form.attr('id');
+                var linkedFields = formId ? $('[form="' + formId + '"]').serialize() : '';
+
+                return [$form.serialize(), linkedFields].filter(Boolean).join('&');
             }
 
             function renderImportPreview(response) {
@@ -995,14 +1155,14 @@ Caracal 10" required></textarea>
                 $count.text($count.data('count'));
             }
 
-            function itemRowHtml(item) {
+            function itemRowHtml(item, tableSelector) {
                 var updateFormId = 'item-update-' + item.id;
 
                 return '' +
                     '<tr data-item-id="' + item.id + '">' +
                         '<td>' + escapeHtml(item.type_name) + '</td>' +
                         '<td class="text-right" style="width: 140px;" data-order="' + item.desired_quantity + '">' +
-                            '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST">' +
+                            '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST" class="market-seeding-update-item-form" data-table="' + escapeAttr(tableSelector) + '">' +
                                 '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +
                                 '<input type="hidden" name="_method" value="PUT">' +
                                 '<input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="' + item.desired_quantity + '" min="1">' +
@@ -1012,8 +1172,8 @@ Caracal 10" required></textarea>
                             '<input form="' + updateFormId + '" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="' + item.warning_quantity + '" min="0">' +
                         '</td>' +
                         '<td class="text-right" style="width: 160px;">' +
-                            '<button type="submit" class="btn btn-primary btn-xs" form="' + updateFormId + '">Save</button> ' +
-                            '<form action="' + escapeAttr(item.destroy_url) + '" method="POST" style="display: inline-block;" onsubmit="return confirm(\'Remove this item?\');">' +
+                            '<button type="submit" class="btn btn-primary btn-xs market-seeding-save-item" form="' + updateFormId + '">Save</button> ' +
+                            '<form action="' + escapeAttr(item.destroy_url) + '" method="POST" class="market-seeding-delete-item-form" data-table="' + escapeAttr(tableSelector) + '" style="display: inline-block;">' +
                                 '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +
                                 '<input type="hidden" name="_method" value="DELETE">' +
                                 '<button type="submit" class="btn btn-danger btn-xs">Delete</button>' +
