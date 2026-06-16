@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Seat\Eveapi\Models\Sde\InvType;
+use Seat\Eveapi\Models\Universe\UniverseName;
 
 class CharacterFitting extends Model
 {
@@ -21,5 +22,10 @@ class CharacterFitting extends Model
     public function shipType(): HasOne
     {
         return $this->hasOne(InvType::class, 'typeID', 'ship_type_id');
+    }
+
+    public function characterName(): HasOne
+    {
+        return $this->hasOne(UniverseName::class, 'entity_id', 'character_id');
     }
 }

@@ -105,15 +105,25 @@ class SavedFittingSource
             return collect();
         }
 
+        $characterIds = $this->currentUserCharacterIds();
+
+        if ($characterIds->isEmpty()) {
+            return collect();
+        }
+
         return CharacterFitting::query()
+            ->with('characterName')
+            ->whereIn('character_id', $characterIds)
             ->where('name', 'like', '%' . $this->escapeLike($query) . '%')
             ->orderBy('name')
             ->limit(15)
             ->get()
             ->map(function ($fit) {
+                $characterName = optional($fit->characterName)->name ?: 'Unknown Character';
+
                 return [
                     'id' => 'character-fit:' . $fit->id,
-                    'text' => 'Character Fit: ' . $fit->name,
+                    'text' => 'Character Fit: ' . $fit->name . ' (' . $characterName . ')',
                     'source' => 'character-fit',
                     'source_id' => $fit->id,
                 ];
@@ -155,7 +165,15 @@ class SavedFittingSource
 
     private function itemsFromCharacterFit(int $id, int $multiplier): array
     {
-        $fit = CharacterFitting::with('items.type', 'shipType')->find($id);
+        $characterIds = $this->currentUserCharacterIds();
+
+        if ($characterIds->isEmpty()) {
+            return [];
+        }
+
+        $fit = CharacterFitting::with('items.type', 'shipType')
+            ->whereIn('character_id', $characterIds)
+            ->find($id);
 
         if (!$fit) {
             return [];
@@ -169,6 +187,33 @@ class SavedFittingSource
         });
 
         return array_values($items);
+    }
+
+    private function currentUserCharacterIds(): Collection
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return collect();
+        }
+
+        $characterIds = method_exists($user, 'associatedCharacterIds')
+            ? collect($user->associatedCharacterIds())
+            : collect();
+
+        if ($characterIds->isEmpty() && $user->main_character_id) {
+            $characterIds->push($user->main_character_id);
+        }
+
+        if ($characterIds->isEmpty() && method_exists($user, 'refresh_tokens')) {
+            $characterIds = $user->refresh_tokens()->pluck('character_id');
+        }
+
+        return $characterIds
+            ->map(fn ($characterId) => (int) $characterId)
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private function addType(array &$items, int $typeId, int $quantity, ?InvType $type = null): void
