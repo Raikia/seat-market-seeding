@@ -71,6 +71,43 @@
             display: block;
             line-height: 1.2;
         }
+        .market-seeding-doctrine-fit-summary {
+            display: grid;
+            gap: .35rem;
+            margin-top: .55rem;
+            min-width: 260px;
+        }
+        .market-seeding-doctrine-fit-summary-row {
+            align-items: center;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            display: flex;
+            gap: .75rem;
+            justify-content: space-between;
+            padding: .35rem .45rem;
+        }
+        .market-seeding-doctrine-fit-summary-name {
+            min-width: 0;
+        }
+        .market-seeding-doctrine-fit-summary-name strong {
+            display: inline;
+            font-size: .9rem;
+        }
+        .market-seeding-doctrine-fit-summary-name span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .market-seeding-doctrine-fit-summary-badges {
+            display: inline-flex;
+            flex: 0 0 auto;
+            gap: .25rem;
+        }
+        .market-seeding-doctrine-fit-summary-badges .badge {
+            font-weight: 600;
+        }
         .market-seeding-profile-list {
             display: grid;
             gap: .75rem;
@@ -121,6 +158,10 @@
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-doctrine-fit-summary-row {
+            background: #222d32;
+            border-color: #3c4b54;
         }
         .market-seeding-dark-skin.market-seeding-profile-modal .modal-content,
         .market-seeding-dark-skin .market-seeding-profile-modal .modal-content,

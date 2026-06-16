@@ -4,6 +4,7 @@ namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Cache;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\Market\Price;
@@ -179,7 +180,7 @@ class MarketStockReport
     private function loadMarketRelations(Collection $markets): void
     {
         if ($markets instanceof EloquentCollection) {
-            $markets->load('items.sources', 'role');
+            $markets->loadMissing('items.sources', 'role');
 
             return;
         }
@@ -204,12 +205,17 @@ class MarketStockReport
             return collect();
         }
 
-        return InvType::with('group')
-            ->whereIn('typeID', $typeIds)
-            ->get()
-            ->mapWithKeys(function (InvType $type) {
-                return [$type->typeID => $this->packagedVolume($type)];
-            });
+        $typeIds = $typeIds->map(fn ($typeId) => (int) $typeId)->sort()->values();
+        $cacheKey = 'seat-market-seeding:packaged-volumes:' . md5($typeIds->implode(','));
+
+        return Cache::remember($cacheKey, now()->addDay(), function () use ($typeIds) {
+            return InvType::with('group')
+                ->whereIn('typeID', $typeIds)
+                ->get()
+                ->mapWithKeys(function (InvType $type) {
+                    return [$type->typeID => $this->packagedVolume($type)];
+                });
+        });
     }
 
     private function packagedVolume(InvType $type): float

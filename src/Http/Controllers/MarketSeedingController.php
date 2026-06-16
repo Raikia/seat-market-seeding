@@ -3,8 +3,11 @@
 namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
+use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
 use Seat\Web\Http\Controllers\Controller;
 
@@ -12,13 +15,15 @@ class MarketSeedingController extends Controller
 {
     public function index(MarketStockReport $report)
     {
-        $markets = $this->visibleMarkets()
-            ->with('items')
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        $stockReport = Cache::remember($this->dashboardCacheKey(), now()->addMinutes(3), function () use ($report) {
+            $markets = $this->visibleMarkets()
+                ->with('items.sources', 'role')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get();
 
-        $stockReport = $report->build($markets);
+            return $report->build($markets);
+        });
 
         return view('seat-market-seeding::index', compact('stockReport'));
     }
@@ -131,6 +136,38 @@ class MarketSeedingController extends Controller
                 $query->whereNull('role_id')
                     ->orWhereIn('role_id', $roleIds);
             });
+    }
+
+    private function dashboardCacheKey(): string
+    {
+        $user = auth()->user();
+        $roleIds = $user->roles->pluck('id')->sort()->values();
+        $marketSnapshot = $this->visibleMarkets()
+            ->select('id', 'updated_at', 'last_refreshed_at')
+            ->orderBy('id')
+            ->get();
+        $marketIds = $marketSnapshot->pluck('id');
+        $latestItemUpdate = $marketIds->isEmpty()
+            ? null
+            : SeededMarketItem::whereIn('market_id', $marketIds)->max('updated_at');
+        $latestSourceUpdate = $marketIds->isEmpty()
+            ? null
+            : MarketSeedingItemSource::whereIn('market_id', $marketIds)->max('updated_at');
+
+        return 'seat-market-seeding:dashboard:' . md5(json_encode([
+            'user_id' => $user->id,
+            'is_admin' => $user->isAdmin(),
+            'roles' => $roleIds,
+            'markets' => $marketSnapshot->map(function (SeededMarket $market) {
+                return [
+                    'id' => $market->id,
+                    'updated_at' => optional($market->updated_at)->timestamp,
+                    'last_refreshed_at' => optional($market->last_refreshed_at)->timestamp,
+                ];
+            })->values(),
+            'latest_item_update' => optional($latestItemUpdate ? \Carbon\Carbon::parse($latestItemUpdate) : null)->timestamp,
+            'latest_source_update' => optional($latestSourceUpdate ? \Carbon\Carbon::parse($latestSourceUpdate) : null)->timestamp,
+        ]));
     }
 
     private function canViewMarket(SeededMarket $market): bool
