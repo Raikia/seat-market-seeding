@@ -30,12 +30,6 @@ return new class extends Migration
 
     public function down()
     {
-        if (Schema::hasTable('seat_market_seeding_stock_history') && $this->indexExists('seat_market_seeding_stock_history', 'sms_hist_status_created_idx')) {
-            Schema::table('seat_market_seeding_stock_history', function (Blueprint $table) {
-                $table->dropIndex('sms_hist_status_created_idx');
-            });
-        }
-
         if (Schema::hasTable('seat_market_seeding_markets') && $this->indexExists('seat_market_seeding_markets', 'sms_markets_role_sort_name_idx')) {
             Schema::table('seat_market_seeding_markets', function (Blueprint $table) {
                 $table->dropIndex('sms_markets_role_sort_name_idx');

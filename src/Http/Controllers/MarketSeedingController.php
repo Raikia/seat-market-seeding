@@ -153,6 +153,12 @@ class MarketSeedingController extends Controller
         $latestSourceUpdate = $marketIds->isEmpty()
             ? null
             : MarketSeedingItemSource::whereIn('market_id', $marketIds)->max('updated_at');
+        $itemCount = $marketIds->isEmpty()
+            ? 0
+            : SeededMarketItem::whereIn('market_id', $marketIds)->count();
+        $sourceCount = $marketIds->isEmpty()
+            ? 0
+            : MarketSeedingItemSource::whereIn('market_id', $marketIds)->count();
 
         return 'seat-market-seeding:dashboard:' . md5(json_encode([
             'user_id' => $user->id,
@@ -165,6 +171,8 @@ class MarketSeedingController extends Controller
                     'last_refreshed_at' => optional($market->last_refreshed_at)->timestamp,
                 ];
             })->values(),
+            'item_count' => $itemCount,
+            'source_count' => $sourceCount,
             'latest_item_update' => optional($latestItemUpdate ? \Carbon\Carbon::parse($latestItemUpdate) : null)->timestamp,
             'latest_source_update' => optional($latestSourceUpdate ? \Carbon\Carbon::parse($latestSourceUpdate) : null)->timestamp,
         ]));
