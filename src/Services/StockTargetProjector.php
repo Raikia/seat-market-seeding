@@ -50,7 +50,7 @@ class StockTargetProjector
             $item->save();
 
             return $item->fresh();
-        });
+        }, 5);
     }
 
     public function setEffectiveTarget(SeededMarketItem $item, int $desiredQuantity, ?int $warningQuantity = null, ?string $notes = null): SeededMarketItem
@@ -98,7 +98,7 @@ class StockTargetProjector
             }
 
             return $item->fresh();
-        });
+        }, 5);
     }
 
     public function removeManualTarget(SeededMarketItem $item): ?SeededMarketItem
@@ -120,7 +120,7 @@ class StockTargetProjector
             $this->recalculateMarket($market);
 
             return $market->items()->where('type_id', $item->type_id)->first();
-        });
+        }, 5);
     }
 
     public function importManualTargets(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): int
@@ -167,7 +167,7 @@ class StockTargetProjector
             $this->recalculateMarket($market);
 
             return count($items);
-        });
+        }, 5);
     }
 
     public function replaceDoctrineTargets(MarketSeedingTrackedDoctrine $trackedDoctrine, array $items): void
@@ -194,7 +194,7 @@ class StockTargetProjector
             }
 
             $this->recalculateMarket($trackedDoctrine->market);
-        });
+        }, 5);
     }
 
     public function recalculateMarket(SeededMarket $market): void

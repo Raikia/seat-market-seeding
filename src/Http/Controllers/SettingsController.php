@@ -266,7 +266,7 @@ class SettingsController extends Controller
             if ($market) {
                 $projector->recalculateMarket($market);
             }
-        });
+        }, 5);
 
         if ($request->expectsJson()) {
             return response()->json($this->trackedDoctrinePayload($market->fresh('trackedDoctrines'), 'Doctrine tracking removed successfully.'));

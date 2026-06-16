@@ -2,14 +2,37 @@
 
 namespace Raikia\SeatMarketSeeding\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Seat\Eveapi\Models\RefreshToken;
 
 class MarketSeedingRefreshAll
 {
     const STRUCTURE_MARKET_SCOPE = 'esi-markets.structure_markets.v1';
+    const REFRESH_LOCK = 'seat-market-seeding:refresh-all';
 
     public function refresh(?RefreshToken $preferredToken = null): array
+    {
+        $lock = Cache::lock(self::REFRESH_LOCK, 900);
+
+        if (!$lock->get()) {
+            return [
+                'markets' => 0,
+                'orders' => 0,
+                'notifications' => 0,
+                'errors' => [],
+                'skipped' => ['A market seeding refresh is already running.'],
+            ];
+        }
+
+        try {
+            return $this->runRefresh($preferredToken);
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    private function runRefresh(?RefreshToken $preferredToken = null): array
     {
         $results = [
             'markets' => 0,
