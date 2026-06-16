@@ -4,6 +4,18 @@ Market Seeding is a SeAT plugin for keeping an eye on stocked markets in EVE Onl
 
 The goal is simple: make it easier to answer “what is missing from this market?” without maintaining a spreadsheet by hand.
 
+## Installation
+
+For a standard SeAT Docker install, add the plugin package to the `PLUGINS` variable in your `.env` file:
+
+```env
+PLUGINS=raikia/seat-market-seeding
+```
+
+If you already have other plugins listed, add it to the same variable with the same separator style your SeAT install is using.
+
+After updating `.env`, restart/update your SeAT containers the same way you normally do for plugin changes, then run SeAT migrations if your setup does not run them automatically.
+
 ## Features
 
 - Track multiple seeded markets by station or structure.
@@ -15,15 +27,21 @@ The goal is simple: make it easier to answer “what is missing from this market
 - Show seeded value, target value, missing lines, restock cost, and per-market health.
 - Compare local market prices against Jita prices.
 - Track source of each item target, including manual adds, doctrine tracking, or both.
+- Auto-track Seat-Fitting doctrines with separate ship and fitting multipliers per fit.
+- Choose whether doctrine fits are summed together or use the maximum requirement per item.
+- Review doctrine sync changes before applying them.
 - Keep restock history and stock transition history.
 - Send SeAT notifications when an item moves from stocked to low, or from low/stocked to empty.
 - Refresh market data manually or on a SeAT schedule.
+- Cache dashboard calculations briefly and add helpful indexes for larger market lists.
 
 ## Seat-Fitting Integration
 
 If `eveseat-plugins/seat-fitting` is installed, Market Seeding can use its saved fits and doctrines.
 
 Doctrine tracking is per market. When a doctrine is tracked, the plugin can sync its fits into that market’s target list. If a doctrine changes later, the scheduled refresh can sync those changes so removed doctrine items are removed from the doctrine portion of the target.
+
+Each tracked doctrine can be tuned per fit. You can stock fewer hulls than modules, give support ships a smaller multiplier than mainline ships, and choose whether duplicated modules across fits are summed or use the largest individual fit requirement.
 
 Manual targets are kept separate from doctrine targets. For example, if you manually track 50 Warp Scrambler IIs and a doctrine adds 1 more, removing that doctrine will not remove the manually tracked amount.
 
@@ -39,6 +57,12 @@ Common setup steps:
 4. Use the dashboard to review shortages, prices, health, and restock exports.
 
 The settings page also includes reusable market profiles, restock history retention, and maintenance actions such as clearing restock history.
+
+## Dashboard and History
+
+The dashboard is meant for day-to-day restocking. It shows each market’s health, local quantity, target quantity, missing quantity, local price, Jita price, restock cost, and restock volume. Restock lists can be copied directly into EVE multi-buy.
+
+The restock history page keeps a record of stock state changes, with filters and a small chart for recent stocked, low, and empty events.
 
 ## Permissions
 
