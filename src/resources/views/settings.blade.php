@@ -217,6 +217,48 @@
         .market-seeding-validation-line {
             font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
+        .market-seeding-fit-contents {
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        .market-seeding-fit-panel {
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            padding: .75rem;
+        }
+        .market-seeding-fit-ship {
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: .5rem;
+            padding-bottom: .5rem;
+        }
+        .market-seeding-fit-slots {
+            display: grid;
+            gap: .55rem;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .market-seeding-fit-slot-group {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: .25rem;
+            padding: .5rem;
+        }
+        .market-seeding-fit-slot-group-title {
+            font-size: .78rem;
+            font-weight: 700;
+            letter-spacing: .02em;
+            margin-bottom: .35rem;
+            text-transform: uppercase;
+        }
+        .market-seeding-fit-slot-row {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: .75rem;
+            line-height: 1.35;
+        }
+        .market-seeding-fit-slot-row + .market-seeding-fit-slot-row {
+            margin-top: .25rem;
+        }
         @keyframes market-seeding-row-saved {
             0% {
                 background: rgba(40, 167, 69, .25);
@@ -255,6 +297,14 @@
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-fit-panel,
+        .market-seeding-dark-skin .market-seeding-fit-ship,
+        .market-seeding-dark-skin .market-seeding-fit-slot-group {
+            border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-fit-slot-group {
+            background: #1f2d3d;
         }
     </style>
 
@@ -694,6 +744,7 @@
             var previewImportForm = null;
             var previewSourceModal = null;
             var previewApplying = false;
+            var doctrinePreviewTimer = null;
 
             if ($.fn.DataTable) {
                 settingsTables = $('.market-seeding-settings-table').DataTable({
@@ -817,30 +868,39 @@
                 var $feedback = doctrineFeedbackForForm($form);
                 var $sourceModal = $form.closest('.modal');
 
-                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Previewing');
-                $feedback.hide().removeClass('text-success text-danger').text('');
+                fetchDoctrinePreview($form, $button, $feedback, $sourceModal, true);
+            });
 
-                $.ajax({
-                    url: $form.data('preview-url'),
-                    method: 'POST',
-                    data: serializeInlineItemForm($form),
-                    headers: {
-                        Accept: 'application/json'
-                    }
-                }).done(function (response) {
-                    previewImportForm = $form;
-                    renderImportPreview(response);
-                    showImportPreviewModal($sourceModal);
-                }).fail(function (xhr) {
-                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
-                }).always(function () {
-                    $button.prop('disabled', false).html('Preview Doctrine');
-                });
+            $(document).on('click', '.market-seeding-edit-tracked-doctrine', function () {
+                var formId = $(this).attr('form');
+                var $form = $('#' + formId);
+                var $feedback = doctrineFeedbackForForm($form);
+                var $sourceModal = $form.closest('.modal');
+
+                fetchDoctrinePreview($form, $(this), $feedback, $sourceModal, true);
+            });
+
+            $(document).on('input change', '.market-seeding-fit-ship-multiplier, .market-seeding-fit-fitting-multiplier', function () {
+                if (!previewImportForm || !previewImportForm.hasClass('market-seeding-tracked-doctrine-form')) {
+                    return;
+                }
+
+                writeDoctrineFitSettingsToForm(previewImportForm);
+                $('.market-seeding-doctrine-preview-refresh-status').text('Updating preview...');
+
+                window.clearTimeout(doctrinePreviewTimer);
+                doctrinePreviewTimer = window.setTimeout(function () {
+                    fetchDoctrinePreview(previewImportForm, $(), doctrineFeedbackForForm(previewImportForm), $(), false, false);
+                }, 450);
             });
 
             $('.market-seeding-run-previewed-import').on('click', function () {
                 if (!previewImportForm) {
                     return;
+                }
+
+                if (previewImportForm.hasClass('market-seeding-tracked-doctrine-form')) {
+                    writeDoctrineFitSettingsToForm(previewImportForm);
                 }
 
                 previewApplying = true;
@@ -881,6 +941,11 @@
                     replaceItemRows('#market-seeding-settings-table-' + $form.data('market-id'), response.items || []);
                     updateTrackedCount($('#market-seeding-card-' + $form.data('market-id')), response.tracked_count);
                     $form.find('.doctrine-selector').val(null).trigger('change');
+                    $form.find('.market-seeding-doctrine-fit-settings').val('');
+                    $form.find('input[name="multiplier"]').val('10');
+                    $form.find('input[name="warning_percentage"]').val('33');
+                    $form.find('select[name="merge_mode"]').val('max');
+                    $form.find('select[name="fit_aggregation_mode"]').val('max');
                     $feedback.addClass('text-success').text(response.message || 'Doctrine tracking updated successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -1049,14 +1114,20 @@
             });
 
             $('.doctrine-selector').each(function () {
-                $(this).select2({
-                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                var $selector = $(this);
+                var marketId = $selector.closest('.market-seeding-tracked-doctrine-form').data('market-id');
+
+                $selector.select2({
+                    dropdownParent: $selector.closest('.modal').length ? $selector.closest('.modal') : $(document.body),
                     ajax: {
                         url: '{{ route('market-seeding.search.doctrines') }}',
                         dataType: 'json',
                         delay: 250,
                         data: function (params) {
-                            return { q: params.term };
+                            return {
+                                q: params.term,
+                                market_id: marketId || ''
+                            };
                         },
                         processResults: function (data) {
                             return data;
@@ -1271,6 +1342,40 @@
                 $('#market-seeding-import-preview-modal').modal('show');
             }
 
+            function fetchDoctrinePreview($form, $button, $feedback, $sourceModal, showModal, renderFits) {
+                var originalButtonHtml = $button.html();
+                renderFits = renderFits !== false;
+
+                if ($button.length) {
+                    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Previewing');
+                }
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.data('preview-url'),
+                    method: 'POST',
+                    data: serializePreviewForm($form),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    previewImportForm = $form;
+                    renderImportPreview(response, renderFits);
+                    $('.market-seeding-doctrine-preview-refresh-status').text(renderFits ? '' : 'Preview updated.');
+
+                    if (showModal) {
+                        showImportPreviewModal($sourceModal);
+                    }
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                    $('.market-seeding-doctrine-preview-refresh-status').text('Preview could not be updated.');
+                }).always(function () {
+                    if ($button.length) {
+                        $button.prop('disabled', false).html(originalButtonHtml || 'Preview Doctrine');
+                    }
+                });
+            }
+
             function showSettingsNotice(message, type) {
                 var alertClass = type === 'success' ? 'alert-success' : 'alert-info';
                 var $notice = $(
@@ -1303,7 +1408,20 @@
                 return [$form.serialize(), linkedFields].filter(Boolean).join('&');
             }
 
-            function renderImportPreview(response) {
+            function serializePreviewForm($form) {
+                var formId = $form.attr('id');
+                var fields = $form.serializeArray();
+
+                if (formId) {
+                    fields = fields.concat($('[form="' + formId + '"]').serializeArray());
+                }
+
+                return $.param($.grep(fields, function (field) {
+                    return field.name !== '_method';
+                }));
+            }
+
+            function renderImportPreview(response, renderDoctrineFits) {
                 var summary = response.summary || {};
                 var rows = response.rows || [];
                 var validation = response.validation || {};
@@ -1316,8 +1434,12 @@
                     (summary.remove || 0) + ' removed',
                     (summary.unchanged || 0) + ' unchanged'
                 ];
+                renderDoctrineFits = renderDoctrineFits !== false;
 
                 $('.market-seeding-preview-summary').text(summaryText.join(' · '));
+                if (renderDoctrineFits) {
+                    renderDoctrinePreviewSettings(response.doctrine || null);
+                }
                 renderImportValidation(validation);
 
                 if (!rows.length) {
@@ -1336,6 +1458,120 @@
                             '<td class="text-right">' + formatWhole(row.warning_quantity) + '</td>' +
                         '</tr>';
                 }).join(''));
+            }
+
+            function renderDoctrinePreviewSettings(doctrine) {
+                var $panel = $('.market-seeding-doctrine-preview-settings');
+                var fits = doctrine && doctrine.fits ? doctrine.fits : [];
+
+                if (!fits.length) {
+                    $panel.hide();
+                    $('.market-seeding-doctrine-fit-rows').empty();
+                    return;
+                }
+
+                if (previewImportForm && previewImportForm.hasClass('market-seeding-tracked-doctrine-form')) {
+                    previewImportForm.find('select[name="fit_aggregation_mode"]').val(doctrine.fit_aggregation_mode || 'max');
+                    previewImportForm.find('.market-seeding-doctrine-fit-settings').val(JSON.stringify($.map(fits, doctrineFitSettingPayload)));
+                }
+
+                $('.market-seeding-doctrine-fit-rows').html($.map(fits, function (fit) {
+                    var contentsId = 'market-seeding-fit-contents-' + fit.fitting_id;
+                    var fitPanel = doctrineFitPanel(fit);
+
+                    return '' +
+                        '<tr data-fitting-id="' + escapeAttr(fit.fitting_id) + '">' +
+                            '<td>' +
+                                '<strong>' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</strong>' +
+                                '<div class="small text-muted">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') + '</div>' +
+                            '</td>' +
+                            '<td class="text-right" style="width: 150px;">' +
+                                '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-ship-multiplier" value="' + escapeAttr(fit.ship_multiplier) + '" min="0" max="10000">' +
+                            '</td>' +
+                            '<td class="text-right" style="width: 165px;">' +
+                                '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-fitting-multiplier" value="' + escapeAttr(fit.fitting_multiplier) + '" min="0" max="10000">' +
+                            '</td>' +
+                            '<td>' +
+                                '<button type="button" class="btn btn-default btn-xs" data-toggle="collapse" data-target="#' + contentsId + '">View Fit</button>' +
+                                '<div class="collapse market-seeding-fit-contents mt-2" id="' + contentsId + '">' +
+                                    fitPanel +
+                                '</div>' +
+                            '</td>' +
+                        '</tr>';
+                }).join(''));
+                $panel.show();
+            }
+
+            function doctrineFitPanel(fit) {
+                var groups = groupFitItems(fit.items || []);
+                var order = ['High Slots', 'Medium Slots', 'Low Slots', 'Rigs', 'Drone Bay', 'Cargo', 'Service Slots', 'Other'];
+                var slotGroups = '';
+
+                $.each(order, function (index, groupName) {
+                    var items = groups[groupName] || [];
+
+                    if (!items.length) {
+                        return;
+                    }
+
+                    slotGroups += '<div class="market-seeding-fit-slot-group">' +
+                        '<div class="market-seeding-fit-slot-group-title">' + escapeHtml(groupName) + '</div>' +
+                        $.map(items, function (item) {
+                            return '<div class="market-seeding-fit-slot-row">' +
+                                '<span>' + escapeHtml(item.type_name) + '</span>' +
+                                '<span class="text-muted">x' + formatWhole(item.quantity) + '</span>' +
+                            '</div>';
+                        }).join('') +
+                    '</div>';
+                });
+
+                if (!slotGroups) {
+                    slotGroups = '<div class="text-muted">No fitting items found.</div>';
+                }
+
+                return '<div class="market-seeding-fit-panel">' +
+                    '<div class="market-seeding-fit-ship">' +
+                        '<strong>' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</strong>' +
+                        '<div class="small text-muted">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') + '</div>' +
+                    '</div>' +
+                    '<div class="market-seeding-fit-slots">' + slotGroups + '</div>' +
+                '</div>';
+            }
+
+            function groupFitItems(items) {
+                var groups = {};
+
+                $.each(items, function (index, item) {
+                    var group = item.slot_group || 'Other';
+                    groups[group] = groups[group] || [];
+                    groups[group].push(item);
+                });
+
+                return groups;
+            }
+
+            function writeDoctrineFitSettingsToForm($form) {
+                var settings = [];
+
+                $('.market-seeding-doctrine-fit-rows tr[data-fitting-id]').each(function () {
+                    var $row = $(this);
+
+                    settings.push({
+                        fitting_id: Number($row.data('fitting-id')),
+                        ship_multiplier: Number($row.find('.market-seeding-fit-ship-multiplier').val() || 0),
+                        fitting_multiplier: Number($row.find('.market-seeding-fit-fitting-multiplier').val() || 0)
+                    });
+                });
+
+                $form.find('.market-seeding-doctrine-fit-settings').val(JSON.stringify(settings));
+            }
+
+            function doctrineFitSettingPayload(fit) {
+                return {
+                    fitting_id: Number(fit.fitting_id || 0),
+                    ship_multiplier: Number(fit.ship_multiplier || 0),
+                    fitting_multiplier: Number(fit.fitting_multiplier || 0)
+                };
             }
 
             function renderImportValidation(validation) {

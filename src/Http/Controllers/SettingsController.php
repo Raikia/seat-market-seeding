@@ -29,7 +29,7 @@ class SettingsController extends Controller
 {
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
     {
-        $markets = SeededMarket::with('items.sources', 'role', 'trackedDoctrines')
+        $markets = SeededMarket::with('items.sources', 'role', 'trackedDoctrines.fitSettings')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -201,8 +201,10 @@ class SettingsController extends Controller
             'multiplier' => (int) $data['multiplier'],
             'warning_percentage' => (int) $data['warning_percentage'],
             'merge_mode' => $data['merge_mode'],
+            'fit_aggregation_mode' => $data['fit_aggregation_mode'],
         ]);
 
+        $sync->syncFitSettings($trackedDoctrine, $this->doctrineFitSettingsFromRequest($data));
         $sync->syncDoctrine($trackedDoctrine);
 
         if ($request->expectsJson()) {
@@ -228,14 +230,32 @@ class SettingsController extends Controller
             ], 422);
         }
 
-        return response()->json($previewer->previewDoctrine(
+        $submittedFitSettings = $this->doctrineFitSettingsFromRequest($data);
+
+        if (!$submittedFitSettings) {
+            $submittedFitSettings = $this->storedDoctrineFitSettings($market, (int) $data['doctrine_id']);
+        }
+
+        $doctrinePreview = $sync->doctrinePreview(
+            (int) $data['doctrine_id'],
+            (int) $data['multiplier'],
+            $submittedFitSettings,
+            $data['fit_aggregation_mode']
+        );
+        $preview = $previewer->previewDoctrine(
             $market,
             (int) $data['doctrine_id'],
             $doctrine->name,
-            $sync->doctrineItems((int) $data['doctrine_id'], (int) $data['multiplier']),
+            $doctrinePreview['items'],
             (int) $data['warning_percentage'],
             $data['merge_mode']
-        ));
+        );
+        $preview['doctrine'] = [
+            'fits' => $doctrinePreview['fits'],
+            'fit_aggregation_mode' => $data['fit_aggregation_mode'],
+        ];
+
+        return response()->json($preview);
     }
 
     public function updateTrackedDoctrine(Request $request, MarketSeedingTrackedDoctrine $trackedDoctrine, DoctrineTrackingSync $sync)
@@ -244,9 +264,23 @@ class SettingsController extends Controller
             'multiplier' => 'required|integer|min:1|max:10000',
             'warning_percentage' => 'required|integer|min:0|max:100',
             'merge_mode' => 'required|in:max,add',
+            'fit_aggregation_mode' => 'nullable|in:sum,max',
+            'doctrine_fit_settings' => 'nullable|string',
         ]);
 
-        $trackedDoctrine->update($data);
+        $data['fit_aggregation_mode'] = $data['fit_aggregation_mode'] ?? MarketSeedingTrackedDoctrine::FIT_AGGREGATION_MAX;
+        $trackedDoctrine->update([
+            'multiplier' => (int) $data['multiplier'],
+            'warning_percentage' => (int) $data['warning_percentage'],
+            'merge_mode' => $data['merge_mode'],
+            'fit_aggregation_mode' => $data['fit_aggregation_mode'],
+        ]);
+        $submittedFitSettings = $this->doctrineFitSettingsFromRequest($data);
+
+        if ($submittedFitSettings) {
+            $sync->syncFitSettings($trackedDoctrine, $submittedFitSettings);
+        }
+
         $sync->syncDoctrine($trackedDoctrine);
 
         if ($request->expectsJson()) {
@@ -524,8 +558,23 @@ class SettingsController extends Controller
 
     public function searchDoctrines(Request $request, SavedFittingSource $savedFittings)
     {
+        $results = collect($savedFittings->searchDoctrines((string) $request->input('q', '')));
+        $marketId = (int) $request->input('market_id');
+
+        if ($marketId > 0) {
+            $trackedDoctrineIds = SeededMarket::find($marketId)
+                ?->trackedDoctrines()
+                ->pluck('doctrine_id')
+                ->map(fn ($doctrineId) => (int) $doctrineId)
+                ->all() ?: [];
+
+            if ($trackedDoctrineIds) {
+                $results = $results->reject(fn ($result) => in_array((int) $result['id'], $trackedDoctrineIds, true));
+            }
+        }
+
         return response()->json([
-            'results' => $savedFittings->searchDoctrines((string) $request->input('q', '')),
+            'results' => $results->values(),
         ]);
     }
 
@@ -559,6 +608,8 @@ class SettingsController extends Controller
             'multiplier' => 'required|integer|min:1|max:10000',
             'warning_percentage' => 'required|integer|min:0|max:100',
             'merge_mode' => 'required|in:max,add',
+            'fit_aggregation_mode' => 'required|in:sum,max',
+            'doctrine_fit_settings' => 'nullable|string',
         ];
     }
 
@@ -622,7 +673,7 @@ class SettingsController extends Controller
 
     private function trackedDoctrinePayload(SeededMarket $market, string $message): array
     {
-        $market->load(['trackedDoctrines', 'items' => function ($query) {
+        $market->load(['trackedDoctrines.fitSettings', 'items' => function ($query) {
             $query->with('sources')->orderBy('type_name');
         }]);
 
@@ -643,6 +694,54 @@ class SettingsController extends Controller
         $percentage = max(0, min(100, $percentage));
 
         return max(0, (int) ceil(max(1, $quantity) * ($percentage / 100)));
+    }
+
+    private function doctrineFitSettingsFromRequest(array $data): array
+    {
+        if (empty($data['doctrine_fit_settings'])) {
+            return [];
+        }
+
+        $settings = json_decode(html_entity_decode($data['doctrine_fit_settings'], ENT_QUOTES, 'UTF-8'), true);
+
+        if (!is_array($settings)) {
+            return [];
+        }
+
+        return collect($settings)
+            ->map(function ($setting) {
+                return [
+                    'fitting_id' => (int) ($setting['fitting_id'] ?? 0),
+                    'ship_multiplier' => max(0, min(10000, (int) ($setting['ship_multiplier'] ?? 0))),
+                    'fitting_multiplier' => max(0, min(10000, (int) ($setting['fitting_multiplier'] ?? 0))),
+                ];
+            })
+            ->filter(fn ($setting) => $setting['fitting_id'] > 0)
+            ->values()
+            ->all();
+    }
+
+    private function storedDoctrineFitSettings(SeededMarket $market, int $doctrineId): array
+    {
+        $trackedDoctrine = $market->trackedDoctrines()
+            ->with('fitSettings')
+            ->where('doctrine_id', $doctrineId)
+            ->first();
+
+        if (!$trackedDoctrine) {
+            return [];
+        }
+
+        return $trackedDoctrine->fitSettings
+            ->map(function ($fitSetting) {
+                return [
+                    'fitting_id' => (int) $fitSetting->fitting_id,
+                    'ship_multiplier' => (int) $fitSetting->ship_multiplier,
+                    'fitting_multiplier' => (int) $fitSetting->fitting_multiplier,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function savedFittingValidation(int $itemCount): array

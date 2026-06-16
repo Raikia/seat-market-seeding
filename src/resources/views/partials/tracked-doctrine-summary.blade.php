@@ -17,6 +17,8 @@
                     low warning {{ number_format($trackedDoctrine->warning_percentage) }}%
                     &middot;
                     {{ $trackedDoctrine->merge_mode === 'add' ? 'adds to manual target' : 'higher of manual or doctrine' }}
+                    &middot;
+                    {{ $trackedDoctrine->fit_aggregation_mode === 'max' ? 'max per fit item' : 'sums fits' }}
                 </span>
                 <div class="small mt-1">
                     <span class="badge {{ $syncBadge }}">{{ ucfirst($trackedDoctrine->last_sync_status ?: 'not synced') }}</span>

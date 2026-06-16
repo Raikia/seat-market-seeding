@@ -11,6 +11,28 @@
                 </button>
             </div>
             <div class="modal-body">
+                <div class="market-seeding-doctrine-preview-settings mb-3" style="display: none;">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>Doctrine fit multipliers</strong>
+                            <div class="small text-muted">Ship multiplier is only the hull. Fitting multiplier covers modules, rigs, ammo, drones, cargo, and other fit contents.</div>
+                        </div>
+                        <span class="small text-muted market-seeding-doctrine-preview-refresh-status"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ship / Fit</th>
+                                    <th class="text-right">Ship Multiplier</th>
+                                    <th class="text-right">Fitting Multiplier</th>
+                                    <th>Fit Contents</th>
+                                </tr>
+                            </thead>
+                            <tbody class="market-seeding-doctrine-fit-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="alert alert-light border market-seeding-preview-summary mb-3">
                     Preview has not been loaded yet.
                 </div>

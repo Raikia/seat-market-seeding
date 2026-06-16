@@ -171,29 +171,38 @@ Caracal 10" required></textarea>
                         <div class="tab-pane fade" id="{{ $doctrineTabId }}" role="tabpanel" aria-labelledby="{{ $doctrineTabId }}-tab">
                             <form action="{{ route('market-seeding.tracked-doctrines.store', $market->id) }}" method="POST" class="market-seeding-tracked-doctrine-form" data-market-id="{{ $market->id }}" data-preview-url="{{ route('market-seeding.tracked-doctrines.preview', $market->id) }}">
                                 {{ csrf_field() }}
+                                <input type="hidden" name="doctrine_fit_settings" class="market-seeding-doctrine-fit-settings" value="">
                                 <div class="form-row">
-                                    <div class="form-group col-md-4">
+                                    <div class="form-group col-lg-4 col-md-6">
                                         <label>Doctrine</label>
                                         <select name="doctrine_id" class="form-control doctrine-selector" style="width: 100%;" required></select>
                                     </div>
-                                    <div class="form-group col-md-2">
-                                        <label>Multiplier</label>
-                                        <input type="number" name="multiplier" class="form-control" value="1" min="1" max="10000" required>
+                                    <div class="form-group col-lg-2 col-md-3">
+                                        <label>Default Fit Multiplier</label>
+                                        <input type="number" name="multiplier" class="form-control" value="10" min="1" max="10000" required>
+                                        <small class="form-text text-muted">Used as the starting ship and fitting multiplier for every fit in the preview.</small>
                                     </div>
-                                    <div class="form-group col-md-2">
+                                    <div class="form-group col-lg-2 col-md-3">
                                         <label>Low Warning %</label>
                                         <input type="number" name="warning_percentage" class="form-control" value="33" min="0" max="100" required>
                                     </div>
-                                    <div class="form-group col-md-3">
-                                        <label>Merge Mode</label>
+                                    <div class="form-group col-lg-2 col-md-6">
+                                        <label>Manual Handling</label>
                                         <select name="merge_mode" class="form-control">
                                             <option value="max">Use higher of manual or doctrine</option>
                                             <option value="add">Add doctrine to manual target</option>
                                         </select>
                                     </div>
-                                    <div class="form-group col-md-2">
+                                    <div class="form-group col-lg-2 col-md-6">
+                                        <label>Fit Item Handling</label>
+                                        <select name="fit_aggregation_mode" class="form-control">
+                                            <option value="max">Use max per item</option>
+                                            <option value="sum">Sum all fits</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-12 text-right">
                                         <label>&nbsp;</label>
-                                        <button type="button" class="btn btn-success btn-block market-seeding-preview-doctrine">Preview Doctrine</button>
+                                        <button type="button" class="btn btn-success market-seeding-preview-doctrine">Preview Doctrine</button>
                                     </div>
                                 </div>
                                 <div class="market-seeding-doctrine-feedback small mb-2" style="display: none;"></div>

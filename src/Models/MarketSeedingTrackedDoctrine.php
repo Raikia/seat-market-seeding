@@ -8,6 +8,8 @@ class MarketSeedingTrackedDoctrine extends Model
 {
     const MERGE_MAX = 'max';
     const MERGE_ADD = 'add';
+    const FIT_AGGREGATION_MAX = 'max';
+    const FIT_AGGREGATION_SUM = 'sum';
 
     protected $table = 'seat_market_seeding_tracked_doctrines';
 
@@ -18,6 +20,7 @@ class MarketSeedingTrackedDoctrine extends Model
         'multiplier',
         'warning_percentage',
         'merge_mode',
+        'fit_aggregation_mode',
         'last_synced_at',
         'last_sync_status',
         'last_sync_message',
@@ -39,5 +42,10 @@ class MarketSeedingTrackedDoctrine extends Model
     public function sources()
     {
         return $this->hasMany(MarketSeedingItemSource::class, 'tracked_doctrine_id');
+    }
+
+    public function fitSettings()
+    {
+        return $this->hasMany(MarketSeedingTrackedDoctrineFit::class, 'tracked_doctrine_id');
     }
 }

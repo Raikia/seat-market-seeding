@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
 use Raikia\SeatMarketSeeding\Models\Integrations\CharacterFitting;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Seat\Eveapi\Models\Sde\InvType;
 
 class SavedFittingSource
@@ -67,6 +68,84 @@ class SavedFittingSource
         }
 
         return [];
+    }
+
+    public function doctrineFits(int $doctrineId): Collection
+    {
+        if (!SeatFittingPluginHelper::pluginIsAvailable()) {
+            return collect();
+        }
+
+        $doctrine = SeatFittingPluginHelper::getDoctrineWithFittings($doctrineId);
+
+        if (!$doctrine) {
+            return collect();
+        }
+
+        return $doctrine->fittings
+            ->map(function ($fit) {
+                return $this->doctrineFitPayload($fit);
+            })
+            ->filter()
+            ->values();
+    }
+
+    public function doctrineItemsFromFitSettings(int $doctrineId, array $fitSettings, string $aggregationMode): array
+    {
+        $fits = $this->doctrineFits($doctrineId);
+
+        if ($fits->isEmpty()) {
+            return [];
+        }
+
+        $settings = collect($fitSettings)
+            ->keyBy(fn ($setting) => (int) ($setting['fitting_id'] ?? 0));
+        $items = [];
+
+        foreach ($fits as $fit) {
+            $fitContribution = [];
+            $setting = $settings->get((int) $fit['fitting_id'], []);
+            $shipMultiplier = max(0, (int) ($setting['ship_multiplier'] ?? 1));
+            $fittingMultiplier = max(0, (int) ($setting['fitting_multiplier'] ?? 1));
+
+            if ($shipMultiplier > 0 && !empty($fit['ship_type_id'])) {
+                $this->addType($fitContribution, (int) $fit['ship_type_id'], $shipMultiplier, null, $fit['ship_type_name']);
+            }
+
+            foreach ($fit['items'] as $item) {
+                if ($fittingMultiplier < 1) {
+                    continue;
+                }
+
+                $this->addType(
+                    $fitContribution,
+                    (int) $item['type_id'],
+                    (int) $item['quantity'] * $fittingMultiplier,
+                    null,
+                    $item['type_name']
+                );
+            }
+
+            if ($aggregationMode === MarketSeedingTrackedDoctrine::FIT_AGGREGATION_MAX) {
+                foreach ($fitContribution as $typeId => $item) {
+                    if (!isset($items[$typeId]) || (int) $item['quantity'] > (int) $items[$typeId]['quantity']) {
+                        $items[$typeId] = $item;
+                    }
+                }
+
+                continue;
+            }
+
+            foreach ($fitContribution as $typeId => $item) {
+                $this->addType($items, (int) $typeId, (int) $item['quantity'], null, $item['type_name']);
+            }
+        }
+
+        return collect($items)
+            ->filter(fn ($item) => (int) $item['quantity'] > 0)
+            ->sortBy('type_name')
+            ->values()
+            ->all();
     }
 
     private function seatFittingSources(string $query): Collection
@@ -163,6 +242,41 @@ class SavedFittingSource
         return array_values($items);
     }
 
+    private function doctrineFitPayload($fit): ?array
+    {
+        $fittingId = (int) ($fit->fitting_id ?? $fit->id ?? 0);
+
+        if (!$fittingId) {
+            return null;
+        }
+
+        return [
+            'fitting_id' => $fittingId,
+            'fitting_name' => $fit->name ?: 'Unnamed Fit',
+            'ship_type_id' => (int) $fit->ship_type_id,
+            'ship_type_name' => optional($fit->ship)->typeName ?: 'Unknown Ship',
+            'items' => $fit->items
+                ->map(function ($item) {
+                    $type = $item->type ?: InvType::where('typeID', (int) $item->type_id)->first();
+
+                    if (!$type) {
+                        return null;
+                    }
+
+                    return [
+                        'type_id' => (int) $item->type_id,
+                        'type_name' => $type->typeName,
+                        'quantity' => max(1, (int) $item->quantity),
+                        'flag' => (int) ($item->flag ?? 0),
+                        'slot_group' => $this->slotGroup((int) ($item->flag ?? 0)),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all(),
+        ];
+    }
+
     private function itemsFromCharacterFit(int $id, int $multiplier): array
     {
         $characterIds = $this->currentUserCharacterIds();
@@ -216,18 +330,51 @@ class SavedFittingSource
             ->values();
     }
 
-    private function addType(array &$items, int $typeId, int $quantity, ?InvType $type = null): void
+    private function slotGroup(int $flag): string
     {
-        $type = $type ?: InvType::where('typeID', $typeId)->first();
+        if ($flag >= 27 && $flag <= 34) {
+            return 'High Slots';
+        }
 
-        if (!$type) {
+        if ($flag >= 19 && $flag <= 26) {
+            return 'Medium Slots';
+        }
+
+        if ($flag >= 11 && $flag <= 18) {
+            return 'Low Slots';
+        }
+
+        if ($flag >= 92 && $flag <= 99) {
+            return 'Rigs';
+        }
+
+        if ($flag === 87) {
+            return 'Drone Bay';
+        }
+
+        if (in_array($flag, [5, 133], true)) {
+            return 'Cargo';
+        }
+
+        if ($flag >= 164 && $flag <= 171) {
+            return 'Service Slots';
+        }
+
+        return 'Other';
+    }
+
+    private function addType(array &$items, int $typeId, int $quantity, ?InvType $type = null, ?string $typeName = null): void
+    {
+        $type = $type ?: ($typeName ? null : InvType::where('typeID', $typeId)->first());
+
+        if (!$type && !$typeName) {
             return;
         }
 
         if (!isset($items[$typeId])) {
             $items[$typeId] = [
                 'type_id' => $typeId,
-                'type_name' => $type->typeName,
+                'type_name' => $typeName ?: $type->typeName,
                 'quantity' => 0,
             ];
         }
