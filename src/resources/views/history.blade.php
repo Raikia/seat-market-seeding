@@ -44,6 +44,12 @@
             margin-bottom: 1rem;
             position: relative;
         }
+        .market-seeding-restock-leaders {
+            margin-bottom: 1rem;
+        }
+        .market-seeding-restock-leaders .table {
+            margin-bottom: 0;
+        }
         .market-seeding-dark-skin .card,
         .market-seeding-dark-skin .card-header,
         .market-seeding-dark-skin .card-body {
@@ -93,6 +99,58 @@
 
                 <div class="market-seeding-history-chart">
                     <canvas id="market-seeding-history-chart"></canvas>
+                </div>
+
+                <div class="card market-seeding-restock-leaders">
+                    <div class="card-header">
+                        <div>
+                            <h3 class="card-title mb-0">Most Frequent Restock Needs</h3>
+                            <small class="text-muted">Items that most often moved into low or empty status{{ request('market_id') ? ' for the selected market' : '' }}.</small>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Market</th>
+                                        <th class="text-right">Restock Events</th>
+                                        <th class="text-right">Empty</th>
+                                        <th class="text-right">Low</th>
+                                        <th class="text-right">Total Shortage Seen</th>
+                                        <th>Last Needed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($restockLeaders as $leader)
+                                        <tr>
+                                            <td>{{ $leader->type_name }}</td>
+                                            <td>
+                                                {{ $leader->market_name }}
+                                                <div class="text-muted small">{{ $leader->location_name }}</div>
+                                            </td>
+                                            <td class="text-right" data-order="{{ $leader->restock_events }}">{{ $whole($leader->restock_events) }}</td>
+                                            <td class="text-right" data-order="{{ $leader->empty_events }}">
+                                                <span class="badge badge-danger">{{ $whole($leader->empty_events) }}</span>
+                                            </td>
+                                            <td class="text-right" data-order="{{ $leader->low_events }}">
+                                                <span class="badge badge-warning">{{ $whole($leader->low_events) }}</span>
+                                            </td>
+                                            <td class="text-right" data-order="{{ $leader->total_shortage }}">{{ $whole($leader->total_shortage) }}</td>
+                                            <td data-order="{{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->timestamp : 0 }}">
+                                                {{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->format('Y-m-d H:i') : '-' }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-muted">No low or empty restock events have been recorded yet.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="table-responsive">

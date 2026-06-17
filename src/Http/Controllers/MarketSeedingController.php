@@ -53,8 +53,9 @@ class MarketSeedingController extends Controller
             ->appends($request->only('market_id', 'status'));
 
         $chartData = $this->historyChartData($request);
+        $restockLeaders = $this->restockLeaders($request);
 
-        return view('seat-market-seeding::history', compact('history', 'markets', 'chartData'));
+        return view('seat-market-seeding::history', compact('history', 'markets', 'chartData', 'restockLeaders'));
     }
 
     private function filteredVisibleHistory(Request $request)
@@ -102,6 +103,33 @@ class MarketSeedingController extends Controller
             })->values(),
             'series' => $series,
         ];
+    }
+
+    private function restockLeaders(Request $request)
+    {
+        return $this->visibleHistory()
+            ->when($request->filled('market_id'), function ($query) use ($request) {
+                $query->where('market_id', $request->integer('market_id'));
+            })
+            ->whereIn('current_status', ['low', 'empty'])
+            ->select([
+                'market_id',
+                'market_name',
+                'location_name',
+                'type_id',
+                'type_name',
+            ])
+            ->selectRaw('COUNT(*) as restock_events')
+            ->selectRaw("SUM(CASE WHEN current_status = 'empty' THEN 1 ELSE 0 END) as empty_events")
+            ->selectRaw("SUM(CASE WHEN current_status = 'low' THEN 1 ELSE 0 END) as low_events")
+            ->selectRaw('SUM(GREATEST(desired_quantity - current_quantity, 0)) as total_shortage')
+            ->selectRaw('MAX(created_at) as last_needed_at')
+            ->groupBy('market_id', 'market_name', 'location_name', 'type_id', 'type_name')
+            ->orderByDesc('restock_events')
+            ->orderByDesc('empty_events')
+            ->orderByDesc('total_shortage')
+            ->limit(15)
+            ->get();
     }
 
     private function visibleHistory()

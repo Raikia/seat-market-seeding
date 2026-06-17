@@ -61,9 +61,42 @@ class StockTargetProjector
                 ->with('trackedDoctrine')
                 ->where('type_id', $item->type_id)
                 ->get();
+            $hasDoctrineSources = $sources
+                ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
+                ->isNotEmpty();
             $baseProjection = $this->projectSources($sources, null, null, false);
             $adjustmentQuantity = max(0, $desiredQuantity - $baseProjection['quantity']);
             $adjustmentWarningQuantity = $warningQuantity ?? $this->quantities->defaultWarningQuantity($desiredQuantity);
+
+            if (!$hasDoctrineSources) {
+                MarketSeedingItemSource::updateOrCreate([
+                    'market_id' => $market->id,
+                    'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
+                    'source_key' => 'manual',
+                    'type_id' => $item->type_id,
+                ], [
+                    'tracked_doctrine_id' => null,
+                    'type_name' => $item->type_name,
+                    'quantity' => max(1, $desiredQuantity),
+                    'warning_quantity' => $adjustmentWarningQuantity,
+                ]);
+
+                $market->itemSources()
+                    ->where('type_id', $item->type_id)
+                    ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
+                    ->delete();
+
+                $this->recalculateMarket($market);
+
+                $item = $market->items()->where('type_id', $item->type_id)->firstOrFail();
+
+                if ($notes !== null) {
+                    $item->notes = $notes;
+                    $item->save();
+                }
+
+                return $item->fresh();
+            }
 
             if ($adjustmentQuantity < 1) {
                 $market->itemSources()
