@@ -22,6 +22,7 @@
         $percent = function ($value) {
             return number_format((float) $value, 1, '.', ',') . '%';
         };
+        $singleMarket = count($stockReport['markets']) === 1;
     @endphp
 
     <style>
@@ -309,6 +310,7 @@
                 $market = $marketReport['market'];
                 $exportId = 'market-seeding-export-' . $market->id;
                 $collapseId = 'market-seeding-market-' . $market->id;
+                $startsExpanded = $singleMarket;
                 $restockLines = $marketReport['rows']
                     ->filter(fn ($row) => $row['missing_quantity'] > 0)
                     ->map(function ($row) {
@@ -360,7 +362,7 @@
                         </small>
                     </div>
                     <div class="card-tools">
-                        <button type="button" class="btn btn-sm btn-default" data-toggle="collapse" data-target="#{{ $collapseId }}" aria-expanded="false" aria-controls="{{ $collapseId }}">
+                        <button type="button" class="btn btn-sm btn-default" data-toggle="collapse" data-target="#{{ $collapseId }}" aria-expanded="{{ $startsExpanded ? 'true' : 'false' }}" aria-controls="{{ $collapseId }}">
                             <i class="fas fa-chevron-down"></i>
                         </button>
                         <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#{{ $exportId }}-modal">
@@ -371,7 +373,7 @@
                         </a>
                     </div>
                 </div>
-                <div id="{{ $collapseId }}" class="collapse">
+                <div id="{{ $collapseId }}" class="collapse {{ $startsExpanded ? 'show' : '' }}">
                     <div class="card-body">
                         <div class="market-seeding-metrics">
                             <div class="market-seeding-metric">
