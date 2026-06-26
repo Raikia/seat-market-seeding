@@ -15,6 +15,11 @@ Route::group([
         'uses' => 'MarketSeedingController@history',
     ]);
 
+    Route::get('/history/transitions', [
+        'as' => 'market-seeding.history.transitions',
+        'uses' => 'MarketSeedingController@historyTransitions',
+    ]);
+
     Route::get('/items/{item}/history', [
         'as' => 'market-seeding.items.history',
         'uses' => 'MarketSeedingController@itemHistory',

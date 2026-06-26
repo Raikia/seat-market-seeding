@@ -3,6 +3,8 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
@@ -53,17 +55,21 @@ class MarketStockTransitionNotifier
             $currentQuantity = (int) $quantities->get($item->type_id, 0);
             $currentStatus = $this->statusFor($item, $currentQuantity);
             $previousStatus = $item->stock_status;
-            $this->recordSnapshot($market, $item, $previousSnapshots->get($item->id), $currentQuantity);
+            $snapshot = $this->recordSnapshot($market, $item, $previousSnapshots->get($item->id), $currentQuantity);
 
             if ($previousStatus && $previousStatus !== $currentStatus) {
                 $this->recordHistory($market, $item, $previousStatus, $currentStatus, $currentQuantity);
+                $this->recordDailySummary($snapshot, $currentStatus);
 
                 if ($this->isRestockedTransition($previousStatus, $currentStatus)) {
                     $restockedItems->push($this->restockedItemPayload($item, $previousStatus, $currentStatus, $currentQuantity));
                 } else {
                     $notifications += $this->dispatchTransition($market, $item, $previousStatus, $currentStatus, $currentQuantity);
                 }
+            } else {
+                $this->recordDailySummary($snapshot);
             }
+
 
             if ($previousStatus !== $currentStatus) {
                 $item->stock_status = $currentStatus;
@@ -217,13 +223,13 @@ class MarketStockTransitionNotifier
         ];
     }
 
-    private function recordSnapshot(SeededMarket $market, SeededMarketItem $item, ?MarketStockSnapshot $previousSnapshot, int $currentQuantity): void
+    private function recordSnapshot(SeededMarket $market, SeededMarketItem $item, ?MarketStockSnapshot $previousSnapshot, int $currentQuantity): MarketStockSnapshot
     {
         $previousQuantity = optional($previousSnapshot)->current_quantity;
         $estimatedSoldQuantity = $previousQuantity === null ? 0 : max(0, (int) $previousQuantity - $currentQuantity);
         $restockedQuantity = $previousQuantity === null ? 0 : max(0, $currentQuantity - (int) $previousQuantity);
 
-        MarketStockSnapshot::create([
+        return MarketStockSnapshot::create([
             'market_id' => $market->id,
             'item_id' => $item->id,
             'role_id' => $market->role_id,
@@ -239,6 +245,61 @@ class MarketStockTransitionNotifier
             'warning_quantity' => (int) $item->warning_quantity,
             'desired_quantity' => $item->desired_quantity,
         ]);
+    }
+
+    private function recordDailySummary(MarketStockSnapshot $snapshot, ?string $transitionStatus = null): void
+    {
+        if (!Schema::hasTable('seat_market_seeding_stock_daily_summaries')) {
+            return;
+        }
+
+        $summary = MarketStockDailySummary::firstOrNew([
+            'summary_date' => $snapshot->created_at->toDateString(),
+            'market_id' => $snapshot->market_id,
+            'item_id' => $snapshot->item_id,
+            'type_id' => $snapshot->type_id,
+        ]);
+
+        if (!$summary->exists) {
+            $summary->estimated_sold_quantity = 0;
+            $summary->restocked_quantity = 0;
+            $summary->sales_events = 0;
+            $summary->low_events = 0;
+            $summary->empty_events = 0;
+            $summary->stocked_events = 0;
+            $summary->total_shortage = 0;
+        }
+
+        $summary->role_id = $snapshot->role_id;
+        $summary->market_name = $snapshot->market_name;
+        $summary->location_name = $snapshot->location_name;
+        $summary->type_name = $snapshot->type_name;
+        $summary->type_category = $snapshot->type_category;
+        $summary->estimated_sold_quantity = (int) $summary->estimated_sold_quantity + (int) $snapshot->estimated_sold_quantity;
+        $summary->restocked_quantity = (int) $summary->restocked_quantity + (int) $snapshot->restocked_quantity;
+        $summary->sales_events = (int) $summary->sales_events + ((int) $snapshot->estimated_sold_quantity > 0 ? 1 : 0);
+        $summary->latest_current_quantity = (int) $snapshot->current_quantity;
+        $summary->latest_desired_quantity = (int) $snapshot->desired_quantity;
+        $summary->latest_warning_quantity = (int) $snapshot->warning_quantity;
+
+        if ((int) $snapshot->estimated_sold_quantity > 0) {
+            $summary->last_sold_at = $snapshot->created_at;
+        }
+
+        if ($transitionStatus === self::STATUS_LOW) {
+            $summary->low_events = (int) $summary->low_events + 1;
+        } elseif ($transitionStatus === self::STATUS_EMPTY) {
+            $summary->empty_events = (int) $summary->empty_events + 1;
+        } elseif ($transitionStatus === self::STATUS_STOCKED) {
+            $summary->stocked_events = (int) $summary->stocked_events + 1;
+        }
+
+        if (in_array($transitionStatus, [self::STATUS_LOW, self::STATUS_EMPTY], true)) {
+            $summary->total_shortage = (int) $summary->total_shortage + max(0, (int) $snapshot->desired_quantity - (int) $snapshot->current_quantity);
+            $summary->last_needed_at = $snapshot->created_at;
+        }
+
+        $summary->save();
     }
 
     private function recordHistory(SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): void
@@ -268,5 +329,11 @@ class MarketStockTransitionNotifier
         MarketStockSnapshot::query()
             ->where('created_at', '<', now()->subDays($this->settings->historyRetentionDays()))
             ->delete();
+
+        if (Schema::hasTable('seat_market_seeding_stock_daily_summaries')) {
+            MarketStockDailySummary::query()
+                ->where('summary_date', '<', now()->subDays($this->settings->historyRetentionDays())->toDateString())
+                ->delete();
+        }
     }
 }

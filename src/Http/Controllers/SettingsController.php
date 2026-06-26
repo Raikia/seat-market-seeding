@@ -8,6 +8,7 @@ use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
@@ -62,10 +63,13 @@ class SettingsController extends Controller
 
     public function clearHistory()
     {
-        $count = MarketStockHistory::query()->count() + MarketStockSnapshot::query()->count();
+        $count = MarketStockHistory::query()->count()
+            + MarketStockSnapshot::query()->count()
+            + MarketStockDailySummary::query()->count();
 
         MarketStockHistory::query()->delete();
         MarketStockSnapshot::query()->delete();
+        MarketStockDailySummary::query()->delete();
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
     }

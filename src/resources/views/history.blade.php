@@ -1138,7 +1138,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover market-seeding-history-table">
+	                    <table class="table table-sm table-hover market-seeding-history-table" data-ajax-url="{{ $historyAjaxUrl }}">
                         <thead>
                             <tr>
                                 <th>When</th>
@@ -1153,61 +1153,10 @@
                                 @endcan
                             </tr>
                         </thead>
-                        <tbody>
-                            @foreach($history as $event)
-                                <tr>
-                                    <td data-order="{{ optional($event->created_at)->timestamp }}">{{ optional($event->created_at)->format('Y-m-d H:i') }}</td>
-                                    <td>
-                                        {{ $event->market_name }}
-                                        <div class="text-muted small">{{ $event->location_name }}</div>
-                                    </td>
-                                    <td>
-                                        {{ $event->type_name }}
-                                        <div class="text-muted small">{{ $event->type_category }}</div>
-                                        @if($event->recommendation_differs)
-                                            <div class="history-recommendation-pill">Target {{ $whole($event->current_target_quantity) }} &rarr; Recommended {{ $whole($event->recommended_quantity) }}</div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="badge {{ $statusBadge($event->current_status) }}">
-                                            {{ ucfirst($event->current_status) }}
-                                        </span>
-                                        @if($event->previous_status)
-                                            <span class="text-muted small">{{ $event->previous_status }} &rarr; {{ $event->current_status }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-right" data-order="{{ $event->current_quantity }}">{{ $whole($event->current_quantity) }}</td>
-                                    <td class="text-right" data-order="{{ $event->warning_quantity }}">{{ $whole($event->warning_quantity) }}</td>
-                                    <td class="text-right" data-order="{{ $event->desired_quantity }}">{{ $whole($event->desired_quantity) }}</td>
-                                    @can('seat-market-seeding.manager')
-                                        <td class="text-right">
-                                            @if($event->item_id)
-                                                <button type="button"
-                                                        class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
-                                                        title="Edit target stock"
-                                                        data-update-url="{{ route('market-seeding.items.update', $event->item_id) }}"
-                                                       data-item-name="{{ $event->type_name }}"
-                                                       data-market-name="{{ $event->market_name }}"
-                                                        data-history-url="{{ route('market-seeding.items.history', ['item' => $event->item_id, 'days' => $days]) }}"
-                                                       data-desired-quantity="{{ (int) $event->desired_quantity }}"
-                                                        data-warning-quantity="{{ (int) $event->warning_quantity }}"
-                                                        data-recommended-quantity="{{ (int) $event->recommended_quantity }}"
-                                                        data-recommendation-reason="{{ $event->recommendation_reason }}">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                            @endif
-                                        </td>
-                                    @endcan
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @if($history->isEmpty())
-                    <p class="text-muted mb-0">No stock transitions have been recorded yet.</p>
-                @endif
-            </div>
+	                        <tbody></tbody>
+	                    </table>
+	                </div>
+	            </div>
         </div>
     </div>
 
@@ -1579,9 +1528,12 @@
                 });
 
                 $('.market-seeding-history-table').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: $('.market-seeding-history-table').data('ajax-url'),
                     order: [[0, 'desc']],
                     pageLength: 25,
-                    lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'All']],
+                    lengthMenu: [[25, 50, 100], [25, 50, 100]],
                     searching: true,
                     info: true,
                     autoWidth: false,
