@@ -17,4 +17,12 @@ return [
             'discord' => \Raikia\SeatMarketSeeding\Notifications\MarketStock\Discord\MarketStockTransition::class,
         ],
     ],
+    'market_seeding_restocked' => [
+        'label' => 'seat-market-seeding::alerts.restocked',
+        'handlers' => [
+            'mail' => \Raikia\SeatMarketSeeding\Notifications\MarketStock\Mail\MarketStockRestocked::class,
+            'slack' => \Raikia\SeatMarketSeeding\Notifications\MarketStock\Slack\MarketStockRestocked::class,
+            'discord' => \Raikia\SeatMarketSeeding\Notifications\MarketStock\Discord\MarketStockRestocked::class,
+        ],
+    ],
 ];

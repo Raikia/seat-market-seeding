@@ -20,6 +20,7 @@ class MarketStockTransitionNotifier
 
     const ALERT_LOW_STOCK = 'market_seeding_low_stock';
     const ALERT_EMPTY_STOCK = 'market_seeding_empty_stock';
+    const ALERT_RESTOCKED = 'market_seeding_restocked';
 
     private MarketSeedingSettings $settings;
 
@@ -44,6 +45,7 @@ class MarketStockTransitionNotifier
 
         $quantities = $this->currentQuantities($market);
         $notifications = 0;
+        $restockedItems = collect();
 
         foreach ($market->items as $item) {
             $currentQuantity = (int) $quantities->get($item->type_id, 0);
@@ -52,7 +54,12 @@ class MarketStockTransitionNotifier
 
             if ($previousStatus && $previousStatus !== $currentStatus) {
                 $this->recordHistory($market, $item, $previousStatus, $currentStatus, $currentQuantity);
-                $notifications += $this->dispatchTransition($market, $item, $previousStatus, $currentStatus, $currentQuantity);
+
+                if ($this->isRestockedTransition($previousStatus, $currentStatus)) {
+                    $restockedItems->push($this->restockedItemPayload($item, $previousStatus, $currentStatus, $currentQuantity));
+                } else {
+                    $notifications += $this->dispatchTransition($market, $item, $previousStatus, $currentStatus, $currentQuantity);
+                }
             }
 
             if ($previousStatus !== $currentStatus) {
@@ -60,6 +67,8 @@ class MarketStockTransitionNotifier
                 $item->save();
             }
         }
+
+        $notifications += $this->dispatchRestocked($market, $restockedItems);
 
         return $notifications;
     }
@@ -106,6 +115,46 @@ class MarketStockTransitionNotifier
         return 0;
     }
 
+    private function isRestockedTransition(string $previousStatus, string $currentStatus): bool
+    {
+        return $currentStatus === self::STATUS_STOCKED
+            && in_array($previousStatus, [self::STATUS_LOW, self::STATUS_EMPTY], true);
+    }
+
+    private function dispatchRestocked(SeededMarket $market, Collection $items): int
+    {
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
+            ->whereHas('alerts', function ($query) {
+                $query->where('alert', self::ALERT_RESTOCKED);
+            })
+            ->get();
+
+        if ($groups->isEmpty()) {
+            return 0;
+        }
+
+        $payload = [
+            'alert_type' => self::ALERT_RESTOCKED,
+            'market_id' => $market->id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'items' => $items->values()->all(),
+            'item_count' => $items->count(),
+            'dashboard_url' => route('market-seeding.index'),
+            'timestamp' => now()->toIso8601String(),
+        ];
+
+        $this->dispatchNotifications(self::ALERT_RESTOCKED, $groups, function ($notificationClass) use ($payload) {
+            return new $notificationClass($payload);
+        });
+
+        return 1;
+    }
+
     private function dispatchAlert(string $alertType, SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): int
     {
         $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
@@ -139,6 +188,19 @@ class MarketStockTransitionNotifier
         });
 
         return 1;
+    }
+
+    private function restockedItemPayload(SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): array
+    {
+        return [
+            'type_id' => $item->type_id,
+            'type_name' => $item->type_name,
+            'desired_quantity' => $item->desired_quantity,
+            'warning_quantity' => (int) $item->warning_quantity,
+            'current_quantity' => $currentQuantity,
+            'previous_status' => $previousStatus,
+            'current_status' => $currentStatus,
+        ];
     }
 
     private function recordHistory(SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): void
