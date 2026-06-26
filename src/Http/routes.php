@@ -43,6 +43,10 @@ Route::group([
             'as' => 'market-seeding.settings.history.clear',
             'uses' => 'SettingsController@clearHistory',
         ]);
+        Route::delete('/settings/audit-history', [
+            'as' => 'market-seeding.settings.audit-history.clear',
+            'uses' => 'SettingsController@clearAuditHistory',
+        ]);
         Route::post('/markets', [
             'as' => 'market-seeding.markets.store',
             'uses' => 'SettingsController@storeMarket',

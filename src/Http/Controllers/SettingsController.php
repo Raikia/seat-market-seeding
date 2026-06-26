@@ -72,7 +72,16 @@ class SettingsController extends Controller
         MarketStockSnapshot::query()->delete();
         MarketStockDailySummary::query()->delete();
 
-        return redirect()->route('market-seeding.settings')->with('success', $count . ' history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
+        return redirect()->route('market-seeding.settings')->with('success', $count . ' stock history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
+    }
+
+    public function clearAuditHistory()
+    {
+        $count = MarketSeedingTargetHistory::query()->count();
+
+        MarketSeedingTargetHistory::query()->delete();
+
+        return redirect()->route('market-seeding.settings')->with('success', $count . ' target audit entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
     }
 
     public function storeMarket(Request $request)

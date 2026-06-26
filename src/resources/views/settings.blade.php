@@ -56,6 +56,9 @@
         .market-seeding-add-toolbar .btn-group form {
             display: inline-flex;
         }
+        .market-seeding-settings-shell .btn-group form {
+            display: inline-flex;
+        }
         .market-seeding-doctrine-summary {
             display: flex;
             flex-wrap: wrap;
@@ -425,13 +428,22 @@
             </form>
             <div class="d-flex flex-wrap justify-content-between align-items-center mt-2">
                 <small class="text-muted mr-3">Recommendations use average estimated sales over the configured window, plus the buffer percentage. Defaults are 14 days and 25%.</small>
-                <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear all market seeding history? This cannot be undone.');">
-                    {{ csrf_field() }}
-                    {{ method_field('DELETE') }}
-                    <button type="submit" class="btn btn-danger btn-sm">
-                        <i class="fas fa-history"></i> Clear History
-                    </button>
-                </form>
+                <div class="btn-group">
+                    <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear stock movement history, snapshots, and daily summaries? Target audit history will be kept. This cannot be undone.');">
+                        {{ csrf_field() }}
+                        {{ method_field('DELETE') }}
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="fas fa-history"></i> Clear Stock History
+                        </button>
+                    </form>
+                    <form action="{{ route('market-seeding.settings.audit-history.clear') }}" method="POST" onsubmit="return confirm('Clear target audit history? This removes the record of who changed target quantities and cannot be undone.');">
+                        {{ csrf_field() }}
+                        {{ method_field('DELETE') }}
+                        <button type="submit" class="btn btn-warning btn-sm">
+                            <i class="fas fa-clipboard-list"></i> Clear Audit History
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
