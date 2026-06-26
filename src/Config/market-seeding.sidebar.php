@@ -16,7 +16,7 @@ return [
                 'permission' => 'seat-market-seeding.view',
             ],
             [
-                'name' => 'Restock History',
+                'name' => 'History',
                 'label' => 'seat-market-seeding::sidebar.history',
                 'icon' => 'fas fa-history',
                 'route' => 'market-seeding.history',

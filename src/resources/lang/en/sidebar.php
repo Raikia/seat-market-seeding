@@ -3,6 +3,6 @@
 return [
     'market_seeding' => 'Market Seeding',
     'dashboard' => 'Dashboard',
-    'history' => 'Restock History',
+    'history' => 'History',
     'settings' => 'Settings',
 ];

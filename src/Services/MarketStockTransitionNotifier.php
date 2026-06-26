@@ -4,6 +4,7 @@ namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
+use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Seat\Eveapi\Models\Market\MarketOrder;
@@ -37,13 +38,14 @@ class MarketStockTransitionNotifier
             return 0;
         }
 
-        $market->loadMissing('items');
+        $market->loadMissing('items.type.group');
 
         if ($market->items->isEmpty()) {
             return 0;
         }
 
         $quantities = $this->currentQuantities($market);
+        $previousSnapshots = $this->previousSnapshots($market);
         $notifications = 0;
         $restockedItems = collect();
 
@@ -51,6 +53,7 @@ class MarketStockTransitionNotifier
             $currentQuantity = (int) $quantities->get($item->type_id, 0);
             $currentStatus = $this->statusFor($item, $currentQuantity);
             $previousStatus = $item->stock_status;
+            $this->recordSnapshot($market, $item, $previousSnapshots->get($item->id), $currentQuantity);
 
             if ($previousStatus && $previousStatus !== $currentStatus) {
                 $this->recordHistory($market, $item, $previousStatus, $currentStatus, $currentQuantity);
@@ -85,6 +88,17 @@ class MarketStockTransitionNotifier
             ->map(function ($quantity) {
                 return (int) $quantity;
             });
+    }
+
+    private function previousSnapshots(SeededMarket $market): Collection
+    {
+        return MarketStockSnapshot::query()
+            ->where('market_id', $market->id)
+            ->whereIn('item_id', $market->items->pluck('id'))
+            ->latest()
+            ->get()
+            ->unique('item_id')
+            ->keyBy('item_id');
     }
 
     private function statusFor(SeededMarketItem $item, int $currentQuantity): string
@@ -203,6 +217,30 @@ class MarketStockTransitionNotifier
         ];
     }
 
+    private function recordSnapshot(SeededMarket $market, SeededMarketItem $item, ?MarketStockSnapshot $previousSnapshot, int $currentQuantity): void
+    {
+        $previousQuantity = optional($previousSnapshot)->current_quantity;
+        $estimatedSoldQuantity = $previousQuantity === null ? 0 : max(0, (int) $previousQuantity - $currentQuantity);
+        $restockedQuantity = $previousQuantity === null ? 0 : max(0, $currentQuantity - (int) $previousQuantity);
+
+        MarketStockSnapshot::create([
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'role_id' => $market->role_id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => $item->typeCategoryName(),
+            'previous_quantity' => $previousQuantity,
+            'current_quantity' => $currentQuantity,
+            'estimated_sold_quantity' => $estimatedSoldQuantity,
+            'restocked_quantity' => $restockedQuantity,
+            'warning_quantity' => (int) $item->warning_quantity,
+            'desired_quantity' => $item->desired_quantity,
+        ]);
+    }
+
     private function recordHistory(SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): void
     {
         MarketStockHistory::create([
@@ -224,6 +262,10 @@ class MarketStockTransitionNotifier
     private function pruneHistory(): void
     {
         MarketStockHistory::query()
+            ->where('created_at', '<', now()->subDays($this->settings->historyRetentionDays()))
+            ->delete();
+
+        MarketStockSnapshot::query()
             ->where('created_at', '<', now()->subDays($this->settings->historyRetentionDays()))
             ->delete();
     }

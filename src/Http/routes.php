@@ -15,6 +15,11 @@ Route::group([
         'uses' => 'MarketSeedingController@history',
     ]);
 
+    Route::get('/items/{item}/history', [
+        'as' => 'market-seeding.items.history',
+        'uses' => 'MarketSeedingController@itemHistory',
+    ]);
+
     Route::get('/markets/{market}/export', [
         'as' => 'market-seeding.export',
         'uses' => 'MarketSeedingController@export',
@@ -64,6 +69,10 @@ Route::group([
         Route::post('/markets/refresh', [
             'as' => 'market-seeding.markets.refresh-all',
             'uses' => 'SettingsController@refreshMarkets',
+        ]);
+        Route::post('/history/recommendations/apply', [
+            'as' => 'market-seeding.history.recommendations.apply',
+            'uses' => 'MarketSeedingController@applyHistoryRecommendations',
         ]);
         Route::post('/markets/{market}/items', [
             'as' => 'market-seeding.items.store',

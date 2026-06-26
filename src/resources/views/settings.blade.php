@@ -366,22 +366,46 @@
             <h3 class="card-title mb-0">General Settings</h3>
         </div>
         <div class="card-body">
-            <form action="{{ route('market-seeding.settings.general') }}" method="POST" class="form-inline">
+            <form action="{{ route('market-seeding.settings.general') }}" method="POST">
                 {{ csrf_field() }}
-                <div class="form-group mb-2 mr-2">
-                    <label for="history_retention_days" class="mr-2">Restock history retention</label>
-                    <input type="number" class="form-control" name="history_retention_days" id="history_retention_days" value="{{ $historyRetentionDays }}" min="1" max="3650" required>
+                <div class="form-row align-items-end">
+                    <div class="form-group col-md-4">
+                        <label for="history_retention_days">History retention</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="history_retention_days" id="history_retention_days" value="{{ $historyRetentionDays }}" min="1" max="3650" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">days</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label for="recommendation_sales_days">Recommendation sales window</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="recommendation_sales_days" id="recommendation_sales_days" value="{{ $recommendationSalesDays }}" min="1" max="365" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">days</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label for="recommendation_buffer_percentage">Recommendation buffer</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="recommendation_buffer_percentage" id="recommendation_buffer_percentage" value="{{ $recommendationBufferPercentage }}" min="0" max="500" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <span class="text-muted mb-2 mr-2">days</span>
-                <button type="submit" class="btn btn-primary mb-2">Save Settings</button>
+                <button type="submit" class="btn btn-primary">Save Settings</button>
             </form>
             <div class="d-flex flex-wrap justify-content-between align-items-center mt-2">
-                <small class="text-muted mr-3">History older than this is pruned during market refresh checks. Default is 365 days.</small>
-                <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear all restock history? This cannot be undone.');">
+                <small class="text-muted mr-3">Recommendations use average estimated sales over the configured window, plus the buffer percentage. Defaults are 14 days and 25%.</small>
+                <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear all market seeding history? This cannot be undone.');">
                     {{ csrf_field() }}
                     {{ method_field('DELETE') }}
                     <button type="submit" class="btn btn-danger btn-sm">
-                        <i class="fas fa-history"></i> Clear Restock History
+                        <i class="fas fa-history"></i> Clear History
                     </button>
                 </form>
             </div>

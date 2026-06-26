@@ -9,6 +9,7 @@ use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
+use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
@@ -38,28 +39,35 @@ class SettingsController extends Controller
         $savedFittingsAvailable = $savedFittings->isAvailable();
         $seatFittingAvailable = SeatFittingPluginHelper::pluginIsAvailable();
         $historyRetentionDays = $settings->historyRetentionDays();
+        $recommendationSalesDays = $settings->recommendationSalesDays();
+        $recommendationBufferPercentage = $settings->recommendationBufferPercentage();
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'recommendationSalesDays', 'recommendationBufferPercentage'));
     }
 
     public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
     {
         $data = $request->validate([
             'history_retention_days' => 'required|integer|min:1|max:3650',
+            'recommendation_sales_days' => 'required|integer|min:1|max:365',
+            'recommendation_buffer_percentage' => 'required|integer|min:0|max:500',
         ]);
 
         $settings->setHistoryRetentionDays((int) $data['history_retention_days']);
+        $settings->setRecommendationSalesDays((int) $data['recommendation_sales_days']);
+        $settings->setRecommendationBufferPercentage((int) $data['recommendation_buffer_percentage']);
 
         return redirect()->route('market-seeding.settings')->with('success', 'Market seeding settings updated successfully.');
     }
 
     public function clearHistory()
     {
-        $count = MarketStockHistory::query()->count();
+        $count = MarketStockHistory::query()->count() + MarketStockSnapshot::query()->count();
 
         MarketStockHistory::query()->delete();
+        MarketStockSnapshot::query()->delete();
 
-        return redirect()->route('market-seeding.settings')->with('success', $count . ' restock history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
+        return redirect()->route('market-seeding.settings')->with('success', $count . ' history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
     }
 
     public function storeMarket(Request $request)
