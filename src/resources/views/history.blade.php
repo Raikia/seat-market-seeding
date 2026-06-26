@@ -1326,6 +1326,30 @@
                                     </table>
                                 </div>
                             </div>
+                            <div class="edit-target-panel">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="edit-target-panel-title mb-0">Target Changes</div>
+                                    <small class="text-muted">Latest 25 changes</small>
+                                </div>
+                                <div class="modal-history-table">
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>When</th>
+                                                <th>Type</th>
+                                                <th>Changed By</th>
+                                                <th class="text-right">Target</th>
+                                                <th class="text-right">Warning</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="market-seeding-edit-target-change-history">
+                                            <tr>
+                                                <td colspan="5" class="text-muted">Select an item to load target changes.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1980,13 +2004,16 @@
 
             function loadTargetHistory(url) {
                 var $body = $('#market-seeding-edit-target-history');
+                var $targetBody = $('#market-seeding-edit-target-change-history');
 
                 $body.html('<tr><td colspan="5" class="text-muted">Loading transition history...</td></tr>');
+                $targetBody.html('<tr><td colspan="5" class="text-muted">Loading target changes...</td></tr>');
 
                 if (!url) {
                     renderTargetDetails({});
                     renderTargetTrend({});
                     $body.html('<tr><td colspan="5" class="text-muted">No transition history is available for this item.</td></tr>');
+                    renderTargetChangeHistory([]);
                     return;
                 }
 
@@ -2001,6 +2028,7 @@
 
                     renderTargetDetails(response.details || {});
                     renderTargetTrend(response.trend || {});
+                    renderTargetChangeHistory(response.target_history || []);
 
                     if (!events.length) {
                         $body.html('<tr><td colspan="5" class="text-muted">No stock transitions have been recorded for this item yet.</td></tr>');
@@ -2024,7 +2052,38 @@
                     renderTargetDetails({});
                     renderTargetTrend({});
                     $body.html('<tr><td colspan="5" class="text-danger">Unable to load transition history.</td></tr>');
+                    $targetBody.html('<tr><td colspan="5" class="text-danger">Unable to load target changes.</td></tr>');
                 });
+            }
+
+            function renderTargetChangeHistory(rows) {
+                var $body = $('#market-seeding-edit-target-change-history');
+
+                if (!rows.length) {
+                    $body.html('<tr><td colspan="5" class="text-muted">No target changes have been recorded for this item yet.</td></tr>');
+                    return;
+                }
+
+                $body.empty();
+
+                $.each(rows, function (index, row) {
+                    $body.append(
+                        '<tr>' +
+                            '<td data-order="' + (row.created_at_order || 0) + '">' + escapeHtml(row.created_at || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.change_type_label || row.change_type || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.user_name || 'System') + '</td>' +
+                            '<td class="text-right">' + targetChangeText(row.old_target_quantity, row.new_target_quantity) + '</td>' +
+                            '<td class="text-right">' + targetChangeText(row.old_warning_quantity, row.new_warning_quantity) + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            function targetChangeText(oldValue, newValue) {
+                var oldLabel = oldValue === null || typeof oldValue === 'undefined' ? '-' : numberWithCommas(oldValue);
+                var newLabel = newValue === null || typeof newValue === 'undefined' ? '-' : numberWithCommas(newValue);
+
+                return escapeHtml(oldLabel) + ' &rarr; ' + escapeHtml(newLabel);
             }
 
             function statusHtml(previousStatus, currentStatus) {

@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Services;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
@@ -24,9 +25,10 @@ class StockTargetProjector
         string $typeName,
         int $quantity,
         ?int $warningQuantity = null,
-        ?string $notes = null
+        ?string $notes = null,
+        string $changeType = MarketSeedingTargetHistory::CHANGE_MANUAL
     ): SeededMarketItem {
-        return DB::transaction(function () use ($market, $typeId, $typeName, $quantity, $warningQuantity, $notes) {
+        return DB::transaction(function () use ($market, $typeId, $typeName, $quantity, $warningQuantity, $notes, $changeType) {
             MarketSeedingItemSource::updateOrCreate([
                 'market_id' => $market->id,
                 'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
@@ -39,7 +41,7 @@ class StockTargetProjector
                 'warning_quantity' => $this->normalizeWarningQuantity($warningQuantity, max(1, $quantity)),
             ]);
 
-            $this->recalculateMarket($market);
+            $this->recalculateMarket($market, $changeType);
 
             $item = $market->items()->where('type_id', $typeId)->firstOrFail();
 
@@ -53,9 +55,15 @@ class StockTargetProjector
         }, 5);
     }
 
-    public function setEffectiveTarget(SeededMarketItem $item, int $desiredQuantity, ?int $warningQuantity = null, ?string $notes = null): SeededMarketItem
+    public function setEffectiveTarget(
+        SeededMarketItem $item,
+        int $desiredQuantity,
+        ?int $warningQuantity = null,
+        ?string $notes = null,
+        string $changeType = MarketSeedingTargetHistory::CHANGE_MANUAL
+    ): SeededMarketItem
     {
-        return DB::transaction(function () use ($item, $desiredQuantity, $warningQuantity, $notes) {
+        return DB::transaction(function () use ($item, $desiredQuantity, $warningQuantity, $notes, $changeType) {
             $market = $item->market;
             $sources = $market->itemSources()
                 ->with('trackedDoctrine')
@@ -87,7 +95,7 @@ class StockTargetProjector
                     ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
                     ->delete();
 
-                $this->recalculateMarket($market);
+                $this->recalculateMarket($market, $changeType);
 
                 $item = $market->items()->where('type_id', $item->type_id)->firstOrFail();
 
@@ -105,7 +113,7 @@ class StockTargetProjector
                     ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
                     ->delete();
 
-                $this->recalculateMarket($market);
+                $this->recalculateMarket($market, $changeType);
 
                 return $market->items()->where('type_id', $item->type_id)->firstOrFail()->fresh();
             }
@@ -122,7 +130,7 @@ class StockTargetProjector
                 'warning_quantity' => $adjustmentWarningQuantity,
             ]);
 
-            $this->recalculateMarket($market);
+            $this->recalculateMarket($market, $changeType);
 
             $item = $market->items()->where('type_id', $item->type_id)->firstOrFail();
 
@@ -151,15 +159,22 @@ class StockTargetProjector
                 return null;
             }
 
-            $this->recalculateMarket($market);
+            $this->recalculateMarket($market, MarketSeedingTargetHistory::CHANGE_MANUAL);
 
             return $market->items()->where('type_id', $item->type_id)->first();
         }, 5);
     }
 
-    public function importManualTargets(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): int
+    public function importManualTargets(
+        SeededMarket $market,
+        array $items,
+        string $mode,
+        bool $keepHigherQuantity = false,
+        int $warningPercentage = 33,
+        string $changeType = MarketSeedingTargetHistory::CHANGE_BULK_IMPORT
+    ): int
     {
-        return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity, $warningPercentage) {
+        return DB::transaction(function () use ($market, $items, $mode, $keepHigherQuantity, $warningPercentage, $changeType) {
             if ($mode === 'replace') {
                 $market->itemSources()
                     ->whereIn('source_type', [MarketSeedingItemSource::SOURCE_MANUAL, MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT])
@@ -198,15 +213,19 @@ class StockTargetProjector
                 ]);
             }
 
-            $this->recalculateMarket($market);
+            $this->recalculateMarket($market, $changeType);
 
             return count($items);
         }, 5);
     }
 
-    public function replaceDoctrineTargets(MarketSeedingTrackedDoctrine $trackedDoctrine, array $items): void
+    public function replaceDoctrineTargets(
+        MarketSeedingTrackedDoctrine $trackedDoctrine,
+        array $items,
+        string $changeType = MarketSeedingTargetHistory::CHANGE_DOCTRINE
+    ): void
     {
-        DB::transaction(function () use ($trackedDoctrine, $items) {
+        DB::transaction(function () use ($trackedDoctrine, $items, $changeType) {
             $typeIds = collect($items)->pluck('type_id')->map(fn ($typeId) => (int) $typeId)->all();
 
             $trackedDoctrine->sources()
@@ -227,11 +246,11 @@ class StockTargetProjector
                 ]);
             }
 
-            $this->recalculateMarket($trackedDoctrine->market);
+            $this->recalculateMarket($trackedDoctrine->market, $changeType);
         }, 5);
     }
 
-    public function recalculateMarket(SeededMarket $market): void
+    public function recalculateMarket(SeededMarket $market, string $changeType = MarketSeedingTargetHistory::CHANGE_SYSTEM): void
     {
         $sources = $market->itemSources()
             ->with('trackedDoctrine')
@@ -251,11 +270,23 @@ class StockTargetProjector
                 'market_id' => $market->id,
                 'type_id' => (int) $typeId,
             ]);
+            $oldTargetQuantity = $item->exists ? (int) $item->desired_quantity : null;
+            $oldWarningQuantity = $item->exists ? (int) $item->warning_quantity : null;
 
             $item->type_name = $projection['type_name'];
             $item->desired_quantity = $projection['quantity'];
             $item->warning_quantity = $projection['warning_quantity'];
             $item->save();
+
+            $this->recordTargetHistoryIfChanged(
+                $market,
+                $item,
+                $oldTargetQuantity,
+                (int) $item->desired_quantity,
+                $oldWarningQuantity,
+                (int) $item->warning_quantity,
+                $changeType
+            );
 
             $effectiveTypeIds[] = (int) $typeId;
 
@@ -270,7 +301,19 @@ class StockTargetProjector
             $itemsToDelete->whereNotIn('type_id', $effectiveTypeIds);
         }
 
-        $itemsToDelete->delete();
+        $itemsToDelete->get()->each(function (SeededMarketItem $item) use ($market, $changeType) {
+            $this->recordTargetHistoryIfChanged(
+                $market,
+                $item,
+                (int) $item->desired_quantity,
+                0,
+                (int) $item->warning_quantity,
+                0,
+                $changeType
+            );
+
+            $item->delete();
+        });
 
         $market->itemSources()
             ->whereNotIn('type_id', $effectiveTypeIds ?: [0])
@@ -367,5 +410,49 @@ class StockTargetProjector
         }
 
         return $this->quantities->clampWarningQuantity($warningQuantity, $desiredQuantity);
+    }
+
+    private function recordTargetHistoryIfChanged(
+        SeededMarket $market,
+        SeededMarketItem $item,
+        ?int $oldTargetQuantity,
+        ?int $newTargetQuantity,
+        ?int $oldWarningQuantity,
+        ?int $newWarningQuantity,
+        string $changeType
+    ): void {
+        if ($oldTargetQuantity === $newTargetQuantity && $oldWarningQuantity === $newWarningQuantity) {
+            return;
+        }
+
+        $user = auth()->user();
+
+        MarketSeedingTargetHistory::create([
+            'market_id' => $market->id,
+            'item_id' => $item->exists ? $item->id : null,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'old_target_quantity' => $oldTargetQuantity,
+            'new_target_quantity' => $newTargetQuantity,
+            'old_warning_quantity' => $oldWarningQuantity,
+            'new_warning_quantity' => $newWarningQuantity,
+            'change_type' => $changeType,
+            'user_id' => optional($user)->id,
+            'user_name' => $this->actorName($user),
+        ]);
+    }
+
+    private function actorName($user): string
+    {
+        if (!$user) {
+            return 'System';
+        }
+
+        return $user->name
+            ?? $user->username
+            ?? optional($user->main_character)->name
+            ?? ('User #' . $user->id);
     }
 }

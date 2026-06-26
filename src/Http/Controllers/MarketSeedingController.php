@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
@@ -70,6 +71,30 @@ class MarketSeedingController extends Controller
                     'desired_quantity' => (int) $event->desired_quantity,
                 ];
             });
+        $targetHistory = MarketSeedingTargetHistory::query()
+            ->where(function ($query) use ($item) {
+                $query->where('item_id', $item->id)
+                    ->orWhere(function ($query) use ($item) {
+                        $query->where('market_id', $item->market_id)
+                            ->where('type_id', $item->type_id);
+                    });
+            })
+            ->latest()
+            ->limit(25)
+            ->get()
+            ->map(function (MarketSeedingTargetHistory $history) {
+                return [
+                    'created_at' => optional($history->created_at)->format('Y-m-d H:i'),
+                    'created_at_order' => optional($history->created_at)->timestamp,
+                    'change_type' => $history->change_type,
+                    'change_type_label' => $history->changeTypeLabel(),
+                    'old_target_quantity' => $history->old_target_quantity,
+                    'new_target_quantity' => $history->new_target_quantity,
+                    'old_warning_quantity' => $history->old_warning_quantity,
+                    'new_warning_quantity' => $history->new_warning_quantity,
+                    'user_name' => $history->user_name ?: 'System',
+                ];
+            });
 
         return response()->json([
             'item' => [
@@ -81,6 +106,7 @@ class MarketSeedingController extends Controller
             'details' => $report->itemDetails($item),
             'trend' => $this->itemSalesTrend($item, $days),
             'events' => $events,
+            'target_history' => $targetHistory,
         ]);
     }
 
@@ -219,7 +245,9 @@ class MarketSeedingController extends Controller
                 $projector->setEffectiveTarget(
                     $item,
                     (int) $recommendation->recommended_quantity,
-                    $this->recommendedWarningQuantity($recommendation)
+                    $this->recommendedWarningQuantity($recommendation),
+                    null,
+                    MarketSeedingTargetHistory::CHANGE_RECOMMENDATION
                 );
                 $updated++;
             } catch (\Throwable $e) {

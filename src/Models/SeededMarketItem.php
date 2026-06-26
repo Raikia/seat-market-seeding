@@ -52,6 +52,11 @@ class SeededMarketItem extends Model
         return $this->hasMany(MarketSeedingItemSource::class, 'item_id');
     }
 
+    public function targetHistories()
+    {
+        return $this->hasMany(MarketSeedingTargetHistory::class, 'item_id');
+    }
+
     public function type()
     {
         return $this->hasOne(InvType::class, 'typeID', 'type_id');

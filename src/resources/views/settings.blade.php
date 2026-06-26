@@ -243,6 +243,16 @@
             text-align: center;
             width: 74px;
         }
+        .market-seeding-target-history-modal .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .market-seeding-target-history-meta {
+            color: #6c757d;
+            display: block;
+            font-size: .8rem;
+            margin-top: .15rem;
+        }
         .market-seeding-source-icon {
             align-items: center;
             border-radius: 999px;
@@ -329,6 +339,20 @@
         .market-seeding-dark-skin .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .28);
             color: #9be7ad;
+        }
+        .market-seeding-dark-skin.market-seeding-target-history-modal .modal-content,
+        .market-seeding-dark-skin .market-seeding-target-history-modal .modal-content {
+            background: #222d32;
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin.market-seeding-target-history-modal .modal-header,
+        .market-seeding-dark-skin.market-seeding-target-history-modal .modal-footer,
+        .market-seeding-dark-skin .market-seeding-target-history-modal .modal-header,
+        .market-seeding-dark-skin .market-seeding-target-history-modal .modal-footer {
+            border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-target-history-meta {
+            color: #b8c7ce;
         }
         @keyframes market-seeding-row-saved-dark {
             0% {
@@ -806,7 +830,10 @@
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->warning_quantity }}">
                                             <input form="item-update-{{ $item->id }}" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
                                         </td>
-                                        <td class="text-right" style="width: 160px;">
+                                        <td class="text-right" style="width: 200px;">
+                                            <button type="button" class="btn btn-default btn-xs market-seeding-show-target-history" data-history-url="{{ route('market-seeding.items.history', $item->id) }}" data-item-name="{{ $item->type_name }}" title="Target history">
+                                                <i class="fas fa-history"></i>
+                                            </button>
                                             <button type="submit" class="btn btn-primary btn-xs market-seeding-save-item" form="item-update-{{ $item->id }}">Save</button>
                                             <form action="{{ route('market-seeding.items.destroy', $item->id) }}" method="POST" class="market-seeding-delete-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}" style="display: inline-block;">
                                                 {{ csrf_field() }}
@@ -824,6 +851,45 @@
         </div>
         @include('seat-market-seeding::partials.market-add-modal', ['market' => $market])
     @endforeach
+    </div>
+
+    <div class="modal fade market-seeding-target-history-modal {{ $marketSeedingThemeClass }}" id="market-seeding-target-history-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-target-history-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="market-seeding-target-history-title">Target History</h5>
+                        <span class="market-seeding-target-history-meta" id="market-seeding-target-history-item">Select an item to view target changes.</span>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>Type</th>
+                                    <th>Changed By</th>
+                                    <th class="text-right">Target</th>
+                                    <th class="text-right">Low Warning</th>
+                                </tr>
+                            </thead>
+                            <tbody id="market-seeding-target-history-body">
+                                <tr>
+                                    <td colspan="5" class="text-muted">No item selected.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -1181,6 +1247,27 @@
                 });
             });
 
+            $(document).on('click', '.market-seeding-show-target-history', function () {
+                var $button = $(this);
+                var $body = $('#market-seeding-target-history-body');
+
+                $('#market-seeding-target-history-item').text($button.data('item-name') || 'Target changes');
+                $body.html('<tr><td colspan="5" class="text-muted">Loading target history...</td></tr>');
+                $('#market-seeding-target-history-modal').modal('show');
+
+                $.ajax({
+                    url: $button.data('history-url'),
+                    method: 'GET',
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    renderTargetHistoryRows($body, response.target_history || []);
+                }).fail(function () {
+                    $body.html('<tr><td colspan="5" class="text-danger">Unable to load target history.</td></tr>');
+                });
+            });
+
             $('.market-seeding-load-profile').on('click', function () {
                 var $form = $(this).closest('.market-seeding-import-form');
                 var profileId = $form.find('.market-seeding-profile-selector').val();
@@ -1488,7 +1575,7 @@
 	                }
 	            }
 
-	            function showButtonSuccess($button, originalButtonHtml, label) {
+            function showButtonSuccess($button, originalButtonHtml, label) {
                 $button
                     .data('restore-pending', true)
                     .removeClass('btn-primary')
@@ -1504,6 +1591,34 @@
                         .prop('disabled', false)
                         .html(originalButtonHtml);
                 }, 1200);
+            }
+
+            function renderTargetHistoryRows($body, rows) {
+                if (!rows.length) {
+                    $body.html('<tr><td colspan="5" class="text-muted">No target changes have been recorded for this item yet.</td></tr>');
+                    return;
+                }
+
+                $body.empty();
+
+                $.each(rows, function (index, row) {
+                    $body.append(
+                        '<tr>' +
+                            '<td data-order="' + (row.created_at_order || 0) + '">' + escapeHtml(row.created_at || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.change_type_label || row.change_type || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.user_name || 'System') + '</td>' +
+                            '<td class="text-right">' + targetChangeText(row.old_target_quantity, row.new_target_quantity) + '</td>' +
+                            '<td class="text-right">' + targetChangeText(row.old_warning_quantity, row.new_warning_quantity) + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            function targetChangeText(oldValue, newValue) {
+                var oldLabel = oldValue === null || typeof oldValue === 'undefined' ? '-' : formatWhole(oldValue);
+                var newLabel = newValue === null || typeof newValue === 'undefined' ? '-' : formatWhole(newValue);
+
+                return escapeHtml(oldLabel) + ' &rarr; ' + escapeHtml(newLabel);
             }
 
             function marketCardForForm($form) {
@@ -1861,7 +1976,8 @@
                         '<td class="text-right" style="width: 140px;" data-order="' + item.warning_quantity + '">' +
                             '<input form="' + updateFormId + '" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="' + item.warning_quantity + '" min="0">' +
                         '</td>' +
-                        '<td class="text-right" style="width: 160px;">' +
+                        '<td class="text-right" style="width: 200px;">' +
+                            '<button type="button" class="btn btn-default btn-xs market-seeding-show-target-history" data-history-url="' + escapeAttr(item.history_url) + '" data-item-name="' + escapeAttr(item.type_name) + '" title="Target history"><i class="fas fa-history"></i></button> ' +
                             '<button type="submit" class="btn btn-primary btn-xs market-seeding-save-item" form="' + updateFormId + '">Save</button> ' +
                             '<form action="' + escapeAttr(item.destroy_url) + '" method="POST" class="market-seeding-delete-item-form" data-table="' + escapeAttr(tableSelector) + '" style="display: inline-block;">' +
                                 '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +

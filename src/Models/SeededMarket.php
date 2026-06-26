@@ -63,4 +63,9 @@ class SeededMarket extends Model
     {
         return $this->hasMany(MarketStockSnapshot::class, 'market_id');
     }
+
+    public function targetHistories()
+    {
+        return $this->hasMany(MarketSeedingTargetHistory::class, 'market_id');
+    }
 }

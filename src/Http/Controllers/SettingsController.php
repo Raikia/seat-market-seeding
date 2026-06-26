@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
@@ -310,7 +311,7 @@ class SettingsController extends Controller
             $trackedDoctrine->delete();
 
             if ($market) {
-                $projector->recalculateMarket($market);
+                $projector->recalculateMarket($market, MarketSeedingTargetHistory::CHANGE_DOCTRINE);
             }
         }, 5);
 
@@ -332,7 +333,14 @@ class SettingsController extends Controller
         ]);
 
         $parsed = $parser->parseWithReport($data['stock_list'], (int) ($data['multiplier'] ?? 1));
-        $count = $importer->import($market, $parsed['items'], $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false), (int) $data['warning_percentage']);
+        $count = $importer->import(
+            $market,
+            $parsed['items'],
+            $data['mode'],
+            (bool) ($data['keep_higher_quantity'] ?? false),
+            (int) $data['warning_percentage'],
+            MarketSeedingTargetHistory::CHANGE_BULK_IMPORT
+        );
 
         if ($request->expectsJson()) {
             return response()->json($this->importPayload($market, $count, 'stock line(s) imported successfully.', $parsed['validation']));
@@ -344,6 +352,23 @@ class SettingsController extends Controller
     public function clearMarketItems(Request $request, SeededMarket $market)
     {
         DB::transaction(function () use ($market) {
+            $market->items()->get()->each(function (SeededMarketItem $item) use ($market) {
+                MarketSeedingTargetHistory::create([
+                    'market_id' => $market->id,
+                    'item_id' => $item->id,
+                    'type_id' => $item->type_id,
+                    'market_name' => $market->name,
+                    'location_name' => $market->location_name,
+                    'type_name' => $item->type_name,
+                    'old_target_quantity' => (int) $item->desired_quantity,
+                    'new_target_quantity' => 0,
+                    'old_warning_quantity' => (int) $item->warning_quantity,
+                    'new_warning_quantity' => 0,
+                    'change_type' => MarketSeedingTargetHistory::CHANGE_CLEAR,
+                    'user_id' => optional(auth()->user())->id,
+                    'user_name' => $this->targetHistoryActorName(),
+                ]);
+            });
             $market->trackedDoctrines()->delete();
             $market->itemSources()->delete();
             $market->items()->delete();
@@ -396,7 +421,14 @@ class SettingsController extends Controller
 
         [$source, $sourceId] = array_pad(explode(':', $data['saved_fitting'], 2), 2, null);
         $items = $savedFittings->items($source, (int) $sourceId, (int) ($data['multiplier'] ?? 1));
-        $count = $importer->import($market, $items, $data['mode'], (bool) ($data['keep_higher_quantity'] ?? false), (int) $data['warning_percentage']);
+        $count = $importer->import(
+            $market,
+            $items,
+            $data['mode'],
+            (bool) ($data['keep_higher_quantity'] ?? false),
+            (int) $data['warning_percentage'],
+            MarketSeedingTargetHistory::CHANGE_SAVED_FITTING
+        );
 
         if ($request->expectsJson()) {
             return response()->json($this->importPayload($market, $count, 'saved fitting item(s) imported successfully.'));
@@ -467,7 +499,8 @@ class SettingsController extends Controller
             $item,
             (int) $data['desired_quantity'],
             array_key_exists('warning_quantity', $data) ? (int) $data['warning_quantity'] : null,
-            $data['notes'] ?? null
+            $data['notes'] ?? null,
+            MarketSeedingTargetHistory::CHANGE_MANUAL
         );
 
         if ($request->expectsJson()) {
@@ -673,6 +706,7 @@ class SettingsController extends Controller
             'source_icons_html' => view('seat-market-seeding::partials.source-icons', compact('sourceFlags'))->render(),
             'update_url' => route('market-seeding.items.update', $item->id),
             'destroy_url' => route('market-seeding.items.destroy', $item->id),
+            'history_url' => route('market-seeding.items.history', $item->id),
         ];
     }
 
@@ -715,6 +749,20 @@ class SettingsController extends Controller
         $percentage = max(0, min(100, $percentage));
 
         return max(0, (int) ceil(max(1, $quantity) * ($percentage / 100)));
+    }
+
+    private function targetHistoryActorName(): string
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return 'System';
+        }
+
+        return $user->name
+            ?? $user->username
+            ?? optional($user->main_character)->name
+            ?? ('User #' . $user->id);
     }
 
     private function doctrineFitSettingsFromRequest(array $data): array

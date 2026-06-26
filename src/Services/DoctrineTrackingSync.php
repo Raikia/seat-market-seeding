@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrineFit;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
@@ -57,7 +58,7 @@ class DoctrineTrackingSync
 
             if (!$doctrine) {
                 $trackedDoctrine->sources()->delete();
-                $this->projector->recalculateMarket($trackedDoctrine->market);
+                $this->projector->recalculateMarket($trackedDoctrine->market, MarketSeedingTargetHistory::CHANGE_DOCTRINE);
                 $trackedDoctrine->update([
                     'last_synced_at' => now(),
                     'last_sync_status' => 'missing',
@@ -76,7 +77,7 @@ class DoctrineTrackingSync
                 $trackedDoctrine->fit_aggregation_mode ?: MarketSeedingTrackedDoctrine::FIT_AGGREGATION_MAX
             );
 
-            $this->projector->replaceDoctrineTargets($trackedDoctrine, $items);
+            $this->projector->replaceDoctrineTargets($trackedDoctrine, $items, MarketSeedingTargetHistory::CHANGE_DOCTRINE);
 
             $trackedDoctrine->update([
                 'last_synced_at' => now(),
