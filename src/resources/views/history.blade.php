@@ -794,6 +794,7 @@
                     Sold quantities are estimated from changes in available sell-order quantity between ESI refreshes. They are great for seeding trends, but can include delisted or expired orders.
                 </div>
 
+                @if($attentionItems->isNotEmpty())
                 <div class="card history-attention-card">
                     <div class="card-header">
                         <div>
@@ -805,8 +806,7 @@
                             <div class="history-attention-actions">
                                 <button type="button"
                                         class="btn btn-danger btn-sm"
-                                        id="market-seeding-review-recommendations"
-                                        {{ $attentionItems->isEmpty() ? 'disabled' : '' }}>
+                                        id="market-seeding-review-recommendations">
                                     <i class="fas fa-check-double"></i> Review Recommendations
                                 </button>
                             </div>
@@ -827,8 +827,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse($attentionItems as $item)
-                                        <tr>
+	                                    @foreach($attentionItems as $item)
+	                                        <tr>
                                             <td>
                                                 {{ $item->type_name }}
                                                 <div class="text-muted small">{{ $item->type_category }}</div>
@@ -845,24 +845,15 @@
                                             <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
                                             <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events in the selected {{ $days }} day window.">
                                                 {{ $item->average_days_between_restock_needs ? 'Every ' . number_format($item->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td class="text-muted">No recommendations need attention for the current filters.</td>
-                                            <td class="text-muted">-</td>
-                                            <td class="text-right">-</td>
-                                            <td class="text-right">-</td>
-                                            <td class="text-right">-</td>
-                                            <td class="text-right">-</td>
-                                            <td class="text-right">-</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+	                                            </td>
+	                                        </tr>
+	                                    @endforeach
+	                                </tbody>
+	                            </table>
+	                        </div>
+	                    </div>
+	                </div>
+                @endif
 
                 <div class="history-chart-grid">
                     <div class="card mb-0">
@@ -1488,18 +1479,20 @@
             }
 
             if ($.fn.DataTable) {
-                $('.market-seeding-attention-table').DataTable({
-                    order: [[4, 'desc']],
-                    pageLength: 10,
-                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
-                    searching: true,
-                    info: true,
-                    autoWidth: false,
-                    language: {
-                        emptyTable: 'No recommendations need attention for the current filters.',
-                        zeroRecords: 'No recommendation rows match this search.'
-                    }
-                });
+                if ($('.market-seeding-attention-table').length) {
+                    $('.market-seeding-attention-table').DataTable({
+                        order: [[4, 'desc']],
+                        pageLength: 10,
+                        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                        searching: true,
+                        info: true,
+                        autoWidth: false,
+                        language: {
+                            emptyTable: 'No recommendations need attention for the current filters.',
+                            zeroRecords: 'No recommendation rows match this search.'
+                        }
+                    });
+                }
 
                 $('.market-seeding-top-sold-table').DataTable({
                     order: [[2, 'desc']],

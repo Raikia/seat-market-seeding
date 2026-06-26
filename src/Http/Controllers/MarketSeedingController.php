@@ -107,7 +107,7 @@ class MarketSeedingController extends Controller
         $historyAjaxUrl = route('market-seeding.history.transitions', $request->only('market_id', 'status', 'type_category', 'days'));
 
         $this->attachTypeCategories($restockLeaders);
-        $this->attachLatestSnapshotQuantities($topSoldItems);
+        $this->attachCurrentItemValues($topSoldItems);
 
         $this->attachRecommendations($topSoldItems, $days, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
         $this->attachRecommendations($restockLeaders, $days, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
@@ -160,6 +160,7 @@ class MarketSeedingController extends Controller
 
         $events = $query->get();
         $this->attachTypeCategories($events);
+        $this->attachCurrentItemValues($events);
 
         $recommendationMetrics = $this->recommendationMetrics($request, $days);
         $this->attachRecommendations(
@@ -256,6 +257,15 @@ class MarketSeedingController extends Controller
             ->when($request->filled('type_category'), function ($query) use ($request) {
                 $query->where('type_category', $request->input('type_category'));
             })
+            ->when($request->filled('status'), function ($query) use ($request) {
+                if ($request->input('status') === 'low') {
+                    $query->where('low_events', '>', 0);
+                } elseif ($request->input('status') === 'empty') {
+                    $query->where('empty_events', '>', 0);
+                } elseif ($request->input('status') === 'stocked') {
+                    $query->where('stocked_events', '>', 0);
+                }
+            })
             ->where('summary_date', '>=', now()->subDays($days - 1)->toDateString());
     }
 
@@ -324,8 +334,6 @@ class MarketSeedingController extends Controller
             ])
             ->selectRaw('SUM(estimated_sold_quantity) as estimated_sold')
             ->selectRaw('SUM(restocked_quantity) as restocked')
-            ->selectRaw('MAX(latest_desired_quantity) as target_quantity')
-            ->selectRaw('MAX(latest_warning_quantity) as warning_quantity')
             ->selectRaw('SUM(sales_events) as sales_events')
             ->selectRaw('MAX(last_sold_at) as last_sold_at')
             ->groupBy('market_id', 'item_id', 'market_name', 'location_name', 'type_id', 'type_name', 'type_category')
@@ -336,7 +344,7 @@ class MarketSeedingController extends Controller
             ->get();
     }
 
-    private function attachLatestSnapshotQuantities($rows): void
+    private function attachCurrentItemValues($rows): void
     {
         $itemIds = collect($rows)
             ->pluck('item_id')
@@ -348,16 +356,35 @@ class MarketSeedingController extends Controller
             return;
         }
 
-        $snapshots = MarketStockDailySummary::query()
+        $summaries = MarketStockDailySummary::query()
             ->whereIn('item_id', $itemIds)
             ->orderByDesc('summary_date')
             ->orderByDesc('updated_at')
             ->get()
             ->unique('item_id')
             ->keyBy('item_id');
+        $items = SeededMarketItem::query()
+            ->whereIn('id', $itemIds)
+            ->get()
+            ->keyBy('id');
 
         foreach ($rows as $row) {
-            $row->latest_seen_quantity = (int) optional($snapshots->get($row->item_id))->latest_current_quantity;
+            $summary = $summaries->get($row->item_id);
+            $item = $items->get($row->item_id);
+
+            if ($summary) {
+                $row->latest_seen_quantity = (int) $summary->latest_current_quantity;
+            }
+
+            if ($item) {
+                $row->target_quantity = (int) $item->desired_quantity;
+                $row->desired_quantity = (int) $item->desired_quantity;
+                $row->warning_quantity = (int) $item->warning_quantity;
+            } elseif ($summary) {
+                $row->target_quantity = (int) $summary->latest_desired_quantity;
+                $row->desired_quantity = (int) $summary->latest_desired_quantity;
+                $row->warning_quantity = (int) $summary->latest_warning_quantity;
+            }
         }
     }
 
@@ -388,19 +415,16 @@ class MarketSeedingController extends Controller
             ])
             ->selectRaw('SUM(estimated_sold_quantity) as estimated_sold')
             ->selectRaw('SUM(restocked_quantity) as restocked')
-            ->selectRaw('MAX(latest_desired_quantity) as target_quantity')
-            ->selectRaw('MAX(latest_warning_quantity) as warning_quantity')
             ->selectRaw('SUM(sales_events) as sales_events')
             ->groupBy('market_id', 'item_id', 'market_name', 'location_name', 'type_id', 'type_name', 'type_category')
             ->get();
 
-        $restockMetrics = $this->filteredVisibleSummaries($request, $days)
-            ->when($request->filled('market_id'), function ($query) use ($request) {
-                $query->where('market_id', $request->integer('market_id'));
-            })
+        $restockMetrics = $this->filteredVisibleHistory($request)
+            ->whereIn('current_status', ['low', 'empty'])
             ->select('item_id')
-            ->selectRaw('SUM(low_events + empty_events) as restock_events')
-            ->selectRaw('SUM(total_shortage) as total_shortage')
+            ->selectRaw('COUNT(*) as restock_events')
+            ->selectRaw('SUM(GREATEST(desired_quantity - current_quantity, 0)) as total_shortage')
+            ->selectRaw('CEIL(AVG(desired_quantity + GREATEST(desired_quantity - current_quantity, 0))) as restock_recommended_quantity')
             ->groupBy('item_id')
             ->get()
             ->keyBy('item_id');
@@ -409,9 +433,10 @@ class MarketSeedingController extends Controller
             $restock = $restockMetrics->get($row->item_id);
             $row->restock_events = (int) optional($restock)->restock_events;
             $row->total_shortage = (int) optional($restock)->total_shortage;
+            $row->restock_recommended_quantity = (int) optional($restock)->restock_recommended_quantity;
         }
 
-        $this->attachLatestSnapshotQuantities($rows);
+        $this->attachCurrentItemValues($rows);
         $this->attachRecommendations($rows, $days, $metrics, $recommendationSalesDays, $recommendationBufferPercentage);
         $this->attachRestockEfficiency($rows, $days);
 
@@ -569,16 +594,11 @@ class MarketSeedingController extends Controller
             $salesRecommendation = (int) ceil($dailySold * $recommendationSalesDays * $bufferMultiplier);
             $restockRecommendation = 0;
 
-            if (isset($row->restock_events) && (int) $row->restock_events > 0) {
-                $averageShortage = ((int) ($row->total_shortage ?? 0)) / max(1, (int) $row->restock_events);
-                $restockRecommendation = (int) ceil($target + $averageShortage);
+            if (isset($row->restock_recommended_quantity) && (int) $row->restock_recommended_quantity > 0) {
+                $restockRecommendation = (int) $row->restock_recommended_quantity;
             }
 
-            $statusRecommendation = in_array($row->current_status ?? null, ['low', 'empty'], true)
-                ? (int) ceil($target * $bufferMultiplier)
-                : 0;
-
-            $recommended = max(1, $target, $salesRecommendation, $restockRecommendation, $statusRecommendation);
+            $recommended = max(1, $target, $salesRecommendation, $restockRecommendation);
             $row->current_target_quantity = $target;
             $row->recommended_quantity = $recommended;
             $row->recommendation_differs = $recommended !== $target;
@@ -587,8 +607,6 @@ class MarketSeedingController extends Controller
                 $row->recommendation_reason = 'Current target already covers the recent sales pace and observed shortages.';
             } elseif ($recommended === $restockRecommendation) {
                 $row->recommendation_reason = 'Based on the current target plus the average shortage seen when this item went low or empty.';
-            } elseif ($recommended === $statusRecommendation) {
-                $row->recommendation_reason = 'Based on the item currently hitting a low or empty transition, with a ' . $recommendationBufferPercentage . '% target buffer.';
             } else {
                 $row->recommendation_reason = 'Based on roughly ' . $recommendationSalesDays . ' days of average estimated sales, plus a ' . $recommendationBufferPercentage . '% buffer.';
             }
@@ -665,15 +683,16 @@ class MarketSeedingController extends Controller
             ->selectRaw('SUM(empty_events) as empty_events')
             ->selectRaw('SUM(low_events) as low_events')
             ->selectRaw('SUM(total_shortage) as total_shortage')
-            ->selectRaw('MAX(latest_desired_quantity) as desired_quantity')
-            ->selectRaw('MAX(latest_warning_quantity) as warning_quantity')
             ->selectRaw('MAX(last_needed_at) as last_needed_at')
             ->groupBy('market_id', 'item_id', 'market_name', 'location_name', 'type_id', 'type_name', 'type_category')
             ->havingRaw('SUM(low_events + empty_events) > 0')
             ->orderByDesc('restock_events')
             ->orderByDesc('empty_events')
             ->orderByDesc('total_shortage')
-            ->get();
+            ->get()
+            ->tap(function ($rows) {
+                $this->attachCurrentItemValues($rows);
+            });
     }
 
     private function applyHistoryDataTableOrder($query, Request $request): void
