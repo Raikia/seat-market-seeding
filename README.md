@@ -30,8 +30,12 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Auto-track Seat-Fitting doctrines with separate ship and fitting multipliers per fit.
 - Choose whether doctrine fits are summed together or use the maximum requirement per item.
 - Review doctrine sync changes before applying them.
-- Keep restock history and stock transition history.
+- Keep stock transition history, daily movement summaries, and target-change audit history.
+- Review high-usage items, estimated sales, restock pace, and market/category heatmaps.
+- Get target stock recommendations based on recent sales pace and observed shortages.
+- Apply recommended target changes in bulk after reviewing the expected cost and volume increase.
 - Send SeAT notifications when an item moves from stocked to low, or from low/stocked to empty.
+- Send grouped restocked notifications when items recover during the same refresh.
 - Refresh market data manually or on a SeAT schedule.
 - Cache dashboard calculations briefly and add helpful indexes for larger market lists.
 
@@ -56,13 +60,17 @@ Common setup steps:
 3. Refresh ESI market data.
 4. Use the dashboard to review shortages, prices, health, and restock exports.
 
-The settings page also includes reusable market profiles, restock history retention, and maintenance actions such as clearing restock history.
+The settings page also includes reusable market profiles, recommendation tuning, stock history retention, and maintenance actions for clearing stock history or target audit history.
 
 ## Dashboard and History
 
 The dashboard is meant for day-to-day restocking. It shows each market’s health, local quantity, target quantity, missing quantity, local price, Jita price, restock cost, and restock volume. Restock lists can be copied directly into EVE multi-buy.
 
-The restock history page keeps a record of stock state changes, with filters and a small chart for recent stocked, low, and empty events.
+The history page is meant for planning. It keeps a record of stock state changes, estimated sold quantities, restocks, and daily market movement. It includes filters, charts, most-sold item tables, restock frequency tables, and a needs-attention view for items whose target stock probably needs to change.
+
+From the history page you can open an item detail modal to review recent stock transitions, target-change history, current market stock, values, restock volume, and a sales trend chart. Target stock can be edited directly from that modal.
+
+Target changes are audited separately from stock history. The audit log records who changed a target, when it changed, the old and new target, the old and new low warning, and whether the change came from a manual edit, bulk import, saved fit import, doctrine sync, recommendation, or market clear.
 
 ## Permissions
 
@@ -73,3 +81,14 @@ The plugin has a manager permission for configuration. Users with view access ca
 Market data depends on what SeAT can retrieve from ESI and what orders are available for the configured location. Structure access may require the right character/token access in SeAT.
 
 Jita pricing is based on sell orders from Jita 4-4 when available, with SeAT price data used as a fallback.
+
+## Tests
+
+The plugin includes a package-level PHPUnit suite for the core business logic:
+
+```bash
+cd /var/www/seat
+./vendor/bin/phpunit -c packages/seat-market-seeding/phpunit.xml
+```
+
+The suite covers imports, target projection, doctrine/manual target interaction, recommendations support logic, market report math, settings, and history clearing behavior.
