@@ -337,13 +337,21 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock line(s) imported successfully.');
     }
 
-    public function clearMarketItems(SeededMarket $market)
+    public function clearMarketItems(Request $request, SeededMarket $market)
     {
         DB::transaction(function () use ($market) {
             $market->trackedDoctrines()->delete();
             $market->itemSources()->delete();
             $market->items()->delete();
         });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'All tracked items were cleared from ' . $market->name . '.',
+                'tracked_count' => 0,
+                'items' => [],
+            ]);
+        }
 
         return redirect()->route('market-seeding.settings')->with('success', 'All tracked items were cleared from ' . $market->name . '.');
     }
