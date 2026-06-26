@@ -1711,10 +1711,18 @@
                     currentTargetDetails.desired_quantity = parseInt(item.desired_quantity || 0, 10);
                     currentTargetDetails.warning_quantity = parseInt(item.warning_quantity || 0, 10);
                     updateTargetDetailProjection();
-                    $('#market-seeding-edit-target-success')
-                        .removeClass('d-none')
-                        .text(response.message || 'Target stock updated.');
-                }).fail(function (xhr) {
+	                    $('#market-seeding-edit-target-success')
+	                        .removeClass('d-none')
+	                        .text((response.message || 'Target stock updated.') + ' Refreshing history...');
+
+	                    if ($.fn.DataTable && $.fn.DataTable.isDataTable('.market-seeding-history-table')) {
+	                        $('.market-seeding-history-table').DataTable().ajax.reload(null, false);
+	                    }
+
+	                    window.setTimeout(function () {
+	                        window.location.reload();
+	                    }, 700);
+	                }).fail(function (xhr) {
                     var message = 'Unable to update target stock.';
 
                     if (xhr.responseJSON && xhr.responseJSON.message) {
