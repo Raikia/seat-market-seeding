@@ -181,45 +181,75 @@ class MarketStockReport
 
     public function itemDetails(SeededMarketItem $item): array
     {
-        $market = $item->market;
-        $typeIds = collect([(int) $item->type_id]);
-        $locationIds = $market ? collect([(int) $market->location_id]) : collect();
-        $local = $this->localSellOrders($locationIds, $typeIds)
-            ->get(optional($market)->location_id . ':' . $item->type_id);
-        $jitaPrice = $this->jitaSellPrices($typeIds)->get($item->type_id);
-        $fallbackPrice = Price::where('type_id', $item->type_id)->first();
-        $itemVolume = (float) $this->packagedVolumes($typeIds)->get($item->type_id, 0);
+        return $this->itemDetailsForItems(collect([$item]))->get($item->id, []);
+    }
 
-        if (!$jitaPrice && $fallbackPrice) {
-            $jitaPrice = (float) ($fallbackPrice->sell_price ?: $fallbackPrice->average_price);
+    public function itemDetailsForItems(Collection $items): Collection
+    {
+        if ($items->isEmpty()) {
+            return collect();
         }
 
-        $currentQuantity = $local ? (int) $local->quantity : 0;
-        $localPrice = $local ? (float) $local->price : null;
-        $missingQuantity = max(0, (int) $item->desired_quantity - $currentQuantity);
-        $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
-        $restockCost = $missingQuantity * (float) $jitaPrice;
-        $restockVolume = $missingQuantity * $itemVolume;
-        $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
-        $desiredValue = (int) $item->desired_quantity * (float) $jitaPrice;
+        if ($items instanceof EloquentCollection) {
+            $items->loadMissing('market', 'sources', 'type.group');
+        } else {
+            $items->each(function (SeededMarketItem $item) {
+                $item->loadMissing('market', 'sources', 'type.group');
+            });
+        }
 
-        return [
-            'type_category' => $item->typeCategoryName(),
-            'source_flags' => $item->sourceFlags(),
-            'current_quantity' => $currentQuantity,
-            'desired_quantity' => (int) $item->desired_quantity,
-            'warning_quantity' => (int) $item->warning_quantity,
-            'missing_quantity' => $missingQuantity,
-            'local_price' => $localPrice,
-            'jita_price' => $jitaPrice,
-            'price_delta' => $priceDelta,
-            'seeded_value' => $seededValue,
-            'desired_value' => $desiredValue,
-            'restock_cost' => $restockCost,
-            'item_volume' => $itemVolume,
-            'restock_volume' => $restockVolume,
-            'stock_status' => $item->stock_status,
-        ];
+        $typeIds = $items->pluck('type_id')->map(fn ($typeId) => (int) $typeId)->unique()->values();
+        $locationIds = $items
+            ->pluck('market.location_id')
+            ->filter()
+            ->map(fn ($locationId) => (int) $locationId)
+            ->unique()
+            ->values();
+        $localOrders = $this->localSellOrders($locationIds, $typeIds);
+        $jitaPrices = $this->jitaSellPrices($typeIds);
+        $fallbackPrices = Price::whereIn('type_id', $typeIds)->get()->keyBy('type_id');
+        $typeVolumes = $this->packagedVolumes($typeIds);
+
+        return $items->mapWithKeys(function (SeededMarketItem $item) use ($localOrders, $jitaPrices, $fallbackPrices, $typeVolumes) {
+            $market = $item->market;
+            $local = $market
+                ? $localOrders->get($market->location_id . ':' . $item->type_id)
+                : null;
+            $jitaPrice = $jitaPrices->get($item->type_id);
+            $fallbackPrice = $fallbackPrices->get($item->type_id);
+            $itemVolume = (float) $typeVolumes->get($item->type_id, 0);
+
+            if (!$jitaPrice && $fallbackPrice) {
+                $jitaPrice = (float) ($fallbackPrice->sell_price ?: $fallbackPrice->average_price);
+            }
+
+            $currentQuantity = $local ? (int) $local->quantity : 0;
+            $localPrice = $local ? (float) $local->price : null;
+            $missingQuantity = max(0, (int) $item->desired_quantity - $currentQuantity);
+            $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
+            $restockCost = $missingQuantity * (float) $jitaPrice;
+            $restockVolume = $missingQuantity * $itemVolume;
+            $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
+            $desiredValue = (int) $item->desired_quantity * (float) $jitaPrice;
+
+            return [$item->id => [
+                'type_category' => $item->typeCategoryName(),
+                'source_flags' => $item->sourceFlags(),
+                'current_quantity' => $currentQuantity,
+                'desired_quantity' => (int) $item->desired_quantity,
+                'warning_quantity' => (int) $item->warning_quantity,
+                'missing_quantity' => $missingQuantity,
+                'local_price' => $localPrice,
+                'jita_price' => $jitaPrice,
+                'price_delta' => $priceDelta,
+                'seeded_value' => $seededValue,
+                'desired_value' => $desiredValue,
+                'restock_cost' => $restockCost,
+                'item_volume' => $itemVolume,
+                'restock_volume' => $restockVolume,
+                'stock_status' => $item->stock_status,
+            ]];
+        });
     }
 
     private function loadMarketRelations(Collection $markets): void

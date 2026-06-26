@@ -93,8 +93,7 @@ class MarketSeedingController extends Controller
 
         $history = $this->filteredVisibleHistory($request)
             ->latest()
-            ->paginate(50)
-            ->appends($request->only('market_id', 'status', 'type_category', 'days'));
+            ->get();
 
         $chartData = $this->historyChartData($request, $days);
         $salesChartData = $this->salesChartData($request, $days);
@@ -174,7 +173,7 @@ class MarketSeedingController extends Controller
                 $projector->setEffectiveTarget(
                     $item,
                     (int) $recommendation->recommended_quantity,
-                    (int) $recommendation->warning_quantity
+                    $this->recommendedWarningQuantity($recommendation)
                 );
                 $updated++;
             } catch (\Throwable $e) {
@@ -437,10 +436,10 @@ class MarketSeedingController extends Controller
             ->whereIn('id', collect($rows)->pluck('item_id')->filter()->unique()->values())
             ->get()
             ->keyBy('id');
+        $detailsByItem = $report->itemDetailsForItems($items->values());
 
         foreach ($rows as $row) {
-            $item = $items->get($row->item_id);
-            $details = $item ? $report->itemDetails($item) : [];
+            $details = $detailsByItem->get($row->item_id, []);
             $deltaQuantity = max(0, (int) $row->recommended_quantity - (int) $row->current_target_quantity);
             $jitaPrice = (float) ($details['jita_price'] ?? 0);
             $itemVolume = (float) ($details['item_volume'] ?? 0);
@@ -449,6 +448,18 @@ class MarketSeedingController extends Controller
             $row->recommendation_delta_cost = $deltaQuantity * $jitaPrice;
             $row->recommendation_delta_volume = $deltaQuantity * $itemVolume;
         }
+    }
+
+    private function recommendedWarningQuantity($recommendation): int
+    {
+        $currentTarget = max(1, (int) $recommendation->current_target_quantity);
+        $currentWarning = max(0, (int) $recommendation->warning_quantity);
+
+        if ($currentWarning === 0) {
+            return 0;
+        }
+
+        return (int) ceil(max(1, (int) $recommendation->recommended_quantity) * ($currentWarning / $currentTarget));
     }
 
     private function marketCategoryHeatmap(Request $request, int $days): array
@@ -729,7 +740,7 @@ class MarketSeedingController extends Controller
         $roleIds = $user->roles->pluck('id');
 
         return MarketStockHistory::query()
-            ->where(function ($query) use ($roleIds) {
+            ->whereHas('market', function ($query) use ($roleIds) {
                 $query->whereNull('role_id')
                     ->orWhereIn('role_id', $roleIds);
             });
@@ -746,7 +757,7 @@ class MarketSeedingController extends Controller
         $roleIds = $user->roles->pluck('id');
 
         return MarketStockSnapshot::query()
-            ->where(function ($query) use ($roleIds) {
+            ->whereHas('market', function ($query) use ($roleIds) {
                 $query->whereNull('role_id')
                     ->orWhereIn('role_id', $roleIds);
             });

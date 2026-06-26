@@ -1207,8 +1207,6 @@
                 @if($history->isEmpty())
                     <p class="text-muted mb-0">No stock transitions have been recorded yet.</p>
                 @endif
-
-                {{ $history->links() }}
             </div>
         </div>
     </div>

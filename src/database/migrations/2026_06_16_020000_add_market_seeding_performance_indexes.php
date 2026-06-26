@@ -41,6 +41,12 @@ return new class extends Migration
                 $table->dropIndex('sms_market_orders_location_buy_type_idx');
             });
         }
+
+        if (Schema::hasTable('seat_market_seeding_stock_history') && $this->indexExists('seat_market_seeding_stock_history', 'sms_hist_status_created_idx')) {
+            Schema::table('seat_market_seeding_stock_history', function (Blueprint $table) {
+                $table->dropIndex('sms_hist_status_created_idx');
+            });
+        }
     }
 
     private function indexExists(string $table, string $index): bool
