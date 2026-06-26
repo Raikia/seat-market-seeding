@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Services;
 use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Cache;
+use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Seat\Eveapi\Models\Market\MarketOrder;
@@ -209,12 +210,14 @@ class MarketStockReport
         $jitaPrices = $this->jitaSellPrices($typeIds);
         $fallbackPrices = Price::whereIn('type_id', $typeIds)->get()->keyBy('type_id');
         $typeVolumes = $this->packagedVolumes($typeIds);
+        $latestSummaries = $this->latestSummaries($items->pluck('id')->filter()->unique()->values());
 
-        return $items->mapWithKeys(function (SeededMarketItem $item) use ($localOrders, $jitaPrices, $fallbackPrices, $typeVolumes) {
+        return $items->mapWithKeys(function (SeededMarketItem $item) use ($localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, $latestSummaries) {
             $market = $item->market;
             $local = $market
                 ? $localOrders->get($market->location_id . ':' . $item->type_id)
                 : null;
+            $latestSummary = $latestSummaries->get($item->id);
             $jitaPrice = $jitaPrices->get($item->type_id);
             $fallbackPrice = $fallbackPrices->get($item->type_id);
             $itemVolume = (float) $typeVolumes->get($item->type_id, 0);
@@ -223,7 +226,7 @@ class MarketStockReport
                 $jitaPrice = (float) ($fallbackPrice->sell_price ?: $fallbackPrice->average_price);
             }
 
-            $currentQuantity = $local ? (int) $local->quantity : 0;
+            $currentQuantity = $local ? (int) $local->quantity : (int) optional($latestSummary)->latest_current_quantity;
             $localPrice = $local ? (float) $local->price : null;
             $missingQuantity = max(0, (int) $item->desired_quantity - $currentQuantity);
             $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
@@ -240,6 +243,7 @@ class MarketStockReport
                 'warning_quantity' => (int) $item->warning_quantity,
                 'missing_quantity' => $missingQuantity,
                 'local_price' => $localPrice,
+                'market_price_estimated_from_jita' => !$localPrice && (bool) $jitaPrice,
                 'jita_price' => $jitaPrice,
                 'price_delta' => $priceDelta,
                 'seeded_value' => $seededValue,
@@ -322,6 +326,21 @@ class MarketStockReport
             ->keyBy(function ($row) {
                 return $row->location_id . ':' . $row->type_id;
             });
+    }
+
+    private function latestSummaries(Collection $itemIds): Collection
+    {
+        if ($itemIds->isEmpty()) {
+            return collect();
+        }
+
+        return MarketStockDailySummary::query()
+            ->whereIn('item_id', $itemIds)
+            ->orderByDesc('summary_date')
+            ->orderByDesc('updated_at')
+            ->get()
+            ->unique('item_id')
+            ->keyBy('item_id');
     }
 
     private function jitaSellPrices(Collection $typeIds): Collection

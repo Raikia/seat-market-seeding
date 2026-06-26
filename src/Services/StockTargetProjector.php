@@ -36,7 +36,7 @@ class StockTargetProjector
                 'tracked_doctrine_id' => null,
                 'type_name' => $typeName,
                 'quantity' => max(1, $quantity),
-                'warning_quantity' => $warningQuantity ?? $this->quantities->defaultWarningQuantity(max(1, $quantity)),
+                'warning_quantity' => $this->normalizeWarningQuantity($warningQuantity, max(1, $quantity)),
             ]);
 
             $this->recalculateMarket($market);
@@ -64,9 +64,10 @@ class StockTargetProjector
             $hasDoctrineSources = $sources
                 ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
                 ->isNotEmpty();
+            $desiredQuantity = max(1, $desiredQuantity);
             $baseProjection = $this->projectSources($sources, null, null, false);
             $adjustmentQuantity = max(0, $desiredQuantity - $baseProjection['quantity']);
-            $adjustmentWarningQuantity = $warningQuantity ?? $this->quantities->defaultWarningQuantity($desiredQuantity);
+            $adjustmentWarningQuantity = $this->normalizeWarningQuantity($warningQuantity, $desiredQuantity);
 
             if (!$hasDoctrineSources) {
                 MarketSeedingItemSource::updateOrCreate([
@@ -77,7 +78,7 @@ class StockTargetProjector
                 ], [
                     'tracked_doctrine_id' => null,
                     'type_name' => $item->type_name,
-                    'quantity' => max(1, $desiredQuantity),
+                    'quantity' => $desiredQuantity,
                     'warning_quantity' => $adjustmentWarningQuantity,
                 ]);
 
@@ -193,7 +194,7 @@ class StockTargetProjector
                     'tracked_doctrine_id' => null,
                     'type_name' => $item['type_name'],
                     'quantity' => max(1, $quantity),
-                    'warning_quantity' => $this->warningQuantityFromPercentage(max(1, $quantity), $warningPercentage),
+                    'warning_quantity' => $this->quantities->warningQuantityFromPercentage(max(1, $quantity), $warningPercentage),
                 ]);
             }
 
@@ -309,7 +310,7 @@ class StockTargetProjector
         return [
             'type_name' => $typeName,
             'quantity' => $quantity,
-            'warning_quantity' => max(0, $warningQuantity),
+            'warning_quantity' => $this->quantities->clampWarningQuantity($warningQuantity, $quantity),
         ];
     }
 
@@ -351,13 +352,20 @@ class StockTargetProjector
 
     private function warningQuantityForDoctrineSource(MarketSeedingTrackedDoctrine $trackedDoctrine, int $quantity): int
     {
-        return $this->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?? 33));
+        return $this->quantities->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?? 33));
     }
 
     private function warningQuantityFromPercentage(int $quantity, int $percentage): int
     {
-        $percentage = max(0, min(100, $percentage));
+        return $this->quantities->warningQuantityFromPercentage($quantity, $percentage);
+    }
 
-        return max(0, (int) ceil($quantity * ($percentage / 100)));
+    private function normalizeWarningQuantity(?int $warningQuantity, int $desiredQuantity): int
+    {
+        if ($warningQuantity === null) {
+            return $this->quantities->defaultWarningQuantity($desiredQuantity);
+        }
+
+        return $this->quantities->clampWarningQuantity($warningQuantity, $desiredQuantity);
     }
 }

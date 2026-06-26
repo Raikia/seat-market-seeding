@@ -797,7 +797,7 @@
                                             @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->sourceFlags()])
                                         </td>
                                         <td class="text-right" style="width: 140px;" data-order="{{ $item->desired_quantity }}">
-                                            <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST" class="market-seeding-update-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}">
+	                                            <form id="item-update-{{ $item->id }}" action="{{ route('market-seeding.items.update', $item->id) }}" method="POST" class="market-seeding-update-item-form" data-table="#market-seeding-settings-table-{{ $market->id }}" data-original-target-quantity="{{ (int) $item->desired_quantity }}" data-original-warning-quantity="{{ (int) $item->warning_quantity }}">
                                                 {{ csrf_field() }}
                                                 {{ method_field('PUT') }}
                                                 <input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="{{ $item->desired_quantity }}" min="1">
@@ -1096,7 +1096,7 @@
                 });
             });
 
-            $(document).on('submit', '.market-seeding-update-item-form', function (event) {
+	            $(document).on('submit', '.market-seeding-update-item-form', function (event) {
                 event.preventDefault();
 
                 var $form = $(this);
@@ -1127,8 +1127,19 @@
                     if (!$button.data('restore-pending')) {
                         $button.prop('disabled', false).html(originalButtonHtml);
                     }
-                });
-            });
+	                });
+	            });
+
+	            $(document).on('input change', '.market-seeding-update-item-form input[name="desired_quantity"]', function () {
+	                var $form = $(this).closest('form');
+	                scaleSettingsWarningFromTarget($form);
+	            });
+
+	            $(document).on('input change', 'input[name="warning_quantity"]', function () {
+	                var $input = $(this);
+	                var $form = $('#' + $input.attr('form'));
+	                clampSettingsWarningToTarget($form);
+	            });
 
             $(document).on('submit', '.market-seeding-delete-item-form', function (event) {
                 event.preventDefault();
@@ -1434,9 +1445,9 @@
                 }, 1900);
             }
 
-            function rowForItem(tableSelector, itemId) {
-                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
-                    var table = $(tableSelector).DataTable();
+	            function rowForItem(tableSelector, itemId) {
+	                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+	                    var table = $(tableSelector).DataTable();
                     var row = $();
 
                     table.rows().every(function () {
@@ -1447,11 +1458,37 @@
 
                     return row;
                 }
+	
+	                return $(tableSelector).find('tbody tr[data-item-id="' + itemId + '"]');
+	            }
 
-                return $(tableSelector).find('tbody tr[data-item-id="' + itemId + '"]');
-            }
+	            function scaleSettingsWarningFromTarget($form) {
+	                var targetQuantity = Math.max(1, parseInt($form.find('input[name="desired_quantity"]').val() || 1, 10));
+	                var originalTarget = Math.max(1, parseInt($form.data('original-target-quantity') || 1, 10));
+	                var originalWarning = Math.max(0, parseInt($form.data('original-warning-quantity') || 0, 10));
+	                var warningQuantity = originalWarning === 0
+	                    ? 0
+	                    : Math.ceil(targetQuantity * (originalWarning / originalTarget));
 
-            function showButtonSuccess($button, originalButtonHtml, label) {
+	                warningQuantity = Math.min(targetQuantity, Math.max(0, warningQuantity));
+	                $('input[name="warning_quantity"][form="' + $form.attr('id') + '"]').val(warningQuantity);
+	            }
+
+	            function clampSettingsWarningToTarget($form) {
+	                if (!$form.length) {
+	                    return;
+	                }
+
+	                var targetQuantity = Math.max(1, parseInt($form.find('input[name="desired_quantity"]').val() || 1, 10));
+	                var $warning = $('input[name="warning_quantity"][form="' + $form.attr('id') + '"]');
+	                var warningQuantity = Math.max(0, parseInt($warning.val() || 0, 10));
+
+	                if (warningQuantity > targetQuantity) {
+	                    $warning.val(targetQuantity);
+	                }
+	            }
+
+	            function showButtonSuccess($button, originalButtonHtml, label) {
                 $button
                     .data('restore-pending', true)
                     .removeClass('btn-primary')
@@ -1815,7 +1852,7 @@
                         '<td>' + escapeHtml(item.type_category || 'Unknown') + '</td>' +
                         '<td class="market-seeding-source-column">' + (item.source_icons_html || '') + '</td>' +
                         '<td class="text-right" style="width: 140px;" data-order="' + item.desired_quantity + '">' +
-                            '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST" class="market-seeding-update-item-form" data-table="' + escapeAttr(tableSelector) + '">' +
+	                            '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST" class="market-seeding-update-item-form" data-table="' + escapeAttr(tableSelector) + '" data-original-target-quantity="' + item.desired_quantity + '" data-original-warning-quantity="' + item.warning_quantity + '">' +
                                 '<input type="hidden" name="_token" value="' + escapeAttr(csrfToken) + '">' +
                                 '<input type="hidden" name="_method" value="PUT">' +
                                 '<input type="number" class="form-control form-control-sm text-right" name="desired_quantity" value="' + item.desired_quantity + '" min="1">' +

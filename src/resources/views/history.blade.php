@@ -1296,8 +1296,9 @@
                                         <input type="number" min="1" class="form-control" id="market-seeding-edit-target-quantity" name="desired_quantity" required>
                                     </div>
                                     <div class="form-group mb-0">
-                                        <label for="market-seeding-edit-warning-quantity">Low Warning</label>
-                                        <input type="number" min="0" class="form-control" id="market-seeding-edit-warning-quantity" name="warning_quantity">
+	                                        <label for="market-seeding-edit-warning-quantity">Low Warning</label>
+	                                        <input type="number" min="0" class="form-control" id="market-seeding-edit-warning-quantity" name="warning_quantity">
+	                                        <small class="form-text text-muted">Scales with target using the current warning percentage.</small>
                                     </div>
                                 </div>
                             </div>
@@ -1657,8 +1658,11 @@
                 $('#market-seeding-edit-target-form').attr('action', $button.data('update-url'));
                 $('#market-seeding-edit-target-item').text($button.data('item-name'));
                 $('#market-seeding-edit-target-market').text($button.data('market-name'));
-                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
-                $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity'));
+	                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
+	                $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity'));
+	                $('#market-seeding-edit-target-form')
+	                    .data('original-target-quantity', parseInt($button.data('desired-quantity') || 1, 10))
+	                    .data('original-warning-quantity', parseInt($button.data('warning-quantity') || 0, 10));
                 $('#market-seeding-edit-target-recommended-value').text(numberWithCommas($button.data('recommended-quantity')));
                 $('#market-seeding-edit-target-recommended-reason').text($button.data('recommendation-reason') || '');
                 $('#market-seeding-use-recommended-target').data('recommended-quantity', $button.data('recommended-quantity'));
@@ -1670,15 +1674,20 @@
                 $('#market-seeding-edit-target-modal').modal('show');
             });
 
-            $('#market-seeding-use-recommended-target').on('click', function () {
-                $('#market-seeding-edit-target-quantity')
-                    .val($(this).data('recommended-quantity'))
-                    .trigger('input');
-            });
+	            $('#market-seeding-use-recommended-target').on('click', function () {
+	                $('#market-seeding-edit-target-quantity')
+	                    .val($(this).data('recommended-quantity'))
+	                    .trigger('input');
+	            });
 
-            $('#market-seeding-edit-target-quantity').on('input change', function () {
-                updateTargetDetailProjection();
-            });
+	            $('#market-seeding-edit-target-quantity').on('input change', function () {
+	                scaleEditWarningFromTarget();
+	                updateTargetDetailProjection();
+	            });
+
+	            $('#market-seeding-edit-warning-quantity').on('input change', function () {
+	                clampEditWarningToTarget();
+	            });
 
             $('#market-seeding-edit-target-form').on('submit', function (event) {
                 event.preventDefault();
@@ -1735,11 +1744,32 @@
                 });
             });
 
-            function numberWithCommas(value) {
+	            function numberWithCommas(value) {
                 value = parseInt(value || 0, 10);
 
                 return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-            }
+	            }
+
+	            function scaleEditWarningFromTarget() {
+	                var $form = $('#market-seeding-edit-target-form');
+	                var targetQuantity = Math.max(1, parseInt($('#market-seeding-edit-target-quantity').val() || 1, 10));
+	                var originalTarget = Math.max(1, parseInt($form.data('original-target-quantity') || 1, 10));
+	                var originalWarning = Math.max(0, parseInt($form.data('original-warning-quantity') || 0, 10));
+	                var scaledWarning = originalWarning === 0
+	                    ? 0
+	                    : Math.ceil(targetQuantity * (originalWarning / originalTarget));
+
+	                $('#market-seeding-edit-warning-quantity').val(Math.min(targetQuantity, Math.max(0, scaledWarning)));
+	            }
+
+	            function clampEditWarningToTarget() {
+	                var targetQuantity = Math.max(1, parseInt($('#market-seeding-edit-target-quantity').val() || 1, 10));
+	                var warningQuantity = Math.max(0, parseInt($('#market-seeding-edit-warning-quantity').val() || 0, 10));
+
+	                if (warningQuantity > targetQuantity) {
+	                    $('#market-seeding-edit-warning-quantity').val(targetQuantity);
+	                }
+	            }
 
             function formatMoney(value) {
                 value = parseFloat(value);
@@ -1849,14 +1879,14 @@
                 currentTargetDetails = $.extend({}, details);
 
                 $('#market-seeding-detail-current').text(numberWithCommas(details.current_quantity));
-                $('#market-seeding-detail-local-price').text(formatMoney(details.local_price));
+	                $('#market-seeding-detail-local-price').text(formatMoney(details.local_price || details.jita_price));
                 $('#market-seeding-detail-jita-price').text(formatMoney(details.jita_price));
                 $('#market-seeding-detail-seeded-value').text(formatMoney(details.seeded_value));
                 $('#market-seeding-detail-item-volume').text(formatDecimal(details.item_volume, 2) + ' m3 each, packaged');
                 updateTargetDetailProjection();
 
-                if (details.price_delta === null || typeof details.price_delta === 'undefined') {
-                    $('#market-seeding-detail-price-delta').text('No Jita comparison');
+	                if (details.price_delta === null || typeof details.price_delta === 'undefined') {
+	                    $('#market-seeding-detail-price-delta').text(details.jita_price ? 'No local market price' : 'No Jita comparison');
                 } else {
                     var delta = parseFloat(details.price_delta);
                     var prefix = delta > 0 ? '+' : '';

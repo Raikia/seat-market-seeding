@@ -11,6 +11,7 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
+use Raikia\SeatMarketSeeding\Services\StockTargetQuantity;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
 use Seat\Eveapi\Models\Sde\InvCategory;
 use Seat\Eveapi\Models\Sde\InvGroup;
@@ -524,7 +525,11 @@ class MarketSeedingController extends Controller
             return 0;
         }
 
-        return (int) ceil(max(1, (int) $recommendation->recommended_quantity) * ($currentWarning / $currentTarget));
+        return app(StockTargetQuantity::class)->scaleWarningQuantity(
+            max(1, (int) $recommendation->recommended_quantity),
+            $currentTarget,
+            $currentWarning
+        );
     }
 
     private function marketCategoryHeatmap(Request $request, int $days): array
