@@ -139,6 +139,7 @@ class MarketStockReport
 
                 return [
                     'item' => $item,
+                    'type_category' => $item->typeCategoryName(),
                     'source_flags' => $item->sourceFlags(),
                     'current_quantity' => $currentQuantity,
                     'missing_quantity' => $missingQuantity,
@@ -180,13 +181,13 @@ class MarketStockReport
     private function loadMarketRelations(Collection $markets): void
     {
         if ($markets instanceof EloquentCollection) {
-            $markets->loadMissing('items.sources', 'role');
+            $markets->loadMissing('items.sources', 'items.type.group', 'role');
 
             return;
         }
 
         $markets->each(function (SeededMarket $market) {
-            $market->loadMissing('items.sources', 'role');
+            $market->loadMissing('items.sources', 'items.type.group', 'role');
         });
     }
 

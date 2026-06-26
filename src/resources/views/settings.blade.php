@@ -220,6 +220,17 @@
             border-radius: .25rem;
             padding: .25rem .5rem;
         }
+        .market-seeding-type-filter {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: flex-end;
+            margin-bottom: .5rem;
+        }
+        .market-seeding-type-filter .form-control {
+            max-width: 260px;
+        }
         .market-seeding-row-saved > td {
             animation: market-seeding-row-saved 1.8s ease-out;
         }
@@ -726,10 +737,27 @@
                     @endif
 
                     <div class="table-responsive market-seeding-subsection market-seeding-table-shell">
+                        @php
+                            $typeCategories = $market->items
+                                ->map(fn ($item) => $item->typeCategoryName())
+                                ->unique()
+                                ->sort()
+                                ->values();
+                        @endphp
+                        <div class="market-seeding-type-filter">
+                            <label class="mb-0 text-muted" for="market-seeding-settings-type-filter-{{ $market->id }}">Category</label>
+                            <select class="form-control form-control-sm market-seeding-settings-type-filter" id="market-seeding-settings-type-filter-{{ $market->id }}" data-table="#market-seeding-settings-table-{{ $market->id }}">
+                                <option value="">All Categories</option>
+                                @foreach($typeCategories as $typeCategory)
+                                    <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <table class="table table-sm table-hover market-seeding-settings-table" id="market-seeding-settings-table-{{ $market->id }}">
                             <thead>
                                 <tr>
                                     <th>Item</th>
+                                    <th>Category</th>
                                     <th class="market-seeding-source-column">Source</th>
                                     <th class="text-right">Target</th>
                                     <th class="text-right">Low Warning</th>
@@ -738,8 +766,9 @@
                             </thead>
                             <tbody>
                                 @foreach($market->items->sortBy('type_name') as $item)
-                                    <tr data-item-id="{{ $item->id }}">
+                                    <tr data-item-id="{{ $item->id }}" data-category="{{ $item->typeCategoryName() }}">
                                         <td>{{ $item->type_name }}</td>
+                                        <td>{{ $item->typeCategoryName() }}</td>
                                         <td class="market-seeding-source-column">
                                             @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->sourceFlags()])
                                         </td>
@@ -796,8 +825,14 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { orderable: false, searchable: false, targets: [1, 4] }
+                        { orderable: false, searchable: false, targets: [2, 5] }
                     ],
+                    stateSaveParams: function (settings, data) {
+                        data.marketSeedingSchema = 2;
+                    },
+                    stateLoadParams: function (settings, data) {
+                        return data.marketSeedingSchema === 2;
+                    },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
                         zeroRecords: 'No items match this search.'
@@ -808,6 +843,18 @@
             $('.market-seeding-card .collapse').on('shown.bs.collapse', function () {
                 if (settingsTables) {
                     settingsTables.columns.adjust();
+                }
+            });
+
+            $('.market-seeding-settings-type-filter').on('change', function () {
+                var tableSelector = $(this).data('table');
+                var value = $(this).val();
+
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
+                    $(tableSelector).DataTable()
+                        .column(1)
+                        .search(value ? '^' + escapeRegex(value) + '$' : '', true, false)
+                        .draw();
                 }
             });
 
@@ -1227,6 +1274,7 @@
 
             function upsertItemRow(tableSelector, item) {
                 var row = $(itemRowHtml(item, tableSelector));
+                ensureSettingsTypeFilterOption(tableSelector, item.type_category || 'Unknown');
 
                 if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
                     var table = $(tableSelector).DataTable();
@@ -1255,6 +1303,8 @@
             }
 
             function replaceItemRows(tableSelector, items) {
+                rebuildSettingsTypeFilter(tableSelector, items);
+
                 if ($.fn.DataTable && $.fn.DataTable.isDataTable(tableSelector)) {
                     var table = $(tableSelector).DataTable();
                     table.clear();
@@ -1269,6 +1319,64 @@
                     return itemRowHtml(item, tableSelector);
                 });
                 $(tableSelector).find('tbody').html(rows.join(''));
+            }
+
+            function settingsTypeFilterForTable(tableSelector) {
+                return $('.market-seeding-settings-type-filter[data-table="' + tableSelector + '"]');
+            }
+
+            function ensureSettingsTypeFilterOption(tableSelector, typeGroup) {
+                var $filter = settingsTypeFilterForTable(tableSelector);
+
+                if (!$filter.length || !typeGroup) {
+                    return;
+                }
+
+                if ($filter.find('option').filter(function () { return $(this).val() === typeGroup; }).length) {
+                    return;
+                }
+
+                $filter.append($('<option>', {
+                    value: typeGroup,
+                    text: typeGroup
+                }));
+                sortSelectOptions($filter);
+            }
+
+            function rebuildSettingsTypeFilter(tableSelector, items) {
+                var $filter = settingsTypeFilterForTable(tableSelector);
+                var currentValue = $filter.val();
+                var typeCategories = {};
+
+                if (!$filter.length) {
+                    return;
+                }
+
+                $.each(items || [], function (index, item) {
+                    typeCategories[item.type_category || 'Unknown'] = true;
+                });
+
+                $filter.find('option:not([value=""])').remove();
+                $.each(Object.keys(typeCategories).sort(), function (index, typeGroup) {
+                    $filter.append($('<option>', {
+                        value: typeGroup,
+                        text: typeGroup
+                    }));
+                });
+
+                $filter.val(typeCategories[currentValue] ? currentValue : '');
+            }
+
+            function sortSelectOptions($select) {
+                var options = $select.find('option:not([value=""])').get();
+
+                options.sort(function (a, b) {
+                    return $(a).text().localeCompare($(b).text());
+                });
+
+                $.each(options, function (index, option) {
+                    $select.append(option);
+                });
             }
 
             function removeItemRow(tableSelector, itemId) {
@@ -1680,6 +1788,7 @@
                 return '' +
                     '<tr data-item-id="' + item.id + '">' +
                         '<td>' + escapeHtml(item.type_name) + '</td>' +
+                        '<td>' + escapeHtml(item.type_category || 'Unknown') + '</td>' +
                         '<td class="market-seeding-source-column">' + (item.source_icons_html || '') + '</td>' +
                         '<td class="text-right" style="width: 140px;" data-order="' + item.desired_quantity + '">' +
                             '<form id="' + updateFormId + '" action="' + escapeAttr(item.update_url) + '" method="POST" class="market-seeding-update-item-form" data-table="' + escapeAttr(tableSelector) + '">' +
@@ -1727,6 +1836,10 @@
 
             function escapeAttr(value) {
                 return escapeHtml(value).replace(/"/g, '&quot;');
+            }
+
+            function escapeRegex(value) {
+                return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             }
 
             function formatWhole(value) {

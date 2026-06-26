@@ -29,7 +29,7 @@ class SettingsController extends Controller
 {
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
     {
-        $markets = SeededMarket::with('items.sources', 'role', 'trackedDoctrines.fitSettings')
+        $markets = SeededMarket::with('items.sources', 'items.type.group', 'role', 'trackedDoctrines.fitSettings')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -640,12 +640,13 @@ class SettingsController extends Controller
 
     private function itemPayload(SeededMarketItem $item): array
     {
-        $item->loadMissing('sources');
+        $item->loadMissing('sources', 'type.group');
         $sourceFlags = $item->sourceFlags();
 
         return [
             'id' => $item->id,
             'type_name' => $item->type_name,
+            'type_category' => $item->typeCategoryName(),
             'desired_quantity' => $item->desired_quantity,
             'warning_quantity' => $item->warning_quantity,
             'source_flags' => $sourceFlags,
@@ -658,7 +659,7 @@ class SettingsController extends Controller
     private function importPayload(SeededMarket $market, int $count, string $message, ?array $validation = null): array
     {
         $market->load(['items' => function ($query) {
-            $query->with('sources')->orderBy('type_name');
+            $query->with('sources', 'type.group')->orderBy('type_name');
         }]);
 
         return [
@@ -674,7 +675,7 @@ class SettingsController extends Controller
     private function trackedDoctrinePayload(SeededMarket $market, string $message): array
     {
         $market->load(['trackedDoctrines.fitSettings', 'items' => function ($query) {
-            $query->with('sources')->orderBy('type_name');
+            $query->with('sources', 'type.group')->orderBy('type_name');
         }]);
 
         return [

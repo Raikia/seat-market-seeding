@@ -189,6 +189,7 @@ class MarketSeedingController extends Controller
             : MarketSeedingItemSource::whereIn('market_id', $marketIds)->count();
 
         return 'seat-market-seeding:dashboard:' . md5(json_encode([
+            'version' => 3,
             'user_id' => $user->id,
             'is_admin' => $user->isAdmin(),
             'roles' => $roleIds,

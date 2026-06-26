@@ -11,7 +11,7 @@
             ? 'market-seeding-dark-skin'
             : '';
         $isk = function ($value) {
-            return number_format((float) $value, 2, '.', ',') . ' ISK';
+            return '$' . number_format((float) $value, 2, '.', ',');
         };
         $whole = function ($value) {
             return number_format((float) $value, 0, '.', ',');
@@ -54,6 +54,16 @@
         }
         .market-seeding-controls .form-control {
             max-width: 360px;
+        }
+        .market-seeding-controls .market-seeding-filter-group {
+            display: flex;
+            flex: 1 1 auto;
+            flex-wrap: wrap;
+            gap: .5rem;
+        }
+        .market-seeding-item-type {
+            display: block;
+            margin-left: 1.85rem;
         }
         .market-seeding-card .card-header {
             align-items: center;
@@ -272,12 +282,20 @@
 
     @if(count($stockReport['markets']) > 0)
         <div class="market-seeding-controls">
-            <select class="form-control" id="market-seeding-market-filter">
-                <option value="all">All Markets</option>
-                @foreach($stockReport['markets'] as $marketReport)
-                    <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
-                @endforeach
-            </select>
+            <div class="market-seeding-filter-group">
+                <select class="form-control" id="market-seeding-market-filter">
+                    <option value="all">All Markets</option>
+                    @foreach($stockReport['markets'] as $marketReport)
+                        <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
+                    @endforeach
+                </select>
+                <select class="form-control" id="market-seeding-type-filter">
+                    <option value="">All Categories</option>
+                    @foreach(collect($stockReport['markets'])->flatMap(fn ($marketReport) => $marketReport['rows']->pluck('type_category'))->unique()->sort()->values() as $typeCategory)
+                        <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
+                    @endforeach
+                </select>
+            </div>
             <div>
                 <button type="button" class="btn btn-default btn-sm" id="market-seeding-expand-all">Expand All</button>
                 <button type="button" class="btn btn-default btn-sm" id="market-seeding-collapse-all">Collapse All</button>
@@ -291,6 +309,17 @@
                 $market = $marketReport['market'];
                 $exportId = 'market-seeding-export-' . $market->id;
                 $collapseId = 'market-seeding-market-' . $market->id;
+                $restockLines = $marketReport['rows']
+                    ->filter(fn ($row) => $row['missing_quantity'] > 0)
+                    ->map(function ($row) {
+                        return [
+                            'category' => $row['type_category'],
+                            'line' => $row['export_line'],
+                            'volume' => $row['restock_volume'],
+                        ];
+                    })
+                    ->values();
+                $restockCategories = $restockLines->pluck('category')->unique()->sort()->values();
             @endphp
 
             <div class="card mb-3 market-seeding-card" data-market-id="{{ $market->id }}">
@@ -376,6 +405,7 @@
                                 <thead>
                                     <tr>
                                         <th>Item</th>
+                                        <th>Category</th>
                                         <th class="text-right">Current</th>
                                         <th class="text-right">Target</th>
                                         <th class="text-right">Missing</th>
@@ -389,11 +419,13 @@
                                 </thead>
                                 <tbody>
                                     @foreach($marketReport['rows'] as $row)
-                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}">
+                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}" data-category="{{ $row['type_category'] }}">
                                             <td>
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $row['source_flags']])
                                                 {{ $row['item']->type_name }}
+                                                <span class="text-muted small market-seeding-item-type">{{ $row['type_category'] }}</span>
                                             </td>
+                                            <td>{{ $row['type_category'] }}</td>
                                             <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
                                             <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $row['missing_quantity'] }}">
@@ -435,9 +467,18 @@
                         </div>
                         <div class="modal-body">
                             <p class="text-muted mb-2">
-                                Estimated restock volume: {{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;
+                                Estimated restock volume: <span class="market-seeding-export-volume" data-default-volume="{{ $marketReport['totals']['restock_volume'] }}">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
-                            <textarea id="{{ $exportId }}" class="form-control" rows="10" readonly>{{ $marketReport['export'] }}</textarea>
+                            <div class="form-group">
+                                <label for="{{ $exportId }}-category">Category</label>
+                                <select id="{{ $exportId }}-category" class="form-control market-seeding-export-category-filter" data-target="{{ $exportId }}">
+                                    <option value="">All Categories</option>
+                                    @foreach($restockCategories as $category)
+                                        <option value="{{ $category }}">{{ $category }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-primary copy-market-export" data-target="{{ $exportId }}">
@@ -476,6 +517,15 @@
                     lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
                     stateSave: true,
                     autoWidth: false,
+                    columnDefs: [
+                        { targets: [1], visible: false }
+                    ],
+                    stateSaveParams: function (settings, data) {
+                        data.marketSeedingSchema = 2;
+                    },
+                    stateLoadParams: function (settings, data) {
+                        return data.marketSeedingSchema === 2;
+                    },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
                         zeroRecords: 'No items match this search.'
@@ -487,6 +537,24 @@
                 var textarea = document.getElementById($(this).data('target'));
                 textarea.select();
                 document.execCommand('copy');
+            });
+
+            $('.market-seeding-export-category-filter').on('change', function () {
+                var category = $(this).val();
+                var textarea = document.getElementById($(this).data('target'));
+                var lines = $(textarea).data('lines') || [];
+                var filtered = $.grep(lines, function (line) {
+                    return !category || line.category === category;
+                });
+                var volume = filtered.reduce(function (total, line) {
+                    return total + Number(line.volume || 0);
+                }, 0);
+
+                textarea.value = $.map(filtered, function (line) {
+                    return line.line;
+                }).join('\n');
+
+                $(this).closest('.modal-body').find('.market-seeding-export-volume').text(formatDecimal(volume));
             });
 
             $('#market-seeding-market-filter').on('change', function () {
@@ -510,6 +578,10 @@
                 }
             });
 
+            $('#market-seeding-type-filter').on('change', function () {
+                applyDashboardTypeFilter($(this).val());
+            });
+
             $('#market-seeding-expand-all').on('click', function () {
                 $('#market-seeding-accordion .collapse').collapse('show');
             });
@@ -523,6 +595,34 @@
                     dashboardTables.columns.adjust();
                 }
             });
+
+            function applyDashboardTypeFilter(typeCategory) {
+                $('.market-seeding-dashboard-table').each(function () {
+                    if (!$.fn.DataTable || !$.fn.DataTable.isDataTable(this)) {
+                        $(this).find('tbody tr').each(function () {
+                            var matches = !typeCategory || $(this).data('category') === typeCategory;
+                            $(this).toggle(matches);
+                        });
+                        return;
+                    }
+
+                    $(this).DataTable()
+                        .column(1)
+                        .search(typeCategory ? '^' + escapeRegex(typeCategory) + '$' : '', true, false)
+                        .draw();
+                });
+            }
+
+            function escapeRegex(value) {
+                return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function formatDecimal(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
         });
     </script>
 @endpush
