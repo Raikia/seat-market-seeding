@@ -799,6 +799,7 @@
                         <div>
                             <h3 class="card-title mb-0">Needs Attention</h3>
                             <small class="text-muted">Items where recent movement suggests a higher target stock amount.</small>
+                            <small class="text-muted d-block">Restock Pace estimates how often the item becomes low or empty in this history window.</small>
                         </div>
                         @can('seat-market-seeding.manager')
                             <div class="history-attention-actions">
@@ -822,7 +823,7 @@
                                         <th class="text-right">Recommended</th>
                                         <th class="text-right">Gap</th>
                                         <th class="text-right">Sold</th>
-                                        <th class="text-right">Days / Need</th>
+                                        <th class="text-right" title="Average time between low or empty restock-needed events in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -842,8 +843,8 @@
                                             </td>
                                             <td class="text-right" data-order="{{ $item->recommended_quantity - $item->current_target_quantity }}">{{ $whole($item->recommended_quantity - $item->current_target_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
-                                            <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}">
-                                                {{ $item->average_days_between_restock_needs ? number_format($item->average_days_between_restock_needs, 1, '.', ',') : '-' }}
+                                            <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events in the selected {{ $days }} day window.">
+                                                {{ $item->average_days_between_restock_needs ? 'Every ' . number_format($item->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
                                             </td>
                                         </tr>
                                     @empty
@@ -1045,6 +1046,7 @@
                         <div>
                             <h3 class="card-title mb-0">Most Frequent Restock Needs</h3>
                             <small class="text-muted">Items that most often moved into low or empty status{{ request('market_id') ? ' for the selected market' : '' }}.</small>
+                            <small class="text-muted d-block">Restock Pace is the average time between low or empty restock-needed events. Lower is busier.</small>
                         </div>
                     </div>
                     <div class="card-body">
@@ -1058,7 +1060,7 @@
                                         <th class="text-right">Empty</th>
                                         <th class="text-right">Low</th>
                                         <th class="text-right">Shortage</th>
-                                        <th class="text-right">Days / Need</th>
+                                        <th class="text-right" title="Average time between low or empty restock-needed events in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
                                         <th>Last Needed</th>
                                         @can('seat-market-seeding.manager')
                                             <th class="text-right history-actions-column">Actions</th>
@@ -1087,8 +1089,8 @@
                                                 <span class="badge badge-warning">{{ $whole($leader->low_events) }}</span>
                                             </td>
                                             <td class="text-right" data-order="{{ $leader->total_shortage }}">{{ $whole($leader->total_shortage) }}</td>
-                                            <td class="text-right" data-order="{{ $leader->average_days_between_restock_needs ?? 999999 }}">
-                                                {{ $leader->average_days_between_restock_needs ? number_format($leader->average_days_between_restock_needs, 1, '.', ',') : '-' }}
+                                            <td class="text-right" data-order="{{ $leader->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events in the selected {{ $days }} day window.">
+                                                {{ $leader->average_days_between_restock_needs ? 'Every ' . number_format($leader->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
                                             </td>
                                             <td data-order="{{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->timestamp : 0 }}">
                                                 {{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->format('Y-m-d H:i') : '-' }}
@@ -1121,7 +1123,7 @@
                                             <td class="text-right" data-order="0"><span class="badge badge-danger">0</span></td>
                                             <td class="text-right" data-order="0"><span class="badge badge-warning">0</span></td>
                                             <td class="text-right" data-order="0">0</td>
-                                            <td class="text-right" data-order="999999">-</td>
+                                            <td class="text-right" data-order="999999" title="Average time between low or empty restock-needed events in the selected history window.">-</td>
                                             <td data-order="0">-</td>
                                             @can('seat-market-seeding.manager')
                                                 <td class="text-right">-</td>
@@ -1233,11 +1235,11 @@
                                 <span class="recommendation-summary-value" id="market-seeding-recommendations-gap">0</span>
                             </div>
                             <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">Added Cost Delta</span>
+                                <span class="recommendation-summary-label">&Delta; Cost</span>
                                 <span class="recommendation-summary-value" id="market-seeding-recommendations-cost">$0.00</span>
                             </div>
                             <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">Added Volume Delta</span>
+                                <span class="recommendation-summary-label">&Delta; Volume</span>
                                 <span class="recommendation-summary-value" id="market-seeding-recommendations-volume">0.00 m3</span>
                             </div>
                         </div>
@@ -1636,11 +1638,11 @@
                                         '<span class="recommendation-delta-value">+' + numberWithCommas(gap) + '</span>' +
                                     '</div>' +
                                     '<div class="recommendation-delta">' +
-                                        '<span class="recommendation-delta-label">Added Cost</span>' +
+                                        '<span class="recommendation-delta-label">&Delta; Cost</span>' +
                                         '<span class="recommendation-delta-value">' + escapeHtml(formatCurrency(deltaCost)) + '</span>' +
                                     '</div>' +
                                     '<div class="recommendation-delta">' +
-                                        '<span class="recommendation-delta-label">Added Volume</span>' +
+                                        '<span class="recommendation-delta-label">&Delta; Volume</span>' +
                                         '<span class="recommendation-delta-value">' + escapeHtml(formatDecimal(deltaVolume, 2)) + ' m3</span>' +
                                     '</div>' +
                                 '</div>' +
