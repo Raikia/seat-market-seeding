@@ -142,6 +142,7 @@ class MarketStockReport
                 return [
                     'item' => $item,
                     'type_category' => $item->typeCategoryName(),
+                    'type_group' => $item->typeGroupName(),
                     'source_flags' => $item->sourceFlags(),
                     'current_quantity' => $currentQuantity,
                     'missing_quantity' => $missingQuantity,
@@ -237,6 +238,7 @@ class MarketStockReport
 
             return [$item->id => [
                 'type_category' => $item->typeCategoryName(),
+                'type_group' => $item->typeGroupName(),
                 'source_flags' => $item->sourceFlags(),
                 'current_quantity' => $currentQuantity,
                 'desired_quantity' => (int) $item->desired_quantity,

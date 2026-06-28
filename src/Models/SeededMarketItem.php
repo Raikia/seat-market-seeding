@@ -95,4 +95,13 @@ class SeededMarketItem extends Model
 
         return self::CATEGORY_LABELS[self::$categoryNames[$categoryId]] ?? self::$categoryNames[$categoryId];
     }
+
+    public function typeGroupName(): string
+    {
+        $type = $this->relationLoaded('type')
+            ? $this->type
+            : $this->type()->with('group')->first();
+
+        return optional(optional($type)->group)->groupName ?: 'Unknown';
+    }
 }

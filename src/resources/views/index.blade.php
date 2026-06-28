@@ -23,6 +23,13 @@
             return number_format((float) $value, 1, '.', ',') . '%';
         };
         $singleMarket = count($stockReport['markets']) === 1;
+        $stockRows = collect($stockReport['markets'])->flatMap(fn ($marketReport) => $marketReport['rows']);
+        $typeCategories = $stockRows->pluck('type_category')->unique()->sort()->values();
+        $typeGroups = $stockRows
+            ->map(fn ($row) => ['category' => $row['type_category'], 'group' => $row['type_group'] ?? 'Unknown'])
+            ->unique(fn ($row) => $row['category'] . '|' . $row['group'])
+            ->sortBy('group')
+            ->values();
     @endphp
 
     <style>
@@ -61,6 +68,33 @@
             flex: 1 1 auto;
             flex-wrap: wrap;
             gap: .5rem;
+        }
+        .market-seeding-filter-card {
+            align-items: flex-end;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: .45rem;
+            display: flex;
+            flex: 1 1 auto;
+            flex-wrap: wrap;
+            gap: .75rem;
+            padding: .75rem;
+        }
+        .market-seeding-filter-field {
+            flex: 1 1 210px;
+            min-width: 180px;
+        }
+        .market-seeding-filter-field label {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            margin-bottom: .25rem;
+            text-transform: uppercase;
+        }
+        .market-seeding-filter-card .form-control {
+            max-width: none;
         }
         .market-seeding-item-type {
             display: block;
@@ -147,6 +181,13 @@
             background: #1f2d3d;
             border-left-color: #3c8dbc;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-filter-card {
+            background: #222d32;
+            border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-filter-field label {
+            color: #b8c7ce;
         }
         .market-seeding-dark-skin .market-seeding-source-manual {
             background: rgba(60, 141, 188, .28);
@@ -283,19 +324,34 @@
 
     @if(count($stockReport['markets']) > 0)
         <div class="market-seeding-controls">
-            <div class="market-seeding-filter-group">
-                <select class="form-control" id="market-seeding-market-filter">
-                    <option value="all">All Markets</option>
-                    @foreach($stockReport['markets'] as $marketReport)
-                        <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
-                    @endforeach
-                </select>
-                <select class="form-control" id="market-seeding-type-filter">
-                    <option value="">All Categories</option>
-                    @foreach(collect($stockReport['markets'])->flatMap(fn ($marketReport) => $marketReport['rows']->pluck('type_category'))->unique()->sort()->values() as $typeCategory)
-                        <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
-                    @endforeach
-                </select>
+            <div class="market-seeding-filter-card">
+                <div class="market-seeding-filter-field">
+                    <label for="market-seeding-market-filter">Market</label>
+                    <select class="form-control" id="market-seeding-market-filter">
+                        <option value="all">All Markets</option>
+                        @foreach($stockReport['markets'] as $marketReport)
+                            <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="market-seeding-filter-field">
+                    <label for="market-seeding-type-filter">Category</label>
+                    <select class="form-control" id="market-seeding-type-filter">
+                        <option value="">All Categories</option>
+                        @foreach($typeCategories as $typeCategory)
+                            <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="market-seeding-filter-field">
+                    <label for="market-seeding-group-filter">Group</label>
+                    <select class="form-control" id="market-seeding-group-filter">
+                        <option value="">All Groups</option>
+                        @foreach($typeGroups as $typeGroup)
+                            <option value="{{ $typeGroup['group'] }}" data-category="{{ $typeGroup['category'] }}">{{ $typeGroup['group'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
             <div>
                 <button type="button" class="btn btn-default btn-sm" id="market-seeding-expand-all">Expand All</button>
@@ -316,12 +372,12 @@
                     ->map(function ($row) {
                         return [
                             'category' => $row['type_category'],
+                            'group' => $row['type_group'] ?? 'Unknown',
                             'line' => $row['export_line'],
                             'volume' => $row['restock_volume'],
                         ];
                     })
                     ->values();
-                $restockCategories = $restockLines->pluck('category')->unique()->sort()->values();
             @endphp
 
             <div class="card mb-3 market-seeding-card" data-market-id="{{ $market->id }}">
@@ -408,6 +464,7 @@
                                     <tr>
                                         <th>Item</th>
                                         <th>Category</th>
+                                        <th>Group</th>
                                         <th class="text-right">Current</th>
                                         <th class="text-right">Target</th>
                                         <th class="text-right">Missing</th>
@@ -421,13 +478,14 @@
                                 </thead>
                                 <tbody>
                                     @foreach($marketReport['rows'] as $row)
-                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}" data-category="{{ $row['type_category'] }}">
+                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}" data-category="{{ $row['type_category'] }}" data-group="{{ $row['type_group'] ?? 'Unknown' }}">
                                             <td>
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $row['source_flags']])
                                                 {{ $row['item']->type_name }}
-                                                <span class="text-muted small market-seeding-item-type">{{ $row['type_category'] }}</span>
+                                                <span class="text-muted small market-seeding-item-type">{{ $row['type_category'] }} &middot; {{ $row['type_group'] ?? 'Unknown' }}</span>
                                             </td>
                                             <td>{{ $row['type_category'] }}</td>
+                                            <td>{{ $row['type_group'] ?? 'Unknown' }}</td>
                                             <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
                                             <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $row['missing_quantity'] }}">
@@ -469,17 +527,9 @@
                         </div>
                         <div class="modal-body">
                             <p class="text-muted mb-2">
+                                This list follows the dashboard category and group filters.
                                 Estimated restock volume: <span class="market-seeding-export-volume" data-default-volume="{{ $marketReport['totals']['restock_volume'] }}">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
-                            <div class="form-group">
-                                <label for="{{ $exportId }}-category">Category</label>
-                                <select id="{{ $exportId }}-category" class="form-control market-seeding-export-category-filter" data-target="{{ $exportId }}">
-                                    <option value="">All Categories</option>
-                                    @foreach($restockCategories as $category)
-                                        <option value="{{ $category }}">{{ $category }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
                             <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
                         </div>
                         <div class="modal-footer">
@@ -520,13 +570,13 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { targets: [1], visible: false }
+                        { targets: [1, 2], visible: false }
                     ],
                     stateSaveParams: function (settings, data) {
-                        data.marketSeedingSchema = 2;
+                        data.marketSeedingSchema = 3;
                     },
                     stateLoadParams: function (settings, data) {
-                        return data.marketSeedingSchema === 2;
+                        return data.marketSeedingSchema === 3;
                     },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -541,24 +591,6 @@
                 document.execCommand('copy');
             });
 
-            $('.market-seeding-export-category-filter').on('change', function () {
-                var category = $(this).val();
-                var textarea = document.getElementById($(this).data('target'));
-                var lines = $(textarea).data('lines') || [];
-                var filtered = $.grep(lines, function (line) {
-                    return !category || line.category === category;
-                });
-                var volume = filtered.reduce(function (total, line) {
-                    return total + Number(line.volume || 0);
-                }, 0);
-
-                textarea.value = $.map(filtered, function (line) {
-                    return line.line;
-                }).join('\n');
-
-                $(this).closest('.modal-body').find('.market-seeding-export-volume').text(formatDecimal(volume));
-            });
-
             $('#market-seeding-market-filter').on('change', function () {
                 var marketId = $(this).val();
                 var cards = $('.market-seeding-card[data-market-id]');
@@ -568,6 +600,7 @@
                     if (dashboardTables) {
                         dashboardTables.columns.adjust();
                     }
+                    updateAllRestockExports();
                     return;
                 }
 
@@ -578,10 +611,20 @@
                 if (dashboardTables) {
                     dashboardTables.columns.adjust();
                 }
+                updateAllRestockExports();
             });
 
             $('#market-seeding-type-filter').on('change', function () {
-                applyDashboardTypeFilter($(this).val());
+                updateGroupFilterOptions();
+                applyDashboardFilters();
+            });
+
+            $('#market-seeding-group-filter').on('change', function () {
+                applyDashboardFilters();
+            });
+
+            $('.market-seeding-modal').on('show.bs.modal', function () {
+                updateRestockExport($(this));
             });
 
             $('#market-seeding-expand-all').on('click', function () {
@@ -598,21 +641,93 @@
                 }
             });
 
-            function applyDashboardTypeFilter(typeCategory) {
+            updateGroupFilterOptions();
+            applyDashboardFilters();
+
+            function applyDashboardFilters() {
+                var typeCategory = $('#market-seeding-type-filter').val();
+                var typeGroup = $('#market-seeding-group-filter').val();
+
                 $('.market-seeding-dashboard-table').each(function () {
                     if (!$.fn.DataTable || !$.fn.DataTable.isDataTable(this)) {
                         $(this).find('tbody tr').each(function () {
-                            var matches = !typeCategory || $(this).data('category') === typeCategory;
+                            var matches = matchesTypeFilters($(this).data('category'), $(this).data('group'), typeCategory, typeGroup);
                             $(this).toggle(matches);
                         });
                         return;
                     }
 
-                    $(this).DataTable()
+                    var table = $(this).DataTable();
+                    table
                         .column(1)
-                        .search(typeCategory ? '^' + escapeRegex(typeCategory) + '$' : '', true, false)
+                        .search(typeCategory ? '^' + escapeRegex(typeCategory) + '$' : '', true, false);
+                    table
+                        .column(2)
+                        .search(typeGroup ? '^' + escapeRegex(typeGroup) + '$' : '', true, false)
                         .draw();
                 });
+
+                updateAllRestockExports();
+            }
+
+            function updateGroupFilterOptions() {
+                var typeCategory = $('#market-seeding-type-filter').val();
+                var groupFilter = $('#market-seeding-group-filter');
+                var selectedGroup = groupFilter.val();
+                var selectedStillVisible = !selectedGroup;
+
+                groupFilter.find('option').each(function () {
+                    if (!$(this).val()) {
+                        $(this).show();
+                        return;
+                    }
+
+                    var visible = !typeCategory || $(this).data('category') === typeCategory;
+                    $(this).toggle(visible);
+
+                    if (visible && $(this).val() === selectedGroup) {
+                        selectedStillVisible = true;
+                    }
+                });
+
+                if (!selectedStillVisible) {
+                    groupFilter.val('');
+                }
+            }
+
+            function updateAllRestockExports() {
+                $('.market-seeding-modal').each(function () {
+                    updateRestockExport($(this));
+                });
+            }
+
+            function updateRestockExport(modal) {
+                var textarea = modal.find('.market-seeding-export-textarea')[0];
+
+                if (!textarea) {
+                    return;
+                }
+
+                var typeCategory = $('#market-seeding-type-filter').val();
+                var typeGroup = $('#market-seeding-group-filter').val();
+                var lines = $(textarea).data('lines') || [];
+                var filtered = $.grep(lines, function (line) {
+                    return matchesTypeFilters(line.category, line.group, typeCategory, typeGroup);
+                });
+                var volume = filtered.reduce(function (total, line) {
+                    return total + Number(line.volume || 0);
+                }, 0);
+
+                textarea.value = $.map(filtered, function (line) {
+                    return line.line;
+                }).join('\n');
+
+                modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
+            }
+
+            function matchesTypeFilters(category, group, selectedCategory, selectedGroup) {
+                return (!selectedCategory || category === selectedCategory)
+                    && (!selectedGroup || group === selectedGroup);
             }
 
             function escapeRegex(value) {
