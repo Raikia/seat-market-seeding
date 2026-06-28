@@ -54,7 +54,7 @@
             }
         }
         .market-seeding-controls {
-            align-items: center;
+            align-items: flex-start;
             display: flex;
             gap: .75rem;
             justify-content: space-between;
@@ -70,31 +70,85 @@
             gap: .5rem;
         }
         .market-seeding-filter-card {
-            align-items: flex-end;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: .45rem;
-            display: flex;
+            background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fb 100%);
+            border: 1px solid rgba(31, 73, 103, .12);
+            border-radius: .65rem;
+            box-shadow: 0 8px 20px rgba(24, 50, 71, .05);
             flex: 1 1 auto;
-            flex-wrap: wrap;
+            max-width: 760px;
+            padding: .75rem .85rem .85rem;
+        }
+        .market-seeding-filter-header {
+            align-items: center;
+            display: flex;
             gap: .75rem;
-            padding: .75rem;
+            justify-content: space-between;
+        }
+        .market-seeding-filter-heading {
+            align-items: center;
+            display: flex;
+            gap: .5rem;
+            min-width: 0;
+        }
+        .market-seeding-filter-heading i {
+            align-items: center;
+            background: rgba(0, 123, 255, .12);
+            border-radius: 999px;
+            color: #007bff;
+            display: inline-flex;
+            flex: 0 0 auto;
+            height: 1.85rem;
+            justify-content: center;
+            width: 1.85rem;
+        }
+        .market-seeding-filter-heading strong {
+            color: #183247;
+            display: block;
+            line-height: 1.1;
+        }
+        .market-seeding-filter-heading small {
+            display: block;
+            line-height: 1.2;
+            margin-top: .1rem;
+        }
+        .market-seeding-filter-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .65rem;
+            padding-top: .65rem;
         }
         .market-seeding-filter-field {
-            flex: 1 1 210px;
-            min-width: 180px;
+            flex: 0 1 170px;
+            min-width: 150px;
         }
         .market-seeding-filter-field label {
-            color: #6c757d;
+            color: #54657a;
             display: block;
-            font-size: .72rem;
-            font-weight: 700;
-            letter-spacing: .04em;
-            margin-bottom: .25rem;
-            text-transform: uppercase;
+            font-size: .78rem;
+            font-weight: 600;
+            letter-spacing: .01em;
+            margin-bottom: .3rem;
         }
         .market-seeding-filter-card .form-control {
             max-width: none;
+        }
+        .market-seeding-filter-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+        .market-seeding-controls-actions {
+            align-items: center;
+            display: flex;
+            flex: 0 0 auto;
+            gap: .35rem;
+        }
+        @media (max-width: 1199px) {
+            .market-seeding-controls {
+                flex-direction: column;
+            }
+            .market-seeding-controls-actions {
+                justify-content: flex-end;
+            }
         }
         .market-seeding-item-type {
             display: block;
@@ -183,8 +237,16 @@
             color: #e9ecef;
         }
         .market-seeding-dark-skin .market-seeding-filter-card {
-            background: #222d32;
-            border-color: #3c4b54;
+            background: linear-gradient(180deg, #22313a 0%, #1f2d33 100%);
+            border-color: rgba(60, 141, 188, .28);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+        }
+        .market-seeding-dark-skin .market-seeding-filter-heading strong {
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-filter-heading i {
+            background: rgba(60, 141, 188, .25);
+            color: #9fd3f2;
         }
         .market-seeding-dark-skin .market-seeding-filter-field label {
             color: #b8c7ce;
@@ -325,35 +387,56 @@
     @if(count($stockReport['markets']) > 0)
         <div class="market-seeding-controls">
             <div class="market-seeding-filter-card">
-                <div class="market-seeding-filter-field">
-                    <label for="market-seeding-market-filter">Market</label>
-                    <select class="form-control" id="market-seeding-market-filter">
-                        <option value="all">All Markets</option>
-                        @foreach($stockReport['markets'] as $marketReport)
-                            <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
-                        @endforeach
-                    </select>
+                <div class="market-seeding-filter-header">
+                    <div class="market-seeding-filter-heading">
+                        <i class="fas fa-sliders-h"></i>
+                        <div>
+                            <strong>Filters</strong>
+                            <small class="text-muted">Narrow market rows and restock exports.</small>
+                        </div>
+                    </div>
+                    <div class="market-seeding-filter-actions">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="market-seeding-toggle-filters" data-toggle="collapse" data-target="#market-seeding-filter-body" aria-expanded="false" aria-controls="market-seeding-filter-body">
+                            <i class="fas fa-sliders-h"></i> Show Filters
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="market-seeding-reset-filters">
+                            <i class="fas fa-undo"></i> Reset
+                        </button>
+                    </div>
                 </div>
-                <div class="market-seeding-filter-field">
-                    <label for="market-seeding-type-filter">Category</label>
-                    <select class="form-control" id="market-seeding-type-filter">
-                        <option value="">All Categories</option>
-                        @foreach($typeCategories as $typeCategory)
-                            <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="market-seeding-filter-field">
-                    <label for="market-seeding-group-filter">Group</label>
-                    <select class="form-control" id="market-seeding-group-filter">
-                        <option value="">All Groups</option>
-                        @foreach($typeGroups as $typeGroup)
-                            <option value="{{ $typeGroup['group'] }}" data-category="{{ $typeGroup['category'] }}">{{ $typeGroup['group'] }}</option>
-                        @endforeach
-                    </select>
+                <div class="collapse" id="market-seeding-filter-body">
+                    <div class="market-seeding-filter-fields">
+                        <div class="market-seeding-filter-field">
+                            <label for="market-seeding-market-filter">Market</label>
+                            <select class="form-control form-control-sm" id="market-seeding-market-filter">
+                                <option value="all">All Markets</option>
+                                @foreach($stockReport['markets'] as $marketReport)
+                                    <option value="{{ $marketReport['market']->id }}">{{ $marketReport['market']->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="market-seeding-filter-field">
+                            <label for="market-seeding-type-filter">Category</label>
+                            <select class="form-control form-control-sm" id="market-seeding-type-filter">
+                                <option value="">All Categories</option>
+                                @foreach($typeCategories as $typeCategory)
+                                    <option value="{{ $typeCategory }}">{{ $typeCategory }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="market-seeding-filter-field">
+                            <label for="market-seeding-group-filter">Group</label>
+                            <select class="form-control form-control-sm" id="market-seeding-group-filter">
+                                <option value="">All Groups</option>
+                                @foreach($typeGroups as $typeGroup)
+                                    <option value="{{ $typeGroup['group'] }}" data-category="{{ $typeGroup['category'] }}">{{ $typeGroup['group'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div>
+            <div class="market-seeding-controls-actions">
                 <button type="button" class="btn btn-default btn-sm" id="market-seeding-expand-all">Expand All</button>
                 <button type="button" class="btn btn-default btn-sm" id="market-seeding-collapse-all">Collapse All</button>
             </div>
@@ -623,6 +706,22 @@
                 applyDashboardFilters();
             });
 
+            $('#market-seeding-reset-filters').on('click', function () {
+                $('#market-seeding-market-filter').val('all').trigger('change');
+                $('#market-seeding-type-filter').val('');
+                updateGroupFilterOptions();
+                $('#market-seeding-group-filter').val('');
+                applyDashboardFilters();
+            });
+
+            $('#market-seeding-filter-body').on('shown.bs.collapse', function () {
+                updateFilterToggleButton(true);
+            });
+
+            $('#market-seeding-filter-body').on('hidden.bs.collapse', function () {
+                updateFilterToggleButton(false);
+            });
+
             $('.market-seeding-modal').on('show.bs.modal', function () {
                 updateRestockExport($(this));
             });
@@ -643,6 +742,7 @@
 
             updateGroupFilterOptions();
             applyDashboardFilters();
+            updateFilterToggleButton(false);
 
             function applyDashboardFilters() {
                 var typeCategory = $('#market-seeding-type-filter').val();
@@ -728,6 +828,14 @@
             function matchesTypeFilters(category, group, selectedCategory, selectedGroup) {
                 return (!selectedCategory || category === selectedCategory)
                     && (!selectedGroup || group === selectedGroup);
+            }
+
+            function updateFilterToggleButton(expanded) {
+                $('#market-seeding-toggle-filters')
+                    .attr('aria-expanded', expanded ? 'true' : 'false')
+                    .html(expanded
+                        ? '<i class="fas fa-sliders-h"></i> Hide Filters'
+                        : '<i class="fas fa-sliders-h"></i> Show Filters');
             }
 
             function escapeRegex(value) {
