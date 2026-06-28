@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
@@ -26,6 +27,7 @@ class MarketStockTransitionNotifier
     const ALERT_RESTOCKED = 'market_seeding_restocked';
 
     private MarketSeedingSettings $settings;
+    private bool $historyPruned = false;
 
     public function __construct(MarketSeedingSettings $settings)
     {
@@ -98,12 +100,21 @@ class MarketStockTransitionNotifier
 
     private function previousSnapshots(SeededMarket $market): Collection
     {
+        $itemIds = $market->items->pluck('id');
+
+        if ($itemIds->isEmpty()) {
+            return collect();
+        }
+
         return MarketStockSnapshot::query()
-            ->where('market_id', $market->id)
-            ->whereIn('item_id', $market->items->pluck('id'))
-            ->latest()
+            ->whereIn('id', function ($query) use ($market, $itemIds) {
+                $query->from((new MarketStockSnapshot)->getTable())
+                    ->select(DB::raw('MAX(id)'))
+                    ->where('market_id', $market->id)
+                    ->whereIn('item_id', $itemIds)
+                    ->groupBy('item_id');
+            })
             ->get()
-            ->unique('item_id')
             ->keyBy('item_id');
     }
 
@@ -322,6 +333,12 @@ class MarketStockTransitionNotifier
 
     private function pruneHistory(): void
     {
+        if ($this->historyPruned) {
+            return;
+        }
+
+        $this->historyPruned = true;
+
         MarketStockHistory::query()
             ->where('created_at', '<', now()->subDays($this->settings->historyRetentionDays()))
             ->delete();

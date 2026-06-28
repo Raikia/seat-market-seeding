@@ -40,21 +40,24 @@ class SettingsController extends Controller
         $savedFittingsAvailable = $savedFittings->isAvailable();
         $seatFittingAvailable = SeatFittingPluginHelper::pluginIsAvailable();
         $historyRetentionDays = $settings->historyRetentionDays();
+        $jitaPriceRefreshMinutes = $settings->jitaPriceRefreshMinutes();
         $recommendationSalesDays = $settings->recommendationSalesDays();
         $recommendationBufferPercentage = $settings->recommendationBufferPercentage();
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'recommendationSalesDays', 'recommendationBufferPercentage'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'jitaPriceRefreshMinutes', 'recommendationSalesDays', 'recommendationBufferPercentage'));
     }
 
     public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
     {
         $data = $request->validate([
             'history_retention_days' => 'required|integer|min:1|max:3650',
+            'jita_price_refresh_minutes' => 'required|integer|min:5|max:10080',
             'recommendation_sales_days' => 'required|integer|min:1|max:365',
             'recommendation_buffer_percentage' => 'required|integer|min:0|max:500',
         ]);
 
         $settings->setHistoryRetentionDays((int) $data['history_retention_days']);
+        $settings->setJitaPriceRefreshMinutes((int) $data['jita_price_refresh_minutes']);
         $settings->setRecommendationSalesDays((int) $data['recommendation_sales_days']);
         $settings->setRecommendationBufferPercentage((int) $data['recommendation_buffer_percentage']);
 

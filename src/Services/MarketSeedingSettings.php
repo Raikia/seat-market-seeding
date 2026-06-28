@@ -7,9 +7,11 @@ use Raikia\SeatMarketSeeding\Models\MarketSeedingSetting;
 class MarketSeedingSettings
 {
     const HISTORY_RETENTION_DAYS = 'history_retention_days';
+    const JITA_PRICE_REFRESH_MINUTES = 'jita_price_refresh_minutes';
     const RECOMMENDATION_SALES_DAYS = 'recommendation_sales_days';
     const RECOMMENDATION_BUFFER_PERCENTAGE = 'recommendation_buffer_percentage';
     const DEFAULT_HISTORY_RETENTION_DAYS = 365;
+    const DEFAULT_JITA_PRICE_REFRESH_MINUTES = 120;
     const DEFAULT_RECOMMENDATION_SALES_DAYS = 14;
     const DEFAULT_RECOMMENDATION_BUFFER_PERCENTAGE = 25;
 
@@ -26,6 +28,22 @@ class MarketSeedingSettings
         MarketSeedingSetting::updateOrCreate(
             ['setting' => self::HISTORY_RETENTION_DAYS],
             ['value' => (string) max(1, $days)]
+        );
+    }
+
+    public function jitaPriceRefreshMinutes(): int
+    {
+        $setting = MarketSeedingSetting::find(self::JITA_PRICE_REFRESH_MINUTES);
+        $minutes = $setting ? (int) $setting->value : self::DEFAULT_JITA_PRICE_REFRESH_MINUTES;
+
+        return max(5, $minutes);
+    }
+
+    public function setJitaPriceRefreshMinutes(int $minutes): void
+    {
+        MarketSeedingSetting::updateOrCreate(
+            ['setting' => self::JITA_PRICE_REFRESH_MINUTES],
+            ['value' => (string) max(5, $minutes)]
         );
     }
 

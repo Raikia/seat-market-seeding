@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\RefreshToken;
@@ -14,9 +15,17 @@ class EsiMarketOrderRefresh
     const JITA_STATION_ID = 60003760;
 
     private array $refreshedLocationTypes = [];
+    private array $lastStats = [];
+    private MarketSeedingSettings $settings;
+
+    public function __construct(MarketSeedingSettings $settings)
+    {
+        $this->settings = $settings;
+    }
 
     public function refresh(SeededMarket $market, ?RefreshToken $refreshToken = null): int
     {
+        $this->resetStats();
         $market->load('items');
 
         if ($market->items->isEmpty()) {
@@ -34,12 +43,19 @@ class EsiMarketOrderRefresh
         return $this->refreshStationMarket($market) + $this->refreshJitaOrders($market);
     }
 
+    public function getLastStats(): array
+    {
+        return $this->lastStats;
+    }
+
     private function refreshStationMarket(SeededMarket $market): int
     {
         return $this->refreshRegionLocationTypeOrders(
             $market->region_id,
             $market->location_id,
-            $market->items->pluck('type_id')->all()
+            $market->items->pluck('type_id')->all(),
+            0,
+            'market'
         );
     }
 
@@ -48,24 +64,36 @@ class EsiMarketOrderRefresh
         return $this->refreshRegionLocationTypeOrders(
             self::THE_FORGE_REGION_ID,
             self::JITA_STATION_ID,
-            $market->items->pluck('type_id')->all()
+            $market->items->pluck('type_id')->all(),
+            $this->settings->jitaPriceRefreshMinutes(),
+            'jita'
         );
     }
 
-    private function refreshRegionLocationTypeOrders(int $regionId, int $locationId, array $typeIds): int
+    private function refreshRegionLocationTypeOrders(int $regionId, int $locationId, array $typeIds, int $cacheMinutes = 0, string $segment = 'market'): int
     {
         $client = new EseyeClient();
         $count = 0;
+        $uniqueTypeIds = collect($typeIds)->map(fn ($typeId) => (int) $typeId)->unique()->values();
 
-        foreach (collect($typeIds)->map(fn ($typeId) => (int) $typeId)->unique() as $typeId) {
-            if ($this->hasRefreshedLocationType($locationId, $typeId)) {
+        $this->incrementStat($segment . '_types_seen', $uniqueTypeIds->count());
+        $this->lastStats[$segment . '_cache_minutes'] = $cacheMinutes;
+
+        foreach ($uniqueTypeIds as $typeId) {
+            $cacheHit = $this->refreshedLocationTypeHit($locationId, $typeId, $cacheMinutes);
+
+            if ($cacheHit) {
+                $this->incrementStat($segment . '_types_cached');
+                $this->incrementStat($segment . '_cache_' . $cacheHit . '_hits');
                 continue;
             }
 
+            $this->incrementStat($segment . '_types_refreshed');
             $page = 1;
-            $orders = collect();
+            $refreshedOrderIds = [];
 
             do {
+                $this->incrementStat($segment . '_esi_requests');
                 $response = $client->setQueryString([
                     'order_type' => 'sell',
                     'type_id' => $typeId,
@@ -74,17 +102,21 @@ class EsiMarketOrderRefresh
                     'region_id' => $regionId,
                 ]);
 
-                $orders = $orders->merge(
-                    collect($response->getBody())
-                        ->where('location_id', $locationId)
-                );
+                $orders = collect($response->getBody())
+                    ->where('location_id', $locationId)
+                    ->values();
+
+                $count += $this->upsertOrders($orders);
+                $this->incrementStat($segment . '_pages');
+                $this->incrementStat($segment . '_orders_seen', $orders->count());
+                $refreshedOrderIds = array_merge($refreshedOrderIds, $orders->pluck('order_id')->map(fn ($orderId) => (int) $orderId)->all());
 
                 $pages = $response->getPagesCount() ?: 1;
                 $page++;
             } while ($page <= $pages);
 
-            $count += $this->replaceSellOrders($locationId, [$typeId], $orders);
-            $this->markLocationTypeRefreshed($locationId, $typeId);
+            $this->incrementStat($segment . '_stale_deleted', $this->deleteStaleSellOrders($locationId, [$typeId], $refreshedOrderIds));
+            $this->markLocationTypeRefreshed($locationId, $typeId, $cacheMinutes);
         }
 
         return $count;
@@ -101,53 +133,89 @@ class EsiMarketOrderRefresh
 
         $count = 0;
         $page = 1;
-        $orders = collect();
+        $refreshedOrderIds = [];
+
+        $this->incrementStat('market_types_seen', count(array_unique($trackedTypeIds)));
+        $this->incrementStat('market_types_refreshed', count(array_unique($trackedTypeIds)));
 
         do {
+            $this->incrementStat('market_esi_requests');
             $response = $client->setQueryString([
                 'page' => $page,
             ])->invoke('get', '/markets/structures/{structure_id}/', [
                 'structure_id' => $market->location_id,
             ]);
 
-            $orders = $orders->merge(
-                collect($response->getBody())
-                    ->where('is_buy_order', false)
-                    ->whereIn('type_id', $trackedTypeIds)
-                    ->map(function ($order) use ($market) {
-                        $order->location_id = $market->location_id;
-                        $order->system_id = $order->system_id ?? $market->solar_system_id ?? 0;
+            $orders = collect($response->getBody())
+                ->where('is_buy_order', false)
+                ->whereIn('type_id', $trackedTypeIds)
+                ->map(function ($order) use ($market) {
+                    $order->location_id = $market->location_id;
+                    $order->system_id = $order->system_id ?? $market->solar_system_id ?? 0;
 
-                        return $order;
-                    })
-            );
+                    return $order;
+                })
+                ->values();
+
+            $count += $this->upsertOrders($orders);
+            $this->incrementStat('market_pages');
+            $this->incrementStat('market_orders_seen', $orders->count());
+            $refreshedOrderIds = array_merge($refreshedOrderIds, $orders->pluck('order_id')->map(fn ($orderId) => (int) $orderId)->all());
 
             $pages = $response->getPagesCount() ?: 1;
             $page++;
         } while ($page <= $pages);
 
-        return $this->replaceSellOrders($market->location_id, $trackedTypeIds, $orders);
+        $this->incrementStat('market_stale_deleted', $this->deleteStaleSellOrders($market->location_id, $trackedTypeIds, $refreshedOrderIds));
+
+        return $count;
     }
 
-    private function replaceSellOrders(int $locationId, array $typeIds, $orders): int
+    private function deleteStaleSellOrders(int $locationId, array $typeIds, array $refreshedOrderIds): int
     {
-        MarketOrder::query()
+        $query = MarketOrder::query()
             ->where('location_id', $locationId)
             ->whereIn('type_id', $typeIds)
-            ->where('is_buy_order', false)
-            ->delete();
+            ->where('is_buy_order', false);
 
-        return $this->upsertOrders($orders);
+        if (!empty($refreshedOrderIds)) {
+            $query->whereNotIn('order_id', array_unique($refreshedOrderIds));
+        }
+
+        return $query->delete();
     }
 
-    private function hasRefreshedLocationType(int $locationId, int $typeId): bool
+    private function refreshedLocationTypeHit(int $locationId, int $typeId, int $cacheMinutes = 0): ?string
     {
-        return array_key_exists($this->locationTypeKey($locationId, $typeId), $this->refreshedLocationTypes);
+        $key = $this->locationTypeKey($locationId, $typeId);
+
+        if (array_key_exists($key, $this->refreshedLocationTypes)) {
+            return 'memory';
+        }
+
+        if ($cacheMinutes <= 0) {
+            return null;
+        }
+
+        if (Cache::has($this->locationTypeCacheKey($key))) {
+            return 'store';
+        }
+
+        if ($this->hasRecentlyRefreshedOrders($locationId, $typeId, $cacheMinutes)) {
+            return 'database';
+        }
+
+        return null;
     }
 
-    private function markLocationTypeRefreshed(int $locationId, int $typeId): void
+    private function markLocationTypeRefreshed(int $locationId, int $typeId, int $cacheMinutes = 0): void
     {
-        $this->refreshedLocationTypes[$this->locationTypeKey($locationId, $typeId)] = true;
+        $key = $this->locationTypeKey($locationId, $typeId);
+        $this->refreshedLocationTypes[$key] = true;
+
+        if ($cacheMinutes > 0) {
+            Cache::put($this->locationTypeCacheKey($key), true, now()->addMinutes($cacheMinutes));
+        }
     }
 
     private function locationTypeKey(int $locationId, int $typeId): string
@@ -155,9 +223,25 @@ class EsiMarketOrderRefresh
         return sprintf('%d:%d', $locationId, $typeId);
     }
 
+    private function locationTypeCacheKey(string $locationTypeKey): string
+    {
+        return 'seat-market-seeding:market-orders-refreshed:' . $locationTypeKey;
+    }
+
+    private function hasRecentlyRefreshedOrders(int $locationId, int $typeId, int $cacheMinutes): bool
+    {
+        return MarketOrder::query()
+            ->where('location_id', $locationId)
+            ->where('type_id', $typeId)
+            ->where('is_buy_order', false)
+            ->where('updated_at', '>=', now()->subMinutes($cacheMinutes))
+            ->exists();
+    }
+
     private function upsertOrders($orders): int
     {
-        $records = collect($orders)->map(function ($order) {
+        $now = now();
+        $records = collect($orders)->map(function ($order) use ($now) {
             $issued = Carbon::parse($order->issued);
 
             return [
@@ -174,8 +258,8 @@ class EsiMarketOrderRefresh
                 'type_id' => $order->type_id,
                 'volume_remaining' => $order->volume_remain,
                 'volume_total' => $order->volume_total,
-                'updated_at' => now(),
-                'created_at' => now(),
+                'updated_at' => $now,
+                'created_at' => $now,
             ];
         })->values();
 
@@ -199,6 +283,40 @@ class EsiMarketOrderRefresh
             'updated_at',
         ]);
 
+        $this->incrementStat('orders_upserted', $records->count());
+
         return $records->count();
+    }
+
+    private function resetStats(): void
+    {
+        $this->lastStats = [
+            'market_types_seen' => 0,
+            'market_types_refreshed' => 0,
+            'market_types_cached' => 0,
+            'market_cache_memory_hits' => 0,
+            'market_cache_store_hits' => 0,
+            'market_cache_database_hits' => 0,
+            'market_esi_requests' => 0,
+            'market_pages' => 0,
+            'market_orders_seen' => 0,
+            'market_stale_deleted' => 0,
+            'jita_types_seen' => 0,
+            'jita_types_refreshed' => 0,
+            'jita_types_cached' => 0,
+            'jita_cache_memory_hits' => 0,
+            'jita_cache_store_hits' => 0,
+            'jita_cache_database_hits' => 0,
+            'jita_esi_requests' => 0,
+            'jita_pages' => 0,
+            'jita_orders_seen' => 0,
+            'jita_stale_deleted' => 0,
+            'orders_upserted' => 0,
+        ];
+    }
+
+    private function incrementStat(string $key, int $amount = 1): void
+    {
+        $this->lastStats[$key] = ($this->lastStats[$key] ?? 0) + $amount;
     }
 }

@@ -33,6 +33,8 @@ class MarketSeedingRefreshAll
         $doctrineSync = app(DoctrineTrackingSync::class);
 
         foreach ($markets as $market) {
+            $startedAt = microtime(true);
+
             if ($market->is_structure && !$structureToken) {
                 $message = sprintf('%s requires a token with %s.', $market->name, self::STRUCTURE_MARKET_SCOPE);
                 $this->recordRefreshStatus($market, 'skipped', $message);
@@ -41,18 +43,45 @@ class MarketSeedingRefreshAll
             }
 
             try {
+                $doctrineStartedAt = microtime(true);
                 $doctrineSync->syncMarket($market);
+                $doctrineSeconds = round(microtime(true) - $doctrineStartedAt, 3);
                 $market->load('items');
 
+                $esiStartedAt = microtime(true);
                 $orders = $refresh->refresh($market, $market->is_structure ? $structureToken : null);
+                $esiSeconds = round(microtime(true) - $esiStartedAt, 3);
                 $results['orders'] += $orders;
+                $notificationStartedAt = microtime(true);
                 $results['notifications'] += $notifier->checkMarket($market);
+                $notificationSeconds = round(microtime(true) - $notificationStartedAt, 3);
                 $this->recordRefreshStatus($market, 'success', 'Refresh completed successfully.', $orders);
                 $results['markets']++;
+
+                logger()->info('Market seeding market refresh completed.', [
+                    'market_id' => $market->id,
+                    'market_name' => $market->name,
+                    'items' => $market->items->count(),
+                    'orders' => $orders,
+                    'seconds' => round(microtime(true) - $startedAt, 3),
+                    'doctrine_seconds' => $doctrineSeconds,
+                    'esi_seconds' => $esiSeconds,
+                    'notification_seconds' => $notificationSeconds,
+                    'refresh_stats' => $refresh->getLastStats(),
+                ]);
             } catch (\Throwable $e) {
                 $message = sprintf('%s: %s', $market->name, $e->getMessage());
                 $this->recordRefreshStatus($market, 'error', $e->getMessage());
                 $results['errors'][] = $message;
+
+                logger()->warning('Market seeding market refresh failed.', [
+                    'market_id' => $market->id,
+                    'market_name' => $market->name,
+                    'items' => $market->items->count(),
+                    'seconds' => round(microtime(true) - $startedAt, 3),
+                    'error' => $e->getMessage(),
+                    'refresh_stats' => $refresh->getLastStats(),
+                ]);
             }
         }
 

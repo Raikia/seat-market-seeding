@@ -396,7 +396,7 @@
             <form action="{{ route('market-seeding.settings.general') }}" method="POST">
                 {{ csrf_field() }}
                 <div class="form-row align-items-end">
-                    <div class="form-group col-md-4">
+                    <div class="form-group col-md-3">
                         <label for="history_retention_days">History retention</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="history_retention_days" id="history_retention_days" value="{{ $historyRetentionDays }}" min="1" max="3650" required>
@@ -405,7 +405,16 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="form-group col-md-3">
+                        <label for="jita_price_refresh_minutes">Jita price refresh</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="jita_price_refresh_minutes" id="jita_price_refresh_minutes" value="{{ $jitaPriceRefreshMinutes }}" min="5" max="10080" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">minutes</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group col-md-3">
                         <label for="recommendation_sales_days">Recommendation sales window</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="recommendation_sales_days" id="recommendation_sales_days" value="{{ $recommendationSalesDays }}" min="1" max="365" required>
@@ -414,7 +423,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="form-group col-md-3">
                         <label for="recommendation_buffer_percentage">Recommendation buffer</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="recommendation_buffer_percentage" id="recommendation_buffer_percentage" value="{{ $recommendationBufferPercentage }}" min="0" max="500" required>
@@ -427,7 +436,7 @@
                 <button type="submit" class="btn btn-primary">Save Settings</button>
             </form>
             <div class="d-flex flex-wrap justify-content-between align-items-center mt-2">
-                <small class="text-muted mr-3">Recommendations use average estimated sales over the configured window, plus the buffer percentage. Defaults are 14 days and 25%.</small>
+                <small class="text-muted mr-3">Recommendations use average estimated sales over the configured window, plus the buffer percentage. Jita prices are cached between refreshes to avoid hundreds of duplicate ESI calls.</small>
                 <div class="btn-group">
                     <form action="{{ route('market-seeding.settings.history.clear') }}" method="POST" onsubmit="return confirm('Clear stock movement history, snapshots, and daily summaries? Target audit history will be kept. This cannot be undone.');">
                         {{ csrf_field() }}
