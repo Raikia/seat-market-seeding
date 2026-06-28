@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
+use Raikia\SeatMarketSeeding\Jobs\RefreshMarketSeedingMarkets;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
@@ -15,14 +16,12 @@ use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
-use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
-use Seat\Eveapi\Models\RefreshToken;
 use Seat\Eveapi\Models\Sde\InvType;
 use Seat\Eveapi\Models\Sde\StaStation;
 use Seat\Eveapi\Models\Universe\UniverseStructure;
@@ -471,29 +470,11 @@ class SettingsController extends Controller
         return response()->json($preview);
     }
 
-    public function refreshMarkets(MarketSeedingRefreshAll $refreshAll)
+    public function refreshMarkets()
     {
-        $refreshToken = optional(auth()->user())->main_character_id
-            ? RefreshToken::find(auth()->user()->main_character_id)
-            : null;
+        RefreshMarketSeedingMarkets::dispatch(optional(auth()->user())->main_character_id);
 
-        $results = $refreshAll->refresh($refreshToken);
-        $message = sprintf(
-            'Market refresh completed. %d market(s) refreshed, %d order(s) updated, %d stock notification(s) queued.',
-            $results['markets'],
-            $results['orders'],
-            $results['notifications'] ?? 0
-        );
-
-        if (!empty($results['skipped'])) {
-            $message .= ' Skipped: ' . implode(' ', $results['skipped']);
-        }
-
-        if (!empty($results['errors'])) {
-            return redirect()->route('market-seeding.settings')->with('error', $message . ' Errors: ' . implode(' ', $results['errors']));
-        }
-
-        return redirect()->route('market-seeding.settings')->with('success', $message);
+        return redirect()->route('market-seeding.settings')->with('success', 'Market refresh job queued. The dashboard will update as the worker processes it.');
     }
 
     public function updateItem(Request $request, SeededMarketItem $item, StockTargetProjector $projector)

@@ -2,7 +2,9 @@
 
 namespace Raikia\SeatMarketSeeding\Tests\Unit\Http;
 
+use Illuminate\Support\Facades\Queue;
 use Raikia\SeatMarketSeeding\Http\Controllers\SettingsController;
+use Raikia\SeatMarketSeeding\Jobs\RefreshMarketSeedingMarkets;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
@@ -11,6 +13,15 @@ use Raikia\SeatMarketSeeding\Tests\TestCase;
 
 class SettingsControllerTest extends TestCase
 {
+    public function test_refresh_markets_queues_refresh_job(): void
+    {
+        Queue::fake();
+
+        app(SettingsController::class)->refreshMarkets();
+
+        Queue::assertPushed(RefreshMarketSeedingMarkets::class);
+    }
+
     public function test_clear_stock_history_does_not_clear_target_audit_history(): void
     {
         $market = $this->createMarket();

@@ -3,7 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Console\Commands;
 
 use Illuminate\Console\Command;
-use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
+use Raikia\SeatMarketSeeding\Jobs\RefreshMarketSeedingMarkets as RefreshMarketSeedingMarketsJob;
 
 class RefreshMarketSeedingMarkets extends Command
 {
@@ -11,24 +11,12 @@ class RefreshMarketSeedingMarkets extends Command
 
     protected $description = 'Refresh configured market seeding market orders from ESI.';
 
-    public function handle(MarketSeedingRefreshAll $refreshAll): int
+    public function handle(): int
     {
-        $results = $refreshAll->refresh();
+        RefreshMarketSeedingMarketsJob::dispatch();
 
-        $this->info(sprintf(
-            'Refreshed %d market(s), updated %d order(s).',
-            $results['markets'],
-            $results['orders']
-        ));
+        $this->info('Market seeding refresh job queued.');
 
-        foreach ($results['skipped'] as $message) {
-            $this->warn('Skipped: ' . $message);
-        }
-
-        foreach ($results['errors'] as $message) {
-            $this->error($message);
-        }
-
-        return empty($results['errors']) ? self::SUCCESS : self::FAILURE;
+        return self::SUCCESS;
     }
 }
