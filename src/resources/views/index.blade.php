@@ -11,7 +11,7 @@
             ? 'market-seeding-dark-skin'
             : '';
         $isk = function ($value) {
-            return '$' . number_format((float) $value, 2, '.', ',');
+            return number_format((float) $value, 2, '.', ',') . ' ISK';
         };
         $whole = function ($value) {
             return number_format((float) $value, 0, '.', ',');
@@ -75,7 +75,7 @@
             border-radius: .65rem;
             box-shadow: 0 8px 20px rgba(24, 50, 71, .05);
             flex: 1 1 auto;
-            max-width: 760px;
+            max-width: 940px;
             padding: .75rem .85rem .85rem;
         }
         .market-seeding-filter-header {
@@ -118,7 +118,7 @@
             padding-top: .65rem;
         }
         .market-seeding-filter-field {
-            flex: 0 1 170px;
+            flex: 0 1 165px;
             min-width: 150px;
         }
         .market-seeding-filter-field label {
@@ -656,10 +656,10 @@
                         { targets: [1, 2], visible: false }
                     ],
                     stateSaveParams: function (settings, data) {
-                        data.marketSeedingSchema = 3;
+                        data.marketSeedingSchema = 5;
                     },
                     stateLoadParams: function (settings, data) {
-                        return data.marketSeedingSchema === 3;
+                        return data.marketSeedingSchema === 5;
                     },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -709,8 +709,8 @@
             $('#market-seeding-reset-filters').on('click', function () {
                 $('#market-seeding-market-filter').val('all').trigger('change');
                 $('#market-seeding-type-filter').val('');
-                updateGroupFilterOptions();
                 $('#market-seeding-group-filter').val('');
+                updateGroupFilterOptions();
                 applyDashboardFilters();
             });
 

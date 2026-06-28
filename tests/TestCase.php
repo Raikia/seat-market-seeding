@@ -96,5 +96,6 @@ abstract class TestCase extends BaseTestCase
             ['groupID' => 53, 'categoryID' => 7, 'groupName' => 'Propulsion Module', 'published' => true],
             ['groupID' => 83, 'categoryID' => 8, 'groupName' => 'Hybrid Charge', 'published' => true],
         ]);
+
     }
 }
