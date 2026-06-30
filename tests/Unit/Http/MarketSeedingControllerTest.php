@@ -4,6 +4,7 @@ namespace Raikia\SeatMarketSeeding\Tests\Unit\Http;
 
 use Illuminate\Http\Request;
 use Raikia\SeatMarketSeeding\Http\Controllers\MarketSeedingController;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
@@ -197,6 +198,13 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame(100, (int) $recommendation->estimated_sold);
         $this->assertSame(100, (int) $recommendation->current_target_quantity);
         $this->assertSame(175, (int) $recommendation->recommended_quantity);
+        $this->assertSame(100, (int) $recommendation->recommendation_estimated_sold);
+        $this->assertSame(10, (int) $recommendation->recommendation_sales_days_with_data);
+        $this->assertSame(10.0, (float) $recommendation->recommendation_daily_sold);
+        $this->assertSame(14, (int) $recommendation->recommendation_sales_window);
+        $this->assertSame(1.25, (float) $recommendation->recommendation_buffer_multiplier);
+        $this->assertSame(175, (int) $recommendation->recommendation_sales_target);
+        $this->assertFalse((bool) $recommendation->recommendation_existing_target_covers);
         $this->assertStringContainsString('100 sold / 10 days * 14 sales days * 1.25x buffer = 175', $recommendation->recommendation_reason);
         $this->assertStringContainsString('Low or empty stock events', $recommendation->recommendation_reason);
 
@@ -214,5 +222,101 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame(7, $view->getData()['days']);
         $this->assertSame(175, (int) $recommendation->recommended_quantity);
         $this->assertStringContainsString('100 sold / 10 days * 14 sales days * 1.25x buffer = 175', $recommendation->recommendation_reason);
+    }
+
+    public function test_history_recommendation_marks_existing_target_as_covering_sales_target(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 1424,
+            'type_name' => 'Small Warhead Calefaction Catalyst II',
+            'desired_quantity' => 200,
+            'warning_quantity' => 66,
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->subDays(9)->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Modules',
+            'estimated_sold_quantity' => 50,
+            'sales_events' => 1,
+            'latest_current_quantity' => 150,
+            'latest_desired_quantity' => 200,
+            'latest_warning_quantity' => 66,
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Modules',
+            'estimated_sold_quantity' => 50,
+            'sales_events' => 1,
+            'latest_current_quantity' => 150,
+            'latest_desired_quantity' => 200,
+            'latest_warning_quantity' => 66,
+        ]);
+
+        $request = Request::create('/market-seeding/history', 'GET', ['days' => 365]);
+        app()->instance('request', $request);
+
+        $view = app(MarketSeedingController::class)->history(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(MarketStockReport::class)
+        );
+        $topSoldItem = $view->getData()['topSoldItems']->first();
+
+        $this->assertNotNull($topSoldItem);
+        $this->assertSame(175, (int) $topSoldItem->recommendation_sales_target);
+        $this->assertSame(200, (int) $topSoldItem->recommended_quantity);
+        $this->assertTrue((bool) $topSoldItem->recommendation_existing_target_covers);
+        $this->assertFalse((bool) $topSoldItem->recommendation_differs);
+    }
+
+    public function test_item_history_includes_source_details(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 2048,
+            'type_name' => 'Damage Control II',
+            'desired_quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+
+        MarketSeedingItemSource::create([
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
+            'source_key' => 'manual',
+            'type_id' => $item->type_id,
+            'type_name' => $item->type_name,
+            'quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+
+        $response = app(MarketSeedingController::class)->itemHistory(
+            Request::create('/market-seeding/items/' . $item->id . '/history', 'GET'),
+            $item,
+            app(MarketStockReport::class)
+        );
+        $payload = $response->getData(true);
+
+        $this->assertSame(2048, $payload['item']['type_id']);
+        $this->assertTrue($payload['source_details']['flags']['manual']);
+        $this->assertFalse($payload['source_details']['flags']['doctrine']);
+        $this->assertSame('Manual add', $payload['source_details']['manual'][0]['label']);
+        $this->assertSame(25, $payload['source_details']['manual'][0]['quantity']);
     }
 }

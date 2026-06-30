@@ -42,10 +42,30 @@
                 'current_target_quantity' => (int) $item->current_target_quantity,
                 'recommended_quantity' => (int) $item->recommended_quantity,
                 'recommendation_reason' => $item->recommendation_reason,
+                'recommendation_estimated_sold' => (int) ($item->recommendation_estimated_sold ?? 0),
+                'recommendation_sales_days_with_data' => (int) ($item->recommendation_sales_days_with_data ?? 0),
+                'recommendation_daily_sold' => (float) ($item->recommendation_daily_sold ?? 0),
+                'recommendation_sales_window' => (int) ($item->recommendation_sales_window ?? 0),
+                'recommendation_buffer_multiplier' => (float) ($item->recommendation_buffer_multiplier ?? 1),
+                'recommendation_sales_target' => (int) ($item->recommendation_sales_target ?? $item->recommended_quantity),
+                'recommendation_existing_target_covers' => (bool) ($item->recommendation_existing_target_covers ?? false),
                 'recommendation_delta_cost' => (float) ($item->recommendation_delta_cost ?? 0),
                 'recommendation_delta_volume' => (float) ($item->recommendation_delta_volume ?? 0),
             ];
         })->values();
+        $recommendationDataAttributes = function ($item) {
+            return [
+                'data-recommended-quantity' => (int) $item->recommended_quantity,
+                'data-recommendation-reason' => $item->recommendation_reason,
+                'data-recommendation-estimated-sold' => (int) ($item->recommendation_estimated_sold ?? 0),
+                'data-recommendation-days-with-data' => (int) ($item->recommendation_sales_days_with_data ?? 0),
+                'data-recommendation-daily-sold' => (float) ($item->recommendation_daily_sold ?? 0),
+                'data-recommendation-sales-window' => (int) ($item->recommendation_sales_window ?? 0),
+                'data-recommendation-buffer-multiplier' => (float) ($item->recommendation_buffer_multiplier ?? 1),
+                'data-recommendation-sales-target' => (int) ($item->recommendation_sales_target ?? $item->recommended_quantity),
+                'data-recommendation-existing-target-covers' => !empty($item->recommendation_existing_target_covers) ? 1 : 0,
+            ];
+        };
         $historyCsrfToken = csrf_token();
         $recommendationApplyUrl = route('market-seeding.history.recommendations.apply');
         $recommendationFilters = request()->only('market_id', 'status', 'type_category', 'days');
@@ -145,6 +165,33 @@
         }
         .market-seeding-history-shell .history-actions-column {
             width: 42px;
+        }
+        .market-seeding-history-shell .market-seeding-source-icons {
+            display: inline-flex;
+            gap: .25rem;
+            margin-right: .35rem;
+            vertical-align: middle;
+        }
+        .market-seeding-history-shell .market-seeding-source-icon {
+            align-items: center;
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: .72rem;
+            height: 1.35rem;
+            justify-content: center;
+            width: 1.35rem;
+        }
+        .market-seeding-history-shell .market-seeding-source-manual {
+            background: rgba(0, 123, 255, .14);
+            color: #0056b3;
+        }
+        .market-seeding-history-shell .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .16);
+            color: #1e7e34;
+        }
+        .market-seeding-history-shell .market-seeding-item-type {
+            display: block;
+            margin-left: 1.85rem;
         }
         .market-seeding-history-shell .history-recommendation-pill {
             background: rgba(220, 53, 69, .08);
@@ -446,6 +493,29 @@
             margin-bottom: 1rem;
             padding: 1rem;
         }
+        .market-seeding-edit-target-modal .edit-target-hero-main {
+            align-items: center;
+            display: flex;
+            gap: .85rem;
+            min-width: 0;
+        }
+        .market-seeding-edit-target-modal .edit-target-type-icon,
+        .market-seeding-edit-target-modal .edit-target-ship-icon {
+            background: #111820;
+            border: 1px solid rgba(0, 0, 0, .16);
+            border-radius: 10px;
+            box-shadow: 0 8px 18px rgba(15, 35, 52, .16);
+            flex: 0 0 auto;
+            object-fit: cover;
+        }
+        .market-seeding-edit-target-modal .edit-target-type-icon {
+            height: 56px;
+            width: 56px;
+        }
+        .market-seeding-edit-target-modal .edit-target-ship-icon {
+            height: 42px;
+            width: 42px;
+        }
         .market-seeding-edit-target-modal .edit-target-item-name {
             display: block;
             font-size: 1.25rem;
@@ -512,6 +582,66 @@
             font-size: .75rem;
             margin-top: .1rem;
         }
+        .market-seeding-edit-target-modal .edit-target-source-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            padding: .9rem 1rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: .65rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-title {
+            font-size: .8rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-list {
+            display: grid;
+            gap: .5rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: .65rem .75rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-name {
+            font-weight: 700;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-meta,
+        .market-seeding-edit-target-modal .edit-target-source-fit-meta {
+            color: #6c757d;
+            font-size: .78rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-fit {
+            align-items: flex-start;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            gap: .65rem;
+            margin-top: .5rem;
+            padding-top: .5rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-fit-body {
+            min-width: 0;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-fit-name {
+            font-weight: 700;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-contribution {
+            display: inline-block;
+            margin-right: .5rem;
+            white-space: nowrap;
+        }
         .market-seeding-edit-target-modal .edit-target-workspace {
             display: grid;
             gap: 1rem;
@@ -535,8 +665,48 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
         .market-seeding-edit-target-modal #market-seeding-edit-target-recommendation {
+            background: linear-gradient(135deg, #f8fbfd 0%, #edf4f8 100%);
+            border: 1px solid #d9e5ec;
+            color: #183247;
             border-radius: 8px;
             margin-bottom: .85rem;
+            padding: .75rem .85rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-recommendation-top {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: .75rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-recommendation-label {
+            color: #607d8b;
+            font-size: .78rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .market-seeding-edit-target-modal .edit-target-recommendation-value {
+            color: #183247;
+            display: inline-block;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-left: .35rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-recommendation-math {
+            background: rgba(24, 50, 71, .07);
+            border: 1px solid rgba(24, 50, 71, .12);
+            border-radius: 6px;
+            font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: .76rem;
+            line-height: 1.45;
+            margin-top: .55rem;
+            padding: .45rem .55rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-recommendation-result {
+            font-size: .78rem;
+            font-weight: 700;
+            margin-top: .45rem;
         }
         .market-seeding-dark-skin .card,
         .market-seeding-dark-skin .card-header,
@@ -574,7 +744,34 @@
             border-color: rgba(220, 53, 69, .55);
             color: #ffb3bc;
         }
+        .market-seeding-dark-skin .market-seeding-source-manual {
+            background: rgba(60, 141, 188, .28);
+            color: #9fd3f2;
+        }
+        .market-seeding-dark-skin .market-seeding-source-doctrine {
+            background: rgba(40, 167, 69, .28);
+            color: #9be7ad;
+        }
         .market-seeding-dark-skin .history-recommendation-config {
+            color: #d7eef8;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin #market-seeding-edit-target-recommendation {
+            background: linear-gradient(135deg, #22313a 0%, #1b272e 100%);
+            border-color: #3c4b54;
+            color: #f4e7be;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-recommendation-label {
+            color: #b8c7ce;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-recommendation-value {
+            color: #f4e7be;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-recommendation-math {
+            background: rgba(31, 41, 46, .6);
+            border-color: rgba(184, 199, 206, .25);
+            color: #f4e7be;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-recommendation-result {
             color: #d7eef8;
         }
         .market-seeding-dark-skin .history-attention-card {
@@ -586,6 +783,16 @@
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-panel {
             background: #1f292e;
             border-color: #3c4b54;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-panel,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-card,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit {
+            background: #1f292e;
+            border-color: #3c4b54;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-meta,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit-meta {
+            color: #b8c7ce;
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-summary {
             color: #b8c7ce;
@@ -646,6 +853,11 @@
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-delta.is-negative {
             color: #a9e7bd;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-type-icon,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-ship-icon {
+            border-color: rgba(244, 231, 190, .18);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .35);
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-content {
             background: #2f2927;
@@ -899,8 +1111,9 @@
 	                                    @foreach($attentionItems as $item)
 	                                        <tr>
                                             <td>
+                                                @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->source_flags ?? []])
                                                 {{ $item->type_name }}
-                                                <div class="text-muted small">{{ $item->type_category }}</div>
+                                                <span class="text-muted small market-seeding-item-type">{{ $item->type_category }}</span>
                                             </td>
                                             <td>
                                                 {{ $item->market_name }}
@@ -931,8 +1144,7 @@
                                                             data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
                                                             data-desired-quantity="{{ (int) $item->desired_quantity }}"
                                                             data-warning-quantity="{{ (int) $item->warning_quantity }}"
-                                                            data-recommended-quantity="{{ (int) $item->recommended_quantity }}"
-                                                            data-recommendation-reason="{{ $item->recommendation_reason }}">
+                                                            @foreach($recommendationDataAttributes($item) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>
                                                         <i class="fas fa-search"></i>
                                                     </button>
                                                 @else
@@ -1050,8 +1262,9 @@
                                     @forelse($topSoldItems as $item)
                                         <tr>
                                             <td>
+                                                @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->source_flags ?? []])
                                                 {{ $item->type_name }}
-                                                <div class="text-muted small">{{ $item->type_category }}</div>
+                                                <span class="text-muted small market-seeding-item-type">{{ $item->type_category }}</span>
                                                 @if($item->recommendation_differs)
                                                     <div class="history-recommendation-pill">
                                                         Target {{ $whole($item->current_target_quantity) }} &rarr; Recommended {{ $whole($item->recommended_quantity) }}
@@ -1084,8 +1297,7 @@
                                                             data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
                                                             data-desired-quantity="{{ (int) $item->target_quantity }}"
                                                             data-warning-quantity="{{ (int) $item->warning_quantity }}"
-                                                            data-recommended-quantity="{{ (int) $item->recommended_quantity }}"
-                                                            data-recommendation-reason="{{ $item->recommendation_reason }}">
+                                                            @foreach($recommendationDataAttributes($item) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>
                                                         <i class="fas {{ $canManageMarketSeeding ? 'fa-edit' : 'fa-eye' }}"></i>
                                                     </button>
                                                 @else
@@ -1154,8 +1366,9 @@
                                     @forelse($restockLeaders as $leader)
                                         <tr>
                                             <td>
+                                                @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $leader->source_flags ?? []])
                                                 {{ $leader->type_name }}
-                                                <div class="text-muted small">{{ $leader->type_category }}</div>
+                                                <span class="text-muted small market-seeding-item-type">{{ $leader->type_category }}</span>
                                                 @if($leader->recommendation_differs)
                                                     <div class="history-recommendation-pill">
                                                         Target {{ $whole($leader->current_target_quantity) }} &rarr; Recommended {{ $whole($leader->recommended_quantity) }}
@@ -1194,8 +1407,7 @@
                                                             data-history-url="{{ route('market-seeding.items.history', ['item' => $leader->item_id, 'days' => $days]) }}"
                                                             data-desired-quantity="{{ (int) $leader->desired_quantity }}"
                                                             data-warning-quantity="{{ (int) $leader->warning_quantity }}"
-                                                            data-recommended-quantity="{{ (int) $leader->recommended_quantity }}"
-                                                            data-recommendation-reason="{{ $leader->recommendation_reason }}">
+                                                            @foreach($recommendationDataAttributes($leader) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>
                                                         <i class="fas {{ $canManageMarketSeeding ? 'fa-edit' : 'fa-eye' }}"></i>
                                                     </button>
                                                 @else
@@ -1307,9 +1519,12 @@
                         <div class="alert alert-success d-none" id="market-seeding-edit-target-success"></div>
                         <div class="alert alert-danger d-none" id="market-seeding-edit-target-error"></div>
                         <div class="edit-target-hero">
-                            <div>
-                                <span class="edit-target-item-name" id="market-seeding-edit-target-item"></span>
-                                <span class="edit-target-market-name" id="market-seeding-edit-target-market"></span>
+                            <div class="edit-target-hero-main">
+                                <img src="" alt="" class="edit-target-type-icon d-none" id="market-seeding-edit-target-icon">
+                                <div>
+                                    <span class="edit-target-item-name" id="market-seeding-edit-target-item"></span>
+                                    <span class="edit-target-market-name" id="market-seeding-edit-target-market"></span>
+                                </div>
                             </div>
                             <div class="edit-target-restock-callout">
                                 <span class="edit-target-restock-label">Restock Needed</span>
@@ -1371,17 +1586,31 @@
                                 <canvas id="market-seeding-detail-trend-chart"></canvas>
                             </div>
                         </div>
+                        <div class="edit-target-source-panel">
+                            <div class="edit-target-source-header">
+                                <div class="edit-target-source-title">Source</div>
+                                <div class="edit-target-source-badges" id="market-seeding-detail-source-badges"></div>
+                            </div>
+                            <div class="edit-target-source-list" id="market-seeding-detail-source-list">
+                                <div class="text-muted">Loading source details...</div>
+                            </div>
+                        </div>
                         <div class="edit-target-workspace">
                             <div class="edit-target-panel" id="market-seeding-edit-target-adjust-panel">
                                 <div class="edit-target-panel-title">Adjust Target</div>
                                 <div class="alert alert-info" id="market-seeding-edit-target-recommendation">
-                                    <div class="d-flex justify-content-between align-items-start">
+                                    <div class="edit-target-recommendation-top">
                                         <div>
-                                            <strong>Recommended target: <span id="market-seeding-edit-target-recommended-value"></span></strong>
-                                            <div id="market-seeding-edit-target-recommended-reason" class="small mt-1"></div>
-                                            <div class="small history-recommendation-config mt-1">Configured from {{ $recommendationSalesDays }} sales days plus a {{ $recommendationBufferPercentage }}% buffer.</div>
+                                            <span class="edit-target-recommendation-label">Sales Recommendation</span>
+                                            <span class="edit-target-recommendation-value" id="market-seeding-edit-target-recommended-value"></span>
                                         </div>
                                         <button type="button" class="btn btn-info btn-sm ml-3" id="market-seeding-use-recommended-target">Use</button>
+                                    </div>
+                                    <div class="edit-target-recommendation-math" id="market-seeding-edit-target-recommendation-math"></div>
+                                    <div class="edit-target-recommendation-result" id="market-seeding-edit-target-recommendation-result"></div>
+                                    <div class="small history-recommendation-config mt-2">
+                                        Recommendations use the configured sales window and buffer, not low/empty events.
+                                        Doctrine-linked items cannot be saved below the amount required by their tracked doctrine sources.
                                     </div>
                                 </div>
                                 <div class="edit-target-form-grid">
@@ -1844,14 +2073,13 @@
                 $('#market-seeding-edit-target-form').attr('action', updateUrl);
                 $('#market-seeding-edit-target-item').text($button.data('item-name'));
                 $('#market-seeding-edit-target-market').text($button.data('market-name'));
+                $('#market-seeding-edit-target-icon').addClass('d-none').attr('src', '').attr('alt', '');
 	                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
 	                $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity'));
 	                $('#market-seeding-edit-target-form')
 	                    .data('original-target-quantity', parseInt($button.data('desired-quantity') || 1, 10))
 	                    .data('original-warning-quantity', parseInt($button.data('warning-quantity') || 0, 10));
-                $('#market-seeding-edit-target-recommended-value').text(numberWithCommas($button.data('recommended-quantity')));
-                $('#market-seeding-edit-target-recommended-reason').text($button.data('recommendation-reason') || '');
-                $('#market-seeding-use-recommended-target').data('recommended-quantity', $button.data('recommended-quantity'));
+                renderRecommendationCard($button);
                 $('#market-seeding-edit-target-success').addClass('d-none').text('');
                 $('#market-seeding-edit-target-error').addClass('d-none').text('');
                 $('#market-seeding-edit-target-form').data('trigger-url', updateUrl);
@@ -2000,6 +2228,33 @@
                 });
             }
 
+            function renderRecommendationCard($button) {
+                var currentTarget = parseInt($button.data('desired-quantity') || 0, 10);
+                var recommendedTarget = parseInt($button.data('recommended-quantity') || currentTarget || 0, 10);
+                var estimatedSold = parseInt($button.data('recommendation-estimated-sold') || 0, 10);
+                var daysWithData = parseInt($button.data('recommendation-days-with-data') || 0, 10);
+                var dailySold = parseFloat($button.data('recommendation-daily-sold') || 0);
+                var salesWindow = parseInt($button.data('recommendation-sales-window') || 0, 10);
+                var bufferMultiplier = parseFloat($button.data('recommendation-buffer-multiplier') || 1);
+                var salesTarget = parseInt($button.data('recommendation-sales-target') || recommendedTarget || 0, 10);
+                var existingTargetCovers = parseInt($button.data('recommendation-existing-target-covers') || 0, 10) === 1;
+                var math = numberWithCommas(estimatedSold) + ' sold / ' + numberWithCommas(daysWithData) +
+                    ' days = ' + formatDecimal(dailySold, 2) + '/day';
+                var formula = formatDecimal(dailySold, 2) + ' x ' + numberWithCommas(salesWindow) +
+                    ' days x ' + formatDecimal(bufferMultiplier, 2) + ' buffer = ' + numberWithCommas(salesTarget);
+                var result = existingTargetCovers
+                    ? 'Current target of ' + numberWithCommas(currentTarget) + ' already covers the sales recommendation.'
+                    : 'Recommended target increases to ' + numberWithCommas(recommendedTarget) + ' based on recent sales.';
+
+                $('#market-seeding-edit-target-recommended-value').text(numberWithCommas(salesTarget));
+                $('#market-seeding-edit-target-recommendation-math').html(
+                    escapeHtml(math) + '<br>' + escapeHtml(formula)
+                );
+                $('#market-seeding-edit-target-recommendation-result').text(result);
+                $('#market-seeding-use-recommended-target').text('Use');
+                $('#market-seeding-use-recommended-target').data('recommended-quantity', salesTarget);
+            }
+
             function formatSignedWhole(value) {
                 value = parseInt(value || 0, 10);
 
@@ -2030,6 +2285,20 @@
                 return (value > 0 ? '+' : '-') + formatDecimal(Math.abs(value), 2) + ' m3';
             }
 
+            function eveTypeIconUrl(typeId, size) {
+                typeId = parseInt(typeId || 0, 10);
+                size = size || 64;
+
+                return typeId > 0 ? 'https://images.evetech.net/types/' + typeId + '/icon?size=' + size : '';
+            }
+
+            function eveTypeRenderUrl(typeId, size) {
+                typeId = parseInt(typeId || 0, 10);
+                size = size || 64;
+
+                return typeId > 0 ? 'https://images.evetech.net/types/' + typeId + '/render?size=' + size : '';
+            }
+
             function setDeltaText(selector, value, formatter) {
                 var $element = $(selector);
                 var numeric = parseFloat(value || 0);
@@ -2058,6 +2327,8 @@
                 $('#market-seeding-detail-restock-value-delta').text('').removeClass('is-positive is-negative');
                 $('#market-seeding-detail-restock-volume-delta').text('').removeClass('is-positive is-negative');
                 $('#market-seeding-detail-trend-summary').text('Loading...');
+                $('#market-seeding-detail-source-badges').html('');
+                $('#market-seeding-detail-source-list').html('<div class="text-muted">Loading source details...</div>');
                 if (targetTrendChart) {
                     targetTrendChart.destroy();
                     targetTrendChart = null;
@@ -2083,6 +2354,107 @@
 
                     $('#market-seeding-detail-price-delta').text(prefix + formatDecimal(delta, 1) + '% vs Jita');
                 }
+            }
+
+            function renderItemHeader(item) {
+                item = item || {};
+                var iconUrl = eveTypeIconUrl(item.type_id, 64);
+                var $icon = $('#market-seeding-edit-target-icon');
+
+                if (!iconUrl) {
+                    $icon.addClass('d-none').attr('src', '').attr('alt', '');
+                    return;
+                }
+
+                $icon
+                    .removeClass('d-none')
+                    .attr('src', iconUrl)
+                    .attr('alt', item.type_name ? item.type_name + ' icon' : 'Item icon');
+            }
+
+            function renderSourceDetails(sourceDetails) {
+                sourceDetails = sourceDetails || {};
+                var flags = sourceDetails.flags || {};
+                var manualSources = sourceDetails.manual || [];
+                var doctrines = sourceDetails.doctrines || [];
+                var $badges = $('#market-seeding-detail-source-badges');
+                var $list = $('#market-seeding-detail-source-list');
+
+                $badges.empty();
+                $list.empty();
+
+                if (flags.manual) {
+                    $badges.append('<span class="badge badge-primary">Manual</span>');
+                }
+
+                if (flags.doctrine) {
+                    $badges.append('<span class="badge badge-info">Doctrine</span>');
+                }
+
+                if (!flags.manual && !flags.doctrine) {
+                    $badges.append('<span class="badge badge-secondary">Unknown</span>');
+                    $list.html('<div class="text-muted">No source records were found for this item.</div>');
+                    return;
+                }
+
+                $.each(manualSources, function (index, source) {
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="edit-target-source-name">' + escapeHtml(source.label || 'Manual add') + '</div>' +
+                            '<div class="edit-target-source-meta">Target contribution ' + numberWithCommas(source.quantity) +
+                                ', warning ' + numberWithCommas(source.warning_quantity || 0) + '</div>' +
+                        '</div>'
+                    );
+                });
+
+                $.each(doctrines, function (index, doctrine) {
+                    var fits = doctrine.fits || [];
+                    var fitHtml = '';
+
+                    if (!fits.length) {
+                        fitHtml = '<div class="edit-target-source-fit-meta mt-1">This item is linked to the doctrine, but no matching fit breakdown could be loaded.</div>';
+                    } else {
+                        $.each(fits, function (fitIndex, fit) {
+                            var shipIconUrl = eveTypeRenderUrl(fit.ship_type_id, 64) || eveTypeIconUrl(fit.ship_type_id, 64);
+                            var shipIcon = shipIconUrl
+                                ? '<img src="' + escapeHtml(shipIconUrl) + '" alt="' + escapeHtml((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
+                                : '';
+                            var contributions = (fit.contributions || []).map(function (contribution) {
+                                return '<span class="edit-target-source-contribution">' +
+                                    escapeHtml(contribution.kind || 'Item') + ': ' + numberWithCommas(contribution.quantity) +
+                                '</span>';
+                            }).join('');
+
+                            fitHtml +=
+                                '<div class="edit-target-source-fit">' +
+                                    shipIcon +
+                                    '<div class="edit-target-source-fit-body">' +
+                                        '<div class="edit-target-source-fit-name">' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</div>' +
+                                        '<div class="edit-target-source-fit-meta">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') +
+                                            ' · ship x' + numberWithCommas(fit.ship_multiplier || 0) +
+                                            ' · fit x' + numberWithCommas(fit.fitting_multiplier || 0) + '</div>' +
+                                        '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
+                                    '</div>' +
+                                '</div>';
+                        });
+                    }
+
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="d-flex justify-content-between align-items-start">' +
+                                '<div>' +
+                                    '<div class="edit-target-source-name">' + escapeHtml(doctrine.name || 'Tracked doctrine') + '</div>' +
+                                    '<div class="edit-target-source-meta">Doctrine contribution ' + numberWithCommas(doctrine.quantity) +
+                                        ', warning ' + numberWithCommas(doctrine.warning_quantity || 0) +
+                                        ' · merge ' + escapeHtml(doctrine.merge_mode || '-') +
+                                        ' · fits ' + escapeHtml(doctrine.fit_aggregation_mode || '-') + '</div>' +
+                                '</div>' +
+                                '<span class="badge badge-info">Doctrine</span>' +
+                            '</div>' +
+                            fitHtml +
+                        '</div>'
+                    );
+                });
             }
 
             function renderTargetTrend(trend) {
@@ -2176,8 +2548,10 @@
                 $targetBody.html('<tr><td colspan="5" class="text-muted">Loading target changes...</td></tr>');
 
                 if (!url) {
+                    renderItemHeader({});
                     renderTargetDetails({});
                     renderTargetTrend({});
+                    renderSourceDetails({});
                     $body.html('<tr><td colspan="5" class="text-muted">No transition history is available for this item.</td></tr>');
                     renderTargetChangeHistory([]);
                     return;
@@ -2192,8 +2566,10 @@
                 }).done(function (response) {
                     var events = response.events || [];
 
+                    renderItemHeader(response.item || {});
                     renderTargetDetails(response.details || {});
                     renderTargetTrend(response.trend || {});
+                    renderSourceDetails(response.source_details || {});
                     renderTargetChangeHistory(response.target_history || []);
 
                     if (!events.length) {
@@ -2215,8 +2591,10 @@
                         );
                     });
                 }).fail(function () {
+                    renderItemHeader({});
                     renderTargetDetails({});
                     renderTargetTrend({});
+                    renderSourceDetails({});
                     $body.html('<tr><td colspan="5" class="text-danger">Unable to load transition history.</td></tr>');
                     $targetBody.html('<tr><td colspan="5" class="text-danger">Unable to load target changes.</td></tr>');
                 });
