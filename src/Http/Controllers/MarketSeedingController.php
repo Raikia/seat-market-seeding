@@ -14,6 +14,7 @@ use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
 use Raikia\SeatMarketSeeding\Services\StockTargetQuantity;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
+use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\Market\Price;
 use Seat\Eveapi\Models\Sde\InvCategory;
@@ -424,6 +425,13 @@ class MarketSeedingController extends Controller
             return collect();
         }
 
+        return Cache::remember(MarketSeedingCache::historyPriceKey($typeIds), now()->addMinutes(10), function () use ($typeIds) {
+            return $this->loadHistoryPrices($typeIds);
+        });
+    }
+
+    private function loadHistoryPrices($typeIds)
+    {
         $jitaPrices = MarketOrder::query()
             ->selectRaw('type_id, MIN(price) as price')
             ->where('location_id', MarketStockReport::JITA_STATION_ID)

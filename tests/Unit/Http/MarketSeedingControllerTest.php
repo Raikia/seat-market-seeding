@@ -12,6 +12,20 @@ use Raikia\SeatMarketSeeding\Tests\TestCase;
 
 class MarketSeedingControllerTest extends TestCase
 {
+    public function test_history_defaults_to_ninety_days(): void
+    {
+        $request = Request::create('/market-seeding/history', 'GET');
+        app()->instance('request', $request);
+
+        $view = app(MarketSeedingController::class)->history(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(MarketStockReport::class)
+        );
+
+        $this->assertSame(90, $view->getData()['days']);
+    }
+
     public function test_history_average_daily_sold_uses_days_with_data_not_selected_empty_range(): void
     {
         $market = $this->createMarket();

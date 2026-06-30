@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Notifications\MarketStock\Mail;
 
 use Illuminate\Notifications\Messages\MailMessage;
+use Raikia\SeatMarketSeeding\Support\MarketStockNotificationFormatter;
 use Seat\Notifications\Notifications\AbstractMailNotification;
 
 class MarketStockTransition extends AbstractMailNotification
@@ -30,19 +31,12 @@ class MarketStockTransition extends AbstractMailNotification
             ->line(sprintf('%s on %s.', ucfirst($empty ? 'empty stock' : 'low stock'), $this->alert['market_name']))
             ->line(sprintf('Location: %s', $this->alert['location_name']));
 
-        foreach (array_slice($this->alert['items'], 0, 20) as $item) {
-            $message->line(sprintf(
-                '%s: stock %s / target %s (warn at %s, was %s)',
-                $item['type_name'],
-                number_format($item['current_quantity']),
-                number_format($item['desired_quantity']),
-                number_format($item['warning_quantity']),
-                $item['previous_status']
-            ));
-        }
-
-        if ($this->alert['item_count'] > 20) {
-            $message->line(sprintf('...and %s more.', number_format($this->alert['item_count'] - 20)));
+        foreach (MarketStockNotificationFormatter::itemLines(
+            $this->alert['items'],
+            20,
+            fn (array $item) => MarketStockNotificationFormatter::transitionItemLine($item)
+        ) as $line) {
+            $message->line($line);
         }
 
         $message->action('View Market Seeding', $this->alert['dashboard_url']);

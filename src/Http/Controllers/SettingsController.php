@@ -22,6 +22,7 @@ use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
+use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Seat\Eveapi\Models\Sde\InvType;
 use Seat\Eveapi\Models\Sde\StaStation;
 use Seat\Eveapi\Models\Universe\UniverseStructure;
@@ -73,6 +74,7 @@ class SettingsController extends Controller
         MarketStockHistory::query()->delete();
         MarketStockSnapshot::query()->delete();
         MarketStockDailySummary::query()->delete();
+        MarketSeedingCache::bumpHistoryPriceVersion();
 
         return redirect()->route('market-seeding.settings')->with('success', $count . ' stock history entr' . ($count === 1 ? 'y was' : 'ies were') . ' cleared.');
     }

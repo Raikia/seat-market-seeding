@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Notifications\MarketStock\Slack;
 
 use Illuminate\Notifications\Messages\SlackMessage;
+use Raikia\SeatMarketSeeding\Support\MarketStockNotificationFormatter;
 use Seat\Notifications\Notifications\AbstractSlackNotification;
 
 class MarketStockTransition extends AbstractSlackNotification
@@ -60,22 +61,10 @@ class MarketStockTransition extends AbstractSlackNotification
 
     private function formatItems(): string
     {
-        $items = collect($this->alert['items']);
-        $lines = $items->take(15)->map(function (array $item) {
-            return sprintf(
-                '%s: stock %s / target %s (warn at %s, was %s)',
-                $item['type_name'],
-                number_format($item['current_quantity']),
-                number_format($item['desired_quantity']),
-                number_format($item['warning_quantity']),
-                $item['previous_status']
-            );
-        });
-
-        if ($items->count() > $lines->count()) {
-            $lines->push(sprintf('...and %s more', number_format($items->count() - $lines->count())));
-        }
-
-        return $lines->implode("\n");
+        return implode("\n", MarketStockNotificationFormatter::itemLines(
+            $this->alert['items'],
+            15,
+            fn (array $item) => MarketStockNotificationFormatter::transitionItemLine($item)
+        ));
     }
 }

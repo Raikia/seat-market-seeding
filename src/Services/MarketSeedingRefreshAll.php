@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Services;
 
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
+use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Seat\Eveapi\Models\RefreshToken;
 
 class MarketSeedingRefreshAll
@@ -24,9 +25,13 @@ class MarketSeedingRefreshAll
             ->orderBy('name')
             ->get();
 
-        $structureToken = $preferredToken && $this->tokenHasStructureMarketScope($preferredToken)
-            ? $preferredToken
-            : $this->findStructureMarketToken();
+        $structureToken = null;
+
+        if ($markets->contains('is_structure', true)) {
+            $structureToken = $preferredToken && $this->tokenHasStructureMarketScope($preferredToken)
+                ? $preferredToken
+                : $this->findStructureMarketToken();
+        }
 
         $refresh = app(EsiMarketOrderRefresh::class);
         $notifier = app(MarketStockTransitionNotifier::class);
@@ -85,16 +90,35 @@ class MarketSeedingRefreshAll
             }
         }
 
+        if ($results['markets'] > 0 || !empty($results['skipped']) || !empty($results['errors'])) {
+            MarketSeedingCache::bumpHistoryPriceVersion();
+        }
+
         return $results;
     }
 
     private function findStructureMarketToken(): ?RefreshToken
     {
-        return RefreshToken::query()
-            ->get()
-            ->first(function (RefreshToken $token) {
-                return $this->tokenHasStructureMarketScope($token);
-            });
+        $cachedTokenId = MarketSeedingCache::structureTokenId();
+
+        if ($cachedTokenId) {
+            $cachedToken = RefreshToken::find($cachedTokenId);
+
+            if ($cachedToken && $this->tokenHasStructureMarketScope($cachedToken)) {
+                return $cachedToken;
+            }
+
+            MarketSeedingCache::rememberStructureTokenId(null);
+        }
+
+        $token = RefreshToken::query()
+            ->whereJsonContains('scopes', self::STRUCTURE_MARKET_SCOPE)
+            ->orderByDesc('updated_at')
+            ->first();
+
+        MarketSeedingCache::rememberStructureTokenId(optional($token)->character_id);
+
+        return $token;
     }
 
     private function tokenHasStructureMarketScope(RefreshToken $token): bool
