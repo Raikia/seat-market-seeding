@@ -772,20 +772,19 @@ class MarketSeedingController extends Controller
             '<span class="float-right">' . number_format((int) $event->desired_quantity) . '</span>',
         ];
 
-        if (auth()->user()->can('seat-market-seeding.manager')) {
-            $row[] = $event->item_id
-                ? '<span class="float-right"><button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target" title="Edit target stock"'
-                    . ' data-update-url="' . e(route('market-seeding.items.update', $event->item_id)) . '"'
-                    . ' data-item-name="' . e($event->type_name) . '"'
-                    . ' data-market-name="' . e($event->market_name) . '"'
-                    . ' data-history-url="' . e(route('market-seeding.items.history', ['item' => $event->item_id, 'days' => request('days', 30)])) . '"'
-                    . ' data-desired-quantity="' . (int) $event->desired_quantity . '"'
-                    . ' data-warning-quantity="' . (int) $event->warning_quantity . '"'
-                    . ' data-recommended-quantity="' . (int) $event->recommended_quantity . '"'
-                    . ' data-recommendation-reason="' . e($event->recommendation_reason) . '">'
-                    . '<i class="fas fa-edit"></i></button></span>'
-                : '<span class="float-right">-</span>';
-        }
+        $canManage = auth()->user()->can('seat-market-seeding.manager');
+        $row[] = $event->item_id
+            ? '<span class="float-right"><button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target" title="' . ($canManage ? 'Edit target stock' : 'View item details') . '"'
+                . ($canManage ? ' data-update-url="' . e(route('market-seeding.items.update', $event->item_id)) . '"' : '')
+                . ' data-item-name="' . e($event->type_name) . '"'
+                . ' data-market-name="' . e($event->market_name) . '"'
+                . ' data-history-url="' . e(route('market-seeding.items.history', ['item' => $event->item_id, 'days' => request('days', 30)])) . '"'
+                . ' data-desired-quantity="' . (int) $event->desired_quantity . '"'
+                . ' data-warning-quantity="' . (int) $event->warning_quantity . '"'
+                . ' data-recommended-quantity="' . (int) $event->recommended_quantity . '"'
+                . ' data-recommendation-reason="' . e($event->recommendation_reason) . '">'
+                . '<i class="fas ' . ($canManage ? 'fa-edit' : 'fa-eye') . '"></i></button></span>'
+            : '<span class="float-right">-</span>';
 
         return $row;
     }

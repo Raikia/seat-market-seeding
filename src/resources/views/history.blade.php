@@ -9,6 +9,7 @@
         $marketSeedingThemeClass = in_array($activeSkin, ['jet', 'iuligigi', 'gigigraphite'], true)
             ? 'market-seeding-dark-skin'
             : '';
+        $canManageMarketSeeding = auth()->user()->can('seat-market-seeding.manager');
         $whole = function ($value) {
             return number_format((float) $value, 0, '.', ',');
         };
@@ -950,9 +951,7 @@
                                         <th class="text-right">Restocked</th>
                                         <th class="text-right">Sales Events</th>
                                         <th>Last Sold</th>
-                                        @can('seat-market-seeding.manager')
-                                            <th class="text-right history-actions-column">Actions</th>
-                                        @endcan
+                                        <th class="text-right history-actions-column">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -977,25 +976,25 @@
                                             <td data-order="{{ $item->last_sold_at ? \Carbon\Carbon::parse($item->last_sold_at)->timestamp : 0 }}">
                                                 {{ $item->last_sold_at ? \Carbon\Carbon::parse($item->last_sold_at)->format('Y-m-d H:i') : '-' }}
                                             </td>
-                                            @can('seat-market-seeding.manager')
-                                                <td class="text-right">
-                                                    @if($item->item_id)
-                                                        <button type="button"
-                                                                class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
-                                                                title="Edit target stock"
-                                                                data-update-url="{{ route('market-seeding.items.update', $item->item_id) }}"
-                                                                data-item-name="{{ $item->type_name }}"
-                                                                data-market-name="{{ $item->market_name }}"
-                                                                data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
-                                                                data-desired-quantity="{{ (int) $item->target_quantity }}"
-                                                                data-warning-quantity="{{ (int) $item->warning_quantity }}"
-                                                                data-recommended-quantity="{{ (int) $item->recommended_quantity }}"
-                                                                data-recommendation-reason="{{ $item->recommendation_reason }}">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                    @endif
-                                                </td>
-                                            @endcan
+                                            <td class="text-right">
+                                                @if($item->item_id)
+                                                    <button type="button"
+                                                            class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
+                                                            title="{{ $canManageMarketSeeding ? 'Edit target stock' : 'View item details' }}"
+                                                            @if($canManageMarketSeeding) data-update-url="{{ route('market-seeding.items.update', $item->item_id) }}" @endif
+                                                            data-item-name="{{ $item->type_name }}"
+                                                            data-market-name="{{ $item->market_name }}"
+                                                            data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
+                                                            data-desired-quantity="{{ (int) $item->target_quantity }}"
+                                                            data-warning-quantity="{{ (int) $item->warning_quantity }}"
+                                                            data-recommended-quantity="{{ (int) $item->recommended_quantity }}"
+                                                            data-recommendation-reason="{{ $item->recommendation_reason }}">
+                                                        <i class="fas {{ $canManageMarketSeeding ? 'fa-edit' : 'fa-eye' }}"></i>
+                                                    </button>
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr>
@@ -1007,9 +1006,7 @@
                                             <td class="text-right" data-order="0">0</td>
                                             <td class="text-right" data-order="0">0</td>
                                             <td data-order="0">-</td>
-                                            @can('seat-market-seeding.manager')
-                                                <td class="text-right">-</td>
-                                            @endcan
+                                            <td class="text-right">-</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -1053,9 +1050,7 @@
                                         <th class="text-right">Shortage</th>
                                         <th class="text-right" title="Average time between low or empty restock-needed events in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
                                         <th>Last Needed</th>
-                                        @can('seat-market-seeding.manager')
-                                            <th class="text-right history-actions-column">Actions</th>
-                                        @endcan
+                                        <th class="text-right history-actions-column">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1086,25 +1081,25 @@
                                             <td data-order="{{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->timestamp : 0 }}">
                                                 {{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->format('Y-m-d H:i') : '-' }}
                                             </td>
-                                            @can('seat-market-seeding.manager')
-                                                <td class="text-right">
-                                                    @if($leader->item_id)
-                                                        <button type="button"
-                                                                class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
-                                                                title="Edit target stock"
-                                                                data-update-url="{{ route('market-seeding.items.update', $leader->item_id) }}"
-                                                                data-item-name="{{ $leader->type_name }}"
-                                                                data-market-name="{{ $leader->market_name }}"
-                                                                data-history-url="{{ route('market-seeding.items.history', ['item' => $leader->item_id, 'days' => $days]) }}"
-                                                                data-desired-quantity="{{ (int) $leader->desired_quantity }}"
-                                                                data-warning-quantity="{{ (int) $leader->warning_quantity }}"
-                                                                data-recommended-quantity="{{ (int) $leader->recommended_quantity }}"
-                                                                data-recommendation-reason="{{ $leader->recommendation_reason }}">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                    @endif
-                                                </td>
-                                            @endcan
+                                            <td class="text-right">
+                                                @if($leader->item_id)
+                                                    <button type="button"
+                                                            class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
+                                                            title="{{ $canManageMarketSeeding ? 'Edit target stock' : 'View item details' }}"
+                                                            @if($canManageMarketSeeding) data-update-url="{{ route('market-seeding.items.update', $leader->item_id) }}" @endif
+                                                            data-item-name="{{ $leader->type_name }}"
+                                                            data-market-name="{{ $leader->market_name }}"
+                                                            data-history-url="{{ route('market-seeding.items.history', ['item' => $leader->item_id, 'days' => $days]) }}"
+                                                            data-desired-quantity="{{ (int) $leader->desired_quantity }}"
+                                                            data-warning-quantity="{{ (int) $leader->warning_quantity }}"
+                                                            data-recommended-quantity="{{ (int) $leader->recommended_quantity }}"
+                                                            data-recommendation-reason="{{ $leader->recommendation_reason }}">
+                                                        <i class="fas {{ $canManageMarketSeeding ? 'fa-edit' : 'fa-eye' }}"></i>
+                                                    </button>
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr>
@@ -1116,9 +1111,7 @@
                                             <td class="text-right" data-order="0">0</td>
                                             <td class="text-right" data-order="999999" title="Average time between low or empty restock-needed events in the selected history window.">-</td>
                                             <td data-order="0">-</td>
-                                            @can('seat-market-seeding.manager')
-                                                <td class="text-right">-</td>
-                                            @endcan
+                                            <td class="text-right">-</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -1139,9 +1132,7 @@
                                 <th class="text-right">Current</th>
                                 <th class="text-right">Warning</th>
                                 <th class="text-right">Target</th>
-                                @can('seat-market-seeding.manager')
-                                    <th class="text-right history-actions-column">Actions</th>
-                                @endcan
+                                <th class="text-right history-actions-column">Actions</th>
                             </tr>
                         </thead>
 	                        <tbody></tbody>
@@ -1197,14 +1188,15 @@
                 </div>
             </div>
         </div>
+    @endcan
 
-        <div class="modal fade market-seeding-edit-target-modal {{ $marketSeedingThemeClass }}" id="market-seeding-edit-target-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-edit-target-title" aria-hidden="true">
+    <div class="modal fade market-seeding-edit-target-modal {{ $marketSeedingThemeClass }}" id="market-seeding-edit-target-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-edit-target-title" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
                 <form method="POST" class="modal-content" id="market-seeding-edit-target-form">
                     {{ csrf_field() }}
                     {{ method_field('PUT') }}
                     <div class="modal-header">
-                        <h5 class="modal-title" id="market-seeding-edit-target-title">Edit Target Stock</h5>
+                        <h5 class="modal-title" id="market-seeding-edit-target-title">{{ $canManageMarketSeeding ? 'Edit Target Stock' : 'Item Details' }}</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
@@ -1278,7 +1270,7 @@
                             </div>
                         </div>
                         <div class="edit-target-workspace">
-                            <div class="edit-target-panel">
+                            <div class="edit-target-panel" id="market-seeding-edit-target-adjust-panel">
                                 <div class="edit-target-panel-title">Adjust Target</div>
                                 <div class="alert alert-info" id="market-seeding-edit-target-recommendation">
                                     <div class="d-flex justify-content-between align-items-start">
@@ -1354,12 +1346,13 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary" id="market-seeding-edit-target-save">Save Target</button>
+                        @if($canManageMarketSeeding)
+                            <button type="submit" class="btn btn-primary" id="market-seeding-edit-target-save">Save Target</button>
+                        @endif
                     </div>
                 </form>
             </div>
         </div>
-    @endcan
 @endsection
 
 @push('javascript')
@@ -1370,6 +1363,7 @@
             var categorySales = @json($categorySales);
             var selectedDays = @json($days);
             var csrfToken = @json($historyCsrfToken);
+            var canManageMarketSeeding = @json($canManageMarketSeeding);
             var currentTargetDetails = {};
             var targetTrendChart = null;
             var recommendationApplyUrl = @json($recommendationApplyUrl);
@@ -1678,8 +1672,13 @@
 
             $(document).on('click', '.market-seeding-edit-target', function () {
                 var $button = $(this);
+                var updateUrl = $button.data('update-url') || '';
+                var readOnly = !canManageMarketSeeding || !updateUrl;
 
-                $('#market-seeding-edit-target-form').attr('action', $button.data('update-url'));
+                $('#market-seeding-edit-target-title').text(readOnly ? 'Item Details' : 'Edit Target Stock');
+                $('#market-seeding-edit-target-adjust-panel').toggle(!readOnly);
+                $('#market-seeding-edit-target-save').toggle(!readOnly);
+                $('#market-seeding-edit-target-form').attr('action', updateUrl);
                 $('#market-seeding-edit-target-item').text($button.data('item-name'));
                 $('#market-seeding-edit-target-market').text($button.data('market-name'));
 	                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
@@ -1692,7 +1691,7 @@
                 $('#market-seeding-use-recommended-target').data('recommended-quantity', $button.data('recommended-quantity'));
                 $('#market-seeding-edit-target-success').addClass('d-none').text('');
                 $('#market-seeding-edit-target-error').addClass('d-none').text('');
-                $('#market-seeding-edit-target-form').data('trigger-url', $button.data('update-url'));
+                $('#market-seeding-edit-target-form').data('trigger-url', updateUrl);
                 resetTargetDetails();
                 loadTargetHistory($button.data('history-url'));
                 $('#market-seeding-edit-target-modal').modal('show');
@@ -1715,6 +1714,10 @@
 
             $('#market-seeding-edit-target-form').on('submit', function (event) {
                 event.preventDefault();
+
+                if (!canManageMarketSeeding) {
+                    return;
+                }
 
                 var $form = $(this);
                 var $save = $('#market-seeding-edit-target-save');
