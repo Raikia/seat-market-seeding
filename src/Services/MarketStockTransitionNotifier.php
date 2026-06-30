@@ -51,6 +51,8 @@ class MarketStockTransitionNotifier
         $quantities = $this->currentQuantities($market);
         $previousSnapshots = $this->previousSnapshots($market);
         $notifications = 0;
+        $lowItems = collect();
+        $emptyItems = collect();
         $restockedItems = collect();
 
         foreach ($market->items as $item) {
@@ -65,8 +67,10 @@ class MarketStockTransitionNotifier
 
                 if ($this->isRestockedTransition($previousStatus, $currentStatus)) {
                     $restockedItems->push($this->restockedItemPayload($item, $previousStatus, $currentStatus, $currentQuantity));
-                } else {
-                    $notifications += $this->dispatchTransition($market, $item, $previousStatus, $currentStatus, $currentQuantity);
+                } elseif ($previousStatus === self::STATUS_STOCKED && $currentStatus === self::STATUS_LOW) {
+                    $lowItems->push($this->transitionItemPayload($item, $previousStatus, $currentStatus, $currentQuantity));
+                } elseif ($currentStatus === self::STATUS_EMPTY && in_array($previousStatus, [self::STATUS_STOCKED, self::STATUS_LOW], true)) {
+                    $emptyItems->push($this->transitionItemPayload($item, $previousStatus, $currentStatus, $currentQuantity));
                 }
             } else {
                 $this->recordDailySummary($snapshot);
@@ -79,6 +83,8 @@ class MarketStockTransitionNotifier
             }
         }
 
+        $notifications += $this->dispatchTransitionBatch($market, self::ALERT_LOW_STOCK, self::STATUS_LOW, $lowItems);
+        $notifications += $this->dispatchTransitionBatch($market, self::ALERT_EMPTY_STOCK, self::STATUS_EMPTY, $emptyItems);
         $notifications += $this->dispatchRestocked($market, $restockedItems);
 
         return $notifications;
@@ -133,23 +139,45 @@ class MarketStockTransitionNotifier
         return self::STATUS_STOCKED;
     }
 
-    private function dispatchTransition(SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): int
-    {
-        if ($previousStatus === self::STATUS_STOCKED && $currentStatus === self::STATUS_LOW) {
-            return $this->dispatchAlert(self::ALERT_LOW_STOCK, $market, $item, $previousStatus, $currentStatus, $currentQuantity);
-        }
-
-        if ($currentStatus === self::STATUS_EMPTY && in_array($previousStatus, [self::STATUS_STOCKED, self::STATUS_LOW], true)) {
-            return $this->dispatchAlert(self::ALERT_EMPTY_STOCK, $market, $item, $previousStatus, $currentStatus, $currentQuantity);
-        }
-
-        return 0;
-    }
-
     private function isRestockedTransition(string $previousStatus, string $currentStatus): bool
     {
         return $currentStatus === self::STATUS_STOCKED
             && in_array($previousStatus, [self::STATUS_LOW, self::STATUS_EMPTY], true);
+    }
+
+    private function dispatchTransitionBatch(SeededMarket $market, string $alertType, string $currentStatus, Collection $items): int
+    {
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
+            ->whereHas('alerts', function ($query) use ($alertType) {
+                $query->where('alert', $alertType);
+            })
+            ->get();
+
+        if ($groups->isEmpty()) {
+            return 0;
+        }
+
+        $payload = [
+            'alert_type' => $alertType,
+            'market_id' => $market->id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'current_status' => $currentStatus,
+            'items' => $items->values()->all(),
+            'item_count' => $items->count(),
+            'dashboard_url' => route('market-seeding.index'),
+            'timestamp' => now()->toIso8601String(),
+        ];
+
+        $this->dispatchNotifications($alertType, $groups, function ($notificationClass) use ($payload) {
+            return new $notificationClass($payload);
+        });
+
+        return 1;
     }
 
     private function dispatchRestocked(SeededMarket $market, Collection $items): int
@@ -186,42 +214,12 @@ class MarketStockTransitionNotifier
         return 1;
     }
 
-    private function dispatchAlert(string $alertType, SeededMarket $market, SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): int
+    private function restockedItemPayload(SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): array
     {
-        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
-            ->whereHas('alerts', function ($query) use ($alertType) {
-                $query->where('alert', $alertType);
-            })
-            ->get();
-
-        if ($groups->isEmpty()) {
-            return 0;
-        }
-
-        $payload = [
-            'alert_type' => $alertType,
-            'market_id' => $market->id,
-            'market_name' => $market->name,
-            'location_name' => $market->location_name,
-            'type_id' => $item->type_id,
-            'type_name' => $item->type_name,
-            'desired_quantity' => $item->desired_quantity,
-            'warning_quantity' => (int) $item->warning_quantity,
-            'current_quantity' => $currentQuantity,
-            'previous_status' => $previousStatus,
-            'current_status' => $currentStatus,
-            'dashboard_url' => route('market-seeding.index'),
-            'timestamp' => now()->toIso8601String(),
-        ];
-
-        $this->dispatchNotifications($alertType, $groups, function ($notificationClass) use ($payload) {
-            return new $notificationClass($payload);
-        });
-
-        return 1;
+        return $this->transitionItemPayload($item, $previousStatus, $currentStatus, $currentQuantity);
     }
 
-    private function restockedItemPayload(SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): array
+    private function transitionItemPayload(SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): array
     {
         return [
             'type_id' => $item->type_id,

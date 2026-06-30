@@ -17,7 +17,13 @@ class MarketStockTransition extends AbstractSlackNotification
     protected function populateMessage(SlackMessage $message, $notifiable)
     {
         $empty = $this->alert['current_status'] === 'empty';
-        $title = $empty ? 'Market item is empty' : 'Market item is low';
+        $this->normalizeItems();
+        $title = sprintf(
+            '%s market item%s %s',
+            number_format($this->alert['item_count']),
+            $this->alert['item_count'] === 1 ? '' : 's',
+            $empty ? 'empty' : 'low'
+        );
 
         $message
             ->content($title)
@@ -27,15 +33,49 @@ class MarketStockTransition extends AbstractSlackNotification
                     ->title($title, $this->alert['dashboard_url'])
                     ->fields([
                         'Market' => sprintf('%s (%s)', $this->alert['market_name'], $this->alert['location_name']),
-                        'Item' => $this->alert['type_name'],
-                        'Current' => number_format($this->alert['current_quantity']),
-                        'Low Warning' => number_format($this->alert['warning_quantity']),
-                        'Target' => number_format($this->alert['desired_quantity']),
-                        'Transition' => $this->alert['previous_status'] . ' -> ' . $this->alert['current_status'],
+                        $empty ? 'Empty Items' : 'Low Items' => $this->formatItems(),
                     ])
                     ->color($empty ? 'danger' : 'warning');
             });
 
         $empty ? $message->error() : $message->warning();
+    }
+
+    private function normalizeItems(): void
+    {
+        if (isset($this->alert['items'])) {
+            return;
+        }
+
+        $this->alert['items'] = [[
+            'type_name' => $this->alert['type_name'],
+            'current_quantity' => $this->alert['current_quantity'],
+            'warning_quantity' => $this->alert['warning_quantity'],
+            'desired_quantity' => $this->alert['desired_quantity'],
+            'previous_status' => $this->alert['previous_status'],
+            'current_status' => $this->alert['current_status'],
+        ]];
+        $this->alert['item_count'] = 1;
+    }
+
+    private function formatItems(): string
+    {
+        $items = collect($this->alert['items']);
+        $lines = $items->take(15)->map(function (array $item) {
+            return sprintf(
+                '%s: %s / %s target (warn %s, was %s)',
+                $item['type_name'],
+                number_format($item['current_quantity']),
+                number_format($item['desired_quantity']),
+                number_format($item['warning_quantity']),
+                $item['previous_status']
+            );
+        });
+
+        if ($items->count() > $lines->count()) {
+            $lines->push(sprintf('...and %s more', number_format($items->count() - $lines->count())));
+        }
+
+        return $lines->implode("\n");
     }
 }
