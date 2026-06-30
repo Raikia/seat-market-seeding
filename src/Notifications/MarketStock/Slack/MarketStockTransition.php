@@ -63,7 +63,7 @@ class MarketStockTransition extends AbstractSlackNotification
         $items = collect($this->alert['items']);
         $lines = $items->take(15)->map(function (array $item) {
             return sprintf(
-                '%s: %s / %s target (warn %s, was %s)',
+                '%s: stock %s / target %s (warn at %s, was %s)',
                 $item['type_name'],
                 number_format($item['current_quantity']),
                 number_format($item['desired_quantity']),

@@ -146,7 +146,7 @@ return new class extends Migration
                 SUM(CASE WHEN current_status = 'low' THEN 1 ELSE 0 END) AS low_events,
                 SUM(CASE WHEN current_status = 'empty' THEN 1 ELSE 0 END) AS empty_events,
                 SUM(CASE WHEN current_status = 'stocked' THEN 1 ELSE 0 END) AS stocked_events,
-                SUM(CASE WHEN current_status IN ('low', 'empty') THEN GREATEST(desired_quantity - current_quantity, 0) ELSE 0 END) AS total_shortage,
+                SUM(CASE WHEN current_status IN ('low', 'empty') AND CAST(desired_quantity AS SIGNED) > CAST(current_quantity AS SIGNED) THEN CAST(desired_quantity AS SIGNED) - CAST(current_quantity AS SIGNED) ELSE 0 END) AS total_shortage,
                 SUBSTRING_INDEX(GROUP_CONCAT(current_quantity ORDER BY created_at DESC), ',', 1) AS latest_current_quantity,
                 SUBSTRING_INDEX(GROUP_CONCAT(desired_quantity ORDER BY created_at DESC), ',', 1) AS latest_desired_quantity,
                 SUBSTRING_INDEX(GROUP_CONCAT(warning_quantity ORDER BY created_at DESC), ',', 1) AS latest_warning_quantity,

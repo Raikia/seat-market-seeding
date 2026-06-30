@@ -13,6 +13,18 @@
         $whole = function ($value) {
             return number_format((float) $value, 0, '.', ',');
         };
+        $isk = function ($value) {
+            return number_format((float) $value, 2, '.', ',') . ' ISK';
+        };
+        $signedIsk = function ($value) {
+            $value = (float) $value;
+
+            if ($value === 0.0) {
+                return '0.00 ISK';
+            }
+
+            return ($value > 0 ? '+' : '-') . number_format(abs($value), 2, '.', ',') . ' ISK';
+        };
         $statusBadge = function ($status) {
             return [
                 'stocked' => 'badge-success',
@@ -144,6 +156,32 @@
             font-weight: 600;
             margin-top: .25rem;
             padding: .05rem .45rem;
+        }
+        .market-seeding-history-shell .history-recommendation-reason {
+            color: inherit;
+            cursor: help;
+            margin-left: .25rem;
+            opacity: .8;
+        }
+        .market-seeding-history-shell .history-recommendation-reason:hover {
+            opacity: 1;
+        }
+        .market-seeding-recommendation-tooltip {
+            background: #1f2d33;
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 6px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
+            color: #f4f7f9;
+            display: none;
+            font-size: .78rem;
+            line-height: 1.35;
+            max-width: 420px;
+            padding: .65rem .75rem;
+            pointer-events: none;
+            position: fixed;
+            text-align: left;
+            white-space: pre-line;
+            z-index: 3000;
         }
         .market-seeding-history-shell .history-recommendation-config {
             color: #31505c;
@@ -777,7 +815,13 @@
                     <div class="history-stat">
                         <div class="history-stat-label">Average Daily Sold</div>
                         <div class="history-stat-value">{{ number_format($salesSummary['average_daily_sold'], 1, '.', ',') }}</div>
-                        <div class="history-stat-help">Across the selected {{ $days }} day window.</div>
+                        <div class="history-stat-help">
+                            Across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data
+                            @if($historyCoverageDays < $days)
+                                in the selected {{ $days }} day window
+                            @endif
+                            .
+                        </div>
                     </div>
                     <div class="history-stat">
                         <div class="history-stat-label">Restocked</div>
@@ -791,6 +835,29 @@
                     </div>
                 </div>
 
+                <div class="history-stat-grid">
+                    <div class="history-stat">
+                        <div class="history-stat-label">Estimated Sold Value</div>
+                        <div class="history-stat-value">{{ $isk($globalMetrics['sold_value']) }}</div>
+                        <div class="history-stat-help">Estimated sold quantity across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data, valued at Jita or fallback prices.</div>
+                    </div>
+                    <div class="history-stat">
+                        <div class="history-stat-label">Restocked Value</div>
+                        <div class="history-stat-value">{{ $isk($globalMetrics['restocked_value']) }}</div>
+                        <div class="history-stat-help">Estimated restocked quantity across the same data window.</div>
+                    </div>
+                    <div class="history-stat">
+                        <div class="history-stat-label">Net Value Movement</div>
+                        <div class="history-stat-value">{{ $signedIsk($globalMetrics['net_value']) }}</div>
+                        <div class="history-stat-help">Sold value minus restocked value for the days with data.</div>
+                    </div>
+                    <div class="history-stat">
+                        <div class="history-stat-label">Low / Empty Pressure</div>
+                        <div class="history-stat-value">{{ $whole($globalMetrics['restock_events']) }}</div>
+                        <div class="history-stat-help">{{ $whole($globalMetrics['total_shortage']) }} units short across low or empty events.</div>
+                    </div>
+                </div>
+
                 <div class="alert alert-info">
                     Sold quantities are estimated from changes in available sell-order quantity between ESI refreshes. They are great for seeding trends, but can include delisted or expired orders.
                 </div>
@@ -801,7 +868,7 @@
                         <div>
                             <h3 class="card-title mb-0">Needs Attention</h3>
                             <small class="text-muted">Items where recent movement suggests a higher target stock amount.</small>
-                            <small class="text-muted d-block">Restock Pace estimates how often the item becomes low or empty in this history window.</small>
+                            <small class="text-muted d-block">Restock Pace estimates how often the item becomes low or empty across the days with data.</small>
                         </div>
                         @can('seat-market-seeding.manager')
                             <div class="history-attention-actions">
@@ -820,11 +887,12 @@
                                     <tr>
                                         <th>Item</th>
                                         <th>Market</th>
-                                        <th class="text-right">Current</th>
-                                        <th class="text-right">Recommended</th>
-                                        <th class="text-right">Gap</th>
-                                        <th class="text-right">Sold</th>
-                                        <th class="text-right" title="Average time between low or empty restock-needed events in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
+                                        <th class="text-right">Current Target</th>
+                                        <th class="text-right">Recommended Target</th>
+                                        <th class="text-right">Target Increase</th>
+                                        <th class="text-right">Estimated Sold</th>
+                                        <th class="text-right" title="Average time between low or empty restock-needed events across the days with data in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
+                                        <th class="text-right history-actions-column">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -840,13 +908,37 @@
                                             </td>
                                             <td class="text-right" data-order="{{ $item->current_target_quantity }}">{{ $whole($item->current_target_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $item->recommended_quantity }}">
-                                                <span class="history-recommendation-pill">Recommended {{ $whole($item->recommended_quantity) }}</span>
+                                                <span class="history-recommendation-pill">
+                                                    {{ $whole($item->recommended_quantity) }}
+                                                    <i class="fas fa-question-circle history-recommendation-reason"
+                                                       data-recommendation-reason="{{ $item->recommendation_reason }}"
+                                                       aria-label="{{ $item->recommendation_reason }}"></i>
+                                                </span>
                                             </td>
                                             <td class="text-right" data-order="{{ $item->recommended_quantity - $item->current_target_quantity }}">{{ $whole($item->recommended_quantity - $item->current_target_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
-                                            <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events in the selected {{ $days }} day window.">
+                                            <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.">
                                                 {{ $item->average_days_between_restock_needs ? 'Every ' . number_format($item->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
 	                                            </td>
+                                            <td class="text-right">
+                                                @if($item->item_id)
+                                                    <button type="button"
+                                                            class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
+                                                            title="{{ $canManageMarketSeeding ? 'Open target details' : 'View item details' }}"
+                                                            @if($canManageMarketSeeding) data-update-url="{{ route('market-seeding.items.update', $item->item_id) }}" @endif
+                                                            data-item-name="{{ $item->type_name }}"
+                                                            data-market-name="{{ $item->market_name }}"
+                                                            data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
+                                                            data-desired-quantity="{{ (int) $item->desired_quantity }}"
+                                                            data-warning-quantity="{{ (int) $item->warning_quantity }}"
+                                                            data-recommended-quantity="{{ (int) $item->recommended_quantity }}"
+                                                            data-recommendation-reason="{{ $item->recommendation_reason }}">
+                                                        <i class="fas fa-search"></i>
+                                                    </button>
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
 	                                        </tr>
 	                                    @endforeach
 	                                </tbody>
@@ -874,7 +966,7 @@
                         <div class="card-header">
                             <div>
                                 <h3 class="card-title mb-0">Sold By Category</h3>
-                                <small class="text-muted">Top categories in the selected window.</small>
+                            <small class="text-muted">Top categories across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.</small>
                             </div>
                         </div>
                         <div class="card-body">
@@ -889,7 +981,7 @@
                     <div class="card-header">
                         <div>
                             <h3 class="card-title mb-0">Market / Category Heatmap</h3>
-                            <small class="text-muted">Darker cells mean more sold plus restocked movement in the selected window.</small>
+                            <small class="text-muted">Darker cells mean more sold plus restocked movement across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.</small>
                         </div>
                     </div>
                     <div class="card-body">
@@ -946,7 +1038,7 @@
                                         <th>Item</th>
                                         <th>Market</th>
                                         <th class="text-right">Estimated Sold</th>
-                                        <th class="text-right">Current</th>
+                                        <th class="text-right">Listed Now</th>
                                         <th class="text-right">Avg / Day</th>
                                         <th class="text-right">Restocked</th>
                                         <th class="text-right">Sales Events</th>
@@ -961,7 +1053,12 @@
                                                 {{ $item->type_name }}
                                                 <div class="text-muted small">{{ $item->type_category }}</div>
                                                 @if($item->recommendation_differs)
-                                                    <div class="history-recommendation-pill">Target {{ $whole($item->current_target_quantity) }} &rarr; Recommended {{ $whole($item->recommended_quantity) }}</div>
+                                                    <div class="history-recommendation-pill">
+                                                        Target {{ $whole($item->current_target_quantity) }} &rarr; Recommended {{ $whole($item->recommended_quantity) }}
+                                                        <i class="fas fa-question-circle history-recommendation-reason"
+                                                           data-recommendation-reason="{{ $item->recommendation_reason }}"
+                                                           aria-label="{{ $item->recommendation_reason }}"></i>
+                                                    </div>
                                                 @endif
                                             </td>
                                             <td>
@@ -970,7 +1067,7 @@
                                             </td>
                                             <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
                                             <td class="text-right" data-order="{{ $item->latest_seen_quantity }}">{{ $whole($item->latest_seen_quantity) }}</td>
-                                            <td class="text-right" data-order="{{ $days ? $item->estimated_sold / $days : 0 }}">{{ number_format($days ? $item->estimated_sold / $days : 0, 1, '.', ',') }}</td>
+                                            <td class="text-right" data-order="{{ $historyCoverageDays ? $item->estimated_sold / $historyCoverageDays : 0 }}">{{ number_format($historyCoverageDays ? $item->estimated_sold / $historyCoverageDays : 0, 1, '.', ',') }}</td>
                                             <td class="text-right" data-order="{{ $item->restocked }}">{{ $whole($item->restocked) }}</td>
                                             <td class="text-right" data-order="{{ $item->sales_events }}">{{ $whole($item->sales_events) }}</td>
                                             <td data-order="{{ $item->last_sold_at ? \Carbon\Carbon::parse($item->last_sold_at)->timestamp : 0 }}">
@@ -1020,7 +1117,7 @@
                         <div class="card-header">
                             <div>
                                 <h3 class="card-title mb-0">Stock Transitions</h3>
-                                <small class="text-muted">Low, empty, and recovered status changes in the selected window.</small>
+                                <small class="text-muted">Low, empty, and recovered status changes across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.</small>
                             </div>
                         </div>
                         <div class="card-body">
@@ -1034,7 +1131,7 @@
                         <div>
                             <h3 class="card-title mb-0">Most Frequent Restock Needs</h3>
                             <small class="text-muted">Items that most often moved into low or empty status{{ request('market_id') ? ' for the selected market' : '' }}.</small>
-                            <small class="text-muted d-block">Restock Pace is the average time between low or empty restock-needed events. Lower is busier.</small>
+                            <small class="text-muted d-block">Restock Pace is the average time between low or empty restock-needed events across the days with data. Lower is busier.</small>
                         </div>
                     </div>
                     <div class="card-body">
@@ -1048,7 +1145,7 @@
                                         <th class="text-right">Empty</th>
                                         <th class="text-right">Low</th>
                                         <th class="text-right">Shortage</th>
-                                        <th class="text-right" title="Average time between low or empty restock-needed events in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
+                                        <th class="text-right" title="Average time between low or empty restock-needed events across the days with data in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
                                         <th>Last Needed</th>
                                         <th class="text-right history-actions-column">Actions</th>
                                     </tr>
@@ -1060,7 +1157,12 @@
                                                 {{ $leader->type_name }}
                                                 <div class="text-muted small">{{ $leader->type_category }}</div>
                                                 @if($leader->recommendation_differs)
-                                                    <div class="history-recommendation-pill">Target {{ $whole($leader->current_target_quantity) }} &rarr; Recommended {{ $whole($leader->recommended_quantity) }}</div>
+                                                    <div class="history-recommendation-pill">
+                                                        Target {{ $whole($leader->current_target_quantity) }} &rarr; Recommended {{ $whole($leader->recommended_quantity) }}
+                                                        <i class="fas fa-question-circle history-recommendation-reason"
+                                                           data-recommendation-reason="{{ $leader->recommendation_reason }}"
+                                                           aria-label="{{ $leader->recommendation_reason }}"></i>
+                                                    </div>
                                                 @endif
                                             </td>
                                             <td>
@@ -1075,7 +1177,7 @@
                                                 <span class="badge badge-warning">{{ $whole($leader->low_events) }}</span>
                                             </td>
                                             <td class="text-right" data-order="{{ $leader->total_shortage }}">{{ $whole($leader->total_shortage) }}</td>
-                                            <td class="text-right" data-order="{{ $leader->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events in the selected {{ $days }} day window.">
+                                            <td class="text-right" data-order="{{ $leader->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.">
                                                 {{ $leader->average_days_between_restock_needs ? 'Every ' . number_format($leader->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
                                             </td>
                                             <td data-order="{{ $leader->last_needed_at ? \Carbon\Carbon::parse($leader->last_needed_at)->timestamp : 0 }}">
@@ -1109,7 +1211,7 @@
                                             <td class="text-right" data-order="0"><span class="badge badge-danger">0</span></td>
                                             <td class="text-right" data-order="0"><span class="badge badge-warning">0</span></td>
                                             <td class="text-right" data-order="0">0</td>
-                                            <td class="text-right" data-order="999999" title="Average time between low or empty restock-needed events in the selected history window.">-</td>
+                                            <td class="text-right" data-order="999999" title="Average time between low or empty restock-needed events across the days with data in the selected history window.">-</td>
                                             <td data-order="0">-</td>
                                             <td class="text-right">-</td>
                                         </tr>
@@ -1129,7 +1231,7 @@
                                 <th>Market</th>
                                 <th>Item</th>
                                 <th>Status</th>
-                                <th class="text-right">Current</th>
+                                <th class="text-right">Current Stock</th>
                                 <th class="text-right">Warning</th>
                                 <th class="text-right">Target</th>
                                 <th class="text-right history-actions-column">Actions</th>
@@ -1305,7 +1407,7 @@
                                             <tr>
                                                 <th>When</th>
                                                 <th>Status</th>
-                                                <th class="text-right">Current</th>
+                                                <th class="text-right">Current Stock</th>
                                                 <th class="text-right">Warning</th>
                                                 <th class="text-right">Target</th>
                                             </tr>
@@ -1362,6 +1464,7 @@
             var salesChartData = @json($salesChartData);
             var categorySales = @json($categorySales);
             var selectedDays = @json($days);
+            var historyCoverageDays = @json($historyCoverageDays);
             var csrfToken = @json($historyCsrfToken);
             var canManageMarketSeeding = @json($canManageMarketSeeding);
             var currentTargetDetails = {};
@@ -1379,6 +1482,64 @@
                 'rgba(253, 126, 20, .8)',
                 'rgba(108, 117, 125, .8)'
             ];
+
+            function initializeRecommendationTooltips() {
+                if ($(document.body).data('market-seeding-recommendation-tooltips')) {
+                    return;
+                }
+
+                $(document.body).data('market-seeding-recommendation-tooltips', true);
+
+                var $tooltip = $('<div class="market-seeding-recommendation-tooltip" role="tooltip"></div>').appendTo(document.body);
+
+                function positionTooltip(event) {
+                    var margin = 14;
+                    var left = event.clientX + margin;
+                    var top = event.clientY + margin;
+
+                    $tooltip.css({
+                        left: 0,
+                        top: 0,
+                        display: 'block'
+                    });
+
+                    var width = $tooltip.outerWidth();
+                    var height = $tooltip.outerHeight();
+
+                    if (left + width + margin > window.innerWidth) {
+                        left = Math.max(margin, event.clientX - width - margin);
+                    }
+
+                    if (top + height + margin > window.innerHeight) {
+                        top = Math.max(margin, event.clientY - height - margin);
+                    }
+
+                    $tooltip.css({
+                        left: left + 'px',
+                        top: top + 'px'
+                    });
+                }
+
+                $(document)
+                    .on('mouseenter focusin', '.history-recommendation-reason', function (event) {
+                        var reason = $(this).data('recommendation-reason');
+
+                        if (!reason) {
+                            return;
+                        }
+
+                        $tooltip.text(reason);
+                        positionTooltip(event);
+                    })
+                    .on('mousemove', '.history-recommendation-reason', function (event) {
+                        if ($tooltip.is(':visible')) {
+                            positionTooltip(event);
+                        }
+                    })
+                    .on('mouseleave focusout', '.history-recommendation-reason', function () {
+                        $tooltip.hide().text('');
+                    });
+            }
 
             if (window.Chart && document.getElementById('market-seeding-sales-chart')) {
                 new Chart(document.getElementById('market-seeding-sales-chart'), {
@@ -1418,7 +1579,7 @@
                         },
                         title: {
                             display: true,
-                            text: 'Estimated Market Movement, Last ' + selectedDays + ' Days'
+                            text: 'Estimated Market Movement, ' + historyCoverageDays + ' Days With Data'
                         }
                     }
                 });
@@ -1491,7 +1652,7 @@
                         },
                         title: {
                             display: true,
-                            text: 'Stock Transitions, Last ' + selectedDays + ' Days'
+                            text: 'Stock Transitions, ' + historyCoverageDays + ' Days With Data'
                         }
                     }
                 });
@@ -1555,6 +1716,8 @@
                     }
                 });
             }
+
+            initializeRecommendationTooltips();
 
             $('#market-seeding-review-recommendations').on('click', function () {
                 var $body = $('#market-seeding-recommendations-body');
@@ -1805,10 +1968,10 @@
                     return '-';
                 }
 
-                return '$' + value.toLocaleString('en-US', {
+                return value.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                });
+                }) + ' ISK';
             }
 
             function formatCurrency(value) {
@@ -1854,7 +2017,7 @@
                     return 'No change';
                 }
 
-                return (value > 0 ? '+' : '-') + formatCurrency(Math.abs(value));
+                return (value > 0 ? '+' : '-') + formatMoney(Math.abs(value));
             }
 
             function formatSignedVolume(value) {

@@ -23,7 +23,7 @@ class MarketStockRestocked extends AbstractMailNotification
 
         foreach (array_slice($this->alert['items'], 0, 20) as $item) {
             $message->line(sprintf(
-                '%s: %s / %s (was %s)',
+                '%s: stock %s / target %s (was %s)',
                 $item['type_name'],
                 number_format($item['current_quantity']),
                 number_format($item['desired_quantity']),
