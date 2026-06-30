@@ -130,10 +130,11 @@ class MarketSeedingController extends Controller
         $categorySales = $this->categorySales($request, $historyCoverageDays);
         $restockLeaders = $this->restockLeaders($request, $historyCoverageDays);
         $typeCategories = $this->historyTypeCategories($request);
-        $recommendationMetrics = $this->recommendationMetrics($request, $historyCoverageDays);
         $recommendationSalesDays = $settings->recommendationSalesDays();
         $recommendationBufferPercentage = $settings->recommendationBufferPercentage();
-        $attentionItems = $this->recommendationRows($request, $historyCoverageDays, $historyCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
+        $recommendationCoverageDays = $this->historyCoverageDays($request, $recommendationSalesDays);
+        $recommendationMetrics = $this->recommendationMetrics($request, $recommendationSalesDays);
+        $attentionItems = $this->recommendationRows($request, $recommendationSalesDays, $recommendationCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
         $this->attachRecommendationEconomics($attentionItems, $report);
         $heatmapData = $this->marketCategoryHeatmap($request, $historyCoverageDays);
         $historyAjaxUrl = route('market-seeding.history.transitions', $request->only('market_id', 'status', 'type_category', 'days'));
@@ -141,9 +142,10 @@ class MarketSeedingController extends Controller
         $this->attachTypeCategories($restockLeaders);
         $this->attachCurrentItemValues($topSoldItems);
 
-        $this->attachRecommendations($topSoldItems, $historyCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
-        $this->attachRecommendations($restockLeaders, $historyCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
-        $this->attachRestockEfficiency($restockLeaders, $historyCoverageDays);
+        $this->attachRecommendations($topSoldItems, $recommendationCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
+        $this->attachRecommendations($restockLeaders, $recommendationCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
+        $this->attachLowEmptyEventCounts($restockLeaders);
+        $this->attachRestockPace($restockLeaders, $historyCoverageDays);
 
         return view('seat-market-seeding::history', compact(
             'markets',
@@ -197,12 +199,14 @@ class MarketSeedingController extends Controller
         $this->attachTypeCategories($events);
         $this->attachCurrentItemValues($events);
 
-        $recommendationMetrics = $this->recommendationMetrics($request, $historyCoverageDays);
+        $recommendationSalesDays = $settings->recommendationSalesDays();
+        $recommendationCoverageDays = $this->historyCoverageDays($request, $recommendationSalesDays);
+        $recommendationMetrics = $this->recommendationMetrics($request, $recommendationSalesDays);
         $this->attachRecommendations(
             $events,
-            $historyCoverageDays,
+            $recommendationCoverageDays,
             $recommendationMetrics,
-            $settings->recommendationSalesDays(),
+            $recommendationSalesDays,
             $settings->recommendationBufferPercentage()
         );
 
@@ -218,15 +222,15 @@ class MarketSeedingController extends Controller
 
     public function applyHistoryRecommendations(Request $request, MarketSeedingSettings $settings, StockTargetProjector $projector)
     {
-        $days = $this->historyDays($request);
-        $historyCoverageDays = $this->historyCoverageDays($request, $days);
-        $recommendationMetrics = $this->recommendationMetrics($request, $historyCoverageDays);
+        $recommendationSalesDays = $settings->recommendationSalesDays();
+        $recommendationCoverageDays = $this->historyCoverageDays($request, $recommendationSalesDays);
+        $recommendationMetrics = $this->recommendationMetrics($request, $recommendationSalesDays);
         $recommendations = $this->recommendationRows(
             $request,
-            $days,
-            $historyCoverageDays,
+            $recommendationSalesDays,
+            $recommendationCoverageDays,
             $recommendationMetrics,
-            $settings->recommendationSalesDays(),
+            $recommendationSalesDays,
             $settings->recommendationBufferPercentage()
         );
         $requestedItemIds = collect($request->input('item_ids', []))
@@ -594,7 +598,6 @@ class MarketSeedingController extends Controller
             ->select('item_id')
             ->selectRaw('COUNT(*) as restock_events')
             ->selectRaw('SUM(CASE WHEN CAST(desired_quantity AS SIGNED) > CAST(current_quantity AS SIGNED) THEN CAST(desired_quantity AS SIGNED) - CAST(current_quantity AS SIGNED) ELSE 0 END) as total_shortage')
-            ->selectRaw('CEIL(AVG(desired_quantity + CASE WHEN CAST(desired_quantity AS SIGNED) > CAST(current_quantity AS SIGNED) THEN CAST(desired_quantity AS SIGNED) - CAST(current_quantity AS SIGNED) ELSE 0 END)) as restock_recommended_quantity')
             ->groupBy('item_id')
             ->get()
             ->keyBy('item_id');
@@ -603,12 +606,11 @@ class MarketSeedingController extends Controller
             $restock = $restockMetrics->get($row->item_id);
             $row->restock_events = (int) optional($restock)->restock_events;
             $row->total_shortage = (int) optional($restock)->total_shortage;
-            $row->restock_recommended_quantity = (int) optional($restock)->restock_recommended_quantity;
         }
 
         $this->attachCurrentItemValues($rows);
         $this->attachRecommendations($rows, $historyCoverageDays, $metrics, $recommendationSalesDays, $recommendationBufferPercentage);
-        $this->attachRestockEfficiency($rows, $historyCoverageDays);
+        $this->attachLowEmptyEventCounts($rows);
 
         return $rows
             ->filter(fn ($row) => $row->recommendation_differs)
@@ -658,7 +660,14 @@ class MarketSeedingController extends Controller
         ];
     }
 
-    private function attachRestockEfficiency($rows, int $historyCoverageDays): void
+    private function attachLowEmptyEventCounts($rows): void
+    {
+        foreach ($rows as $row) {
+            $row->low_empty_events = (int) ($row->restock_events ?? 0);
+        }
+    }
+
+    private function attachRestockPace($rows, int $historyCoverageDays): void
     {
         foreach ($rows as $row) {
             $events = (int) ($row->restock_events ?? 0);
@@ -764,19 +773,11 @@ class MarketSeedingController extends Controller
         foreach ($rows as $row) {
             $target = max(1, (int) ($row->target_quantity ?? $row->desired_quantity ?? 1));
             $metric = $metrics->get($row->item_id);
-            $estimatedSold = (int) ($row->estimated_sold ?? optional($metric)->estimated_sold ?? 0);
+            $estimatedSold = (int) (optional($metric)->estimated_sold ?? $row->estimated_sold ?? 0);
             $dailySold = $days > 0 ? $estimatedSold / $days : 0;
             $bufferMultiplier = 1 + ($recommendationBufferPercentage / 100);
             $salesRecommendation = (int) ceil($dailySold * $recommendationSalesDays * $bufferMultiplier);
-            $restockRecommendation = 0;
-            $restockEvents = (int) ($row->restock_events ?? 0);
-            $totalShortage = (int) ($row->total_shortage ?? 0);
-
-            if (isset($row->restock_recommended_quantity) && (int) $row->restock_recommended_quantity > 0) {
-                $restockRecommendation = (int) $row->restock_recommended_quantity;
-            }
-
-            $recommended = max(1, $target, $salesRecommendation, $restockRecommendation);
+            $recommended = max(1, $target, $salesRecommendation);
             $row->current_target_quantity = $target;
             $row->recommended_quantity = $recommended;
             $row->recommendation_differs = $recommended !== $target;
@@ -787,54 +788,31 @@ class MarketSeedingController extends Controller
                 $row->recommendation_driver = 'covered';
                 $row->recommendation_driver_label = 'Covered';
                 $row->recommendation_reason = sprintf(
-                    "Current target: %s\n\nSales signal: In the last %s days, this item had %s estimated sold, which is about %s per day. The sales formula would stock about %s to cover %s days plus a %s%% buffer.\n\nShortage signal: It had %s low/empty restock event%s with %s total shortage.\n\nResult: None of those signals exceed the current target, so no increase is recommended.",
+                    "Current target: %s\n\nSales signal: In the last %s days with data, this item had %s estimated sold, which is about %s per day.\n\nFormula: %s sold / %s days * %s sales days * %s buffer = %s.\n\nResult: The sales-based target does not exceed the current target, so no increase is recommended.\n\nNote: Low or empty stock events are shown elsewhere for context, but they are not used to calculate target recommendations.",
                     number_format($target),
                     number_format($days),
                     number_format($estimatedSold),
                     number_format($dailySold, 2),
-                    number_format(max(1, $salesRecommendation)),
-                    number_format($recommendationSalesDays),
-                    number_format($recommendationBufferPercentage),
-                    number_format($restockEvents),
-                    $restockEvents === 1 ? '' : 's',
-                    number_format($totalShortage)
-                );
-            } elseif ($recommended === $restockRecommendation) {
-                $row->recommendation_driver = 'shortage';
-                $row->recommendation_driver_label = 'Shortage-driven';
-                $row->recommendation_reason = sprintf(
-                    "Recommended because this item has run short during refresh history.\n\nCurrent target: %s\n\nShortage signal: Across the %s day%s with data, it had %s low/empty restock event%s with %s total shortage. Based on the average amount missing when it went low or empty, the shortage formula recommends stocking %s.\n\nSales signal: Recent estimated sales were %s over %s days, about %s per day. The sales formula would only suggest %s for %s days plus a %s%% buffer.\n\nResult: Low/empty shortage history is driving this recommendation.",
-                    number_format($target),
-                    number_format($days),
-                    $days === 1 ? '' : 's',
-                    number_format($restockEvents),
-                    $restockEvents === 1 ? '' : 's',
-                    number_format($totalShortage),
-                    number_format($restockRecommendation),
                     number_format($estimatedSold),
                     number_format($days),
-                    number_format($dailySold, 2),
-                    number_format(max(1, $salesRecommendation)),
                     number_format($recommendationSalesDays),
-                    number_format($recommendationBufferPercentage)
+                    number_format($bufferMultiplier, 2) . 'x',
+                    number_format($salesRecommendation)
                 );
             } else {
                 $row->recommendation_driver = 'sales';
                 $row->recommendation_driver_label = 'Sales-driven';
-                $shortageText = $restockRecommendation > 0
-                    ? 'Low/empty shortage history would suggest ' . number_format($restockRecommendation)
-                    : 'Low/empty shortage history did not suggest an increase';
-
                 $row->recommendation_reason = sprintf(
-                    "Recommended because recent estimated sales suggest the current target may not cover enough days of demand.\n\nCurrent target: %s\n\nSales signal: In the last %s days, this item had %s estimated sold, which is about %s per day. To support %s days of sales plus a %s%% buffer, the sales formula recommends stocking %s.\n\nShortage signal: %s.\n\nResult: Recent sales pace is driving this recommendation.",
+                    "Recommended because recent estimated sales suggest the current target may not cover enough days of demand.\n\nCurrent target: %s\n\nSales signal: In the last %s days with data, this item had %s estimated sold, which is about %s per day.\n\nFormula: %s sold / %s days * %s sales days * %s buffer = %s.\n\nResult: Recent sales pace is driving this recommendation.\n\nNote: Low or empty stock events are shown elsewhere for context, but they are not used to calculate target recommendations.",
                     number_format($target),
                     number_format($days),
                     number_format($estimatedSold),
                     number_format($dailySold, 2),
+                    number_format($estimatedSold),
+                    number_format($days),
                     number_format($recommendationSalesDays),
-                    number_format($recommendationBufferPercentage),
-                    number_format($salesRecommendation),
-                    $shortageText
+                    number_format($bufferMultiplier, 2) . 'x',
+                    number_format($salesRecommendation)
                 );
             }
         }

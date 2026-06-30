@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Tests\Unit\Http;
 use Illuminate\Http\Request;
 use Raikia\SeatMarketSeeding\Http\Controllers\MarketSeedingController;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
+use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
@@ -83,5 +84,135 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame(10.0, $view->getData()['salesSummary']['average_daily_sold']);
         $this->assertCount(10, $view->getData()['salesChartData']['labels']);
         $this->assertCount(10, $view->getData()['chartData']['labels']);
+    }
+
+    public function test_history_recommendations_ignore_low_stock_shortage_without_sales(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 2048,
+            'type_name' => 'Damage Control II',
+            'desired_quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Modules',
+            'estimated_sold_quantity' => 0,
+            'sales_events' => 0,
+            'latest_current_quantity' => 0,
+            'latest_desired_quantity' => 25,
+            'latest_warning_quantity' => 8,
+        ]);
+
+        MarketStockHistory::create([
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'previous_status' => 'unknown',
+            'current_status' => 'empty',
+            'current_quantity' => 0,
+            'warning_quantity' => 8,
+            'desired_quantity' => 25,
+        ]);
+
+        $request = Request::create('/market-seeding/history', 'GET', ['days' => 90]);
+        app()->instance('request', $request);
+
+        $view = app(MarketSeedingController::class)->history(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(MarketStockReport::class)
+        );
+
+        $this->assertTrue($view->getData()['attentionItems']->isEmpty());
+    }
+
+    public function test_history_recommendations_are_based_on_estimated_sales_window_and_buffer(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 1422,
+            'type_name' => 'Small Processor Overclocking Unit II',
+            'desired_quantity' => 100,
+            'warning_quantity' => 33,
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->subDays(9)->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Modules',
+            'estimated_sold_quantity' => 50,
+            'sales_events' => 1,
+            'latest_current_quantity' => 75,
+            'latest_desired_quantity' => 100,
+            'latest_warning_quantity' => 33,
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => $item->type_id,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Modules',
+            'estimated_sold_quantity' => 50,
+            'sales_events' => 1,
+            'latest_current_quantity' => 50,
+            'latest_desired_quantity' => 100,
+            'latest_warning_quantity' => 33,
+        ]);
+
+        $request = Request::create('/market-seeding/history', 'GET', ['days' => 365]);
+        app()->instance('request', $request);
+
+        $view = app(MarketSeedingController::class)->history(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(MarketStockReport::class)
+        );
+        $recommendation = $view->getData()['attentionItems']->first();
+
+        $this->assertNotNull($recommendation);
+        $this->assertSame(10, $view->getData()['historyCoverageDays']);
+        $this->assertSame(100, (int) $recommendation->estimated_sold);
+        $this->assertSame(100, (int) $recommendation->current_target_quantity);
+        $this->assertSame(175, (int) $recommendation->recommended_quantity);
+        $this->assertStringContainsString('100 sold / 10 days * 14 sales days * 1.25x buffer = 175', $recommendation->recommendation_reason);
+        $this->assertStringContainsString('Low or empty stock events', $recommendation->recommendation_reason);
+
+        $request = Request::create('/market-seeding/history', 'GET', ['days' => 7]);
+        app()->instance('request', $request);
+
+        $view = app(MarketSeedingController::class)->history(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(MarketStockReport::class)
+        );
+        $recommendation = $view->getData()['attentionItems']->first();
+
+        $this->assertNotNull($recommendation);
+        $this->assertSame(7, $view->getData()['days']);
+        $this->assertSame(175, (int) $recommendation->recommended_quantity);
+        $this->assertStringContainsString('100 sold / 10 days * 14 sales days * 1.25x buffer = 175', $recommendation->recommendation_reason);
     }
 }

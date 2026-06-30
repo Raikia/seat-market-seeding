@@ -867,8 +867,8 @@
                     <div class="card-header">
                         <div>
                             <h3 class="card-title mb-0">Needs Attention</h3>
-                            <small class="text-muted">Items where recent movement suggests a higher target stock amount.</small>
-                            <small class="text-muted d-block">Restock Pace estimates how often the item becomes low or empty across the days with data.</small>
+                            <small class="text-muted">Items where recent estimated sales suggest a higher target stock amount.</small>
+                            <small class="text-muted d-block">Low/Empty Events shows how many times the item became low or empty in the selected history window.</small>
                         </div>
                         @can('seat-market-seeding.manager')
                             <div class="history-attention-actions">
@@ -891,7 +891,7 @@
                                         <th class="text-right">Recommended Target</th>
                                         <th class="text-right">Target Increase</th>
                                         <th class="text-right">Estimated Sold</th>
-                                        <th class="text-right" title="Average time between low or empty restock-needed events across the days with data in the selected history window. Lower values mean the item needs attention more often.">Restock Pace</th>
+                                        <th class="text-right" title="Number of times this item became low or empty in the selected history window.">Low/Empty Events</th>
                                         <th class="text-right history-actions-column">Actions</th>
                                     </tr>
                                 </thead>
@@ -917,8 +917,8 @@
                                             </td>
                                             <td class="text-right" data-order="{{ $item->recommended_quantity - $item->current_target_quantity }}">{{ $whole($item->recommended_quantity - $item->current_target_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
-                                            <td class="text-right" data-order="{{ $item->average_days_between_restock_needs ?? 999999 }}" title="Average time between low or empty restock-needed events across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data.">
-                                                {{ $item->average_days_between_restock_needs ? 'Every ' . number_format($item->average_days_between_restock_needs, 1, '.', ',') . ' days' : '-' }}
+                                            <td class="text-right" data-order="{{ $item->low_empty_events ?? 0 }}" title="Low or empty events across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data in the selected history window.">
+                                                {{ $whole($item->low_empty_events ?? 0) }}
 	                                            </td>
                                             <td class="text-right">
                                                 @if($item->item_id)
