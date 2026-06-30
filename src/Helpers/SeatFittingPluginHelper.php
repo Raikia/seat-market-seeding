@@ -4,6 +4,7 @@ namespace Raikia\SeatMarketSeeding\Helpers;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class SeatFittingPluginHelper
 {
@@ -82,7 +83,10 @@ class SeatFittingPluginHelper
 
     private static function modelsExist(string $doctrineModel, string $fittingModel): bool
     {
-        return class_exists($doctrineModel) && class_exists($fittingModel);
+        return class_exists($doctrineModel)
+            && class_exists($fittingModel)
+            && Schema::hasTable((new $doctrineModel)->getTable())
+            && Schema::hasTable((new $fittingModel)->getTable());
     }
 
     private static function escapeLike(string $value): string

@@ -32,7 +32,7 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Review doctrine sync changes before applying them.
 - Keep stock transition history, daily movement summaries, and target-change audit history.
 - Review high-usage items, estimated sales, restock pace, and market/category heatmaps.
-- Get target stock recommendations based on recent sales pace and observed shortages.
+- Get target stock recommendations based on recent estimated sales pace.
 - Apply recommended target changes in bulk after reviewing the expected cost and volume increase.
 - Send SeAT notifications when an item moves from stocked to low, or from low/stocked to empty.
 - Send grouped restocked notifications when items recover during the same refresh.
@@ -69,6 +69,8 @@ The dashboard is meant for day-to-day restocking. It shows each market’s healt
 The history page is meant for planning. It keeps a record of stock state changes, estimated sold quantities, restocks, and daily market movement. It includes filters, charts, most-sold item tables, restock frequency tables, and a needs-attention view for items whose target stock probably needs to change.
 
 From the history page you can open an item detail modal to review recent stock transitions, target-change history, current market stock, values, restock volume, and a sales trend chart. Target stock can be edited directly from that modal.
+
+Target recommendations are based only on estimated sold quantity over the configured recommendation sales window, plus the configured buffer. Low and empty stock events are still shown as context, but they are not used to inflate recommended targets.
 
 Target changes are audited separately from stock history. The audit log records who changed a target, when it changed, the old and new target, the old and new low warning, and whether the change came from a manual edit, bulk import, saved fit import, doctrine sync, recommendation, or market clear.
 

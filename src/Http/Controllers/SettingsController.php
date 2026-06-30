@@ -286,6 +286,10 @@ class SettingsController extends Controller
 
     public function updateTrackedDoctrine(Request $request, MarketSeedingTrackedDoctrine $trackedDoctrine, DoctrineTrackingSync $sync)
     {
+        if (!$sync->isAvailable()) {
+            abort(404);
+        }
+
         $data = $request->validate([
             'multiplier' => 'required|integer|min:1|max:10000',
             'warning_percentage' => 'required|integer|min:0|max:100',
