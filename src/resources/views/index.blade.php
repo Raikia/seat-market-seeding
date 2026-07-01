@@ -859,7 +859,7 @@
                                 <div>
                                     <strong>Build EVE multi-sell lines from wallet transactions.</strong>
                                     <div class="text-muted small">
-                                        Paste your restock purchase log. Duplicate items are grouped, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
+                                        Paste a character or corporation market transaction log. Duplicate items are grouped, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
                                     </div>
                                 </div>
                             </div>
@@ -867,11 +867,11 @@
                                 <div>
                                     <div class="market-seeding-listing-helper-panel">
                                         <div class="market-seeding-listing-helper-section-title">
-                                            <i class="fas fa-paste"></i> Paste Transactions
+                                            <i class="fas fa-paste"></i> Paste Market Transactions
                                         </div>
                                         <div class="form-group mb-0">
                                             <textarea class="form-control market-seeding-listing-helper-input" rows="10" placeholder="Paste wallet transactions here..."></textarea>
-                                            <small class="form-text text-muted">Expected columns: date, quantity, item name, unit cost, total cost, seller, station, character, wallet.</small>
+                                            <small class="form-text text-muted">Supports character logs with 7 columns and corporation logs with 9 columns. The helper reads date, quantity, item name, unit cost, total cost, seller, and station.</small>
                                         </div>
                                     </div>
                                     <div class="market-seeding-listing-helper-panel">
@@ -1007,6 +1007,7 @@
             var targetTrendChart = null;
             var dashboardItemDetails = @json($dashboardItemDetails);
             var listingHelperCsrfToken = '{{ csrf_token() }}';
+            var listingHelperPreferenceKey = 'seat-market-seeding.listing-helper.preferences.v1';
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
@@ -1039,11 +1040,22 @@
             });
 
             $('.market-seeding-listing-helper-modal').on('shown.bs.modal', function () {
+                applyListingHelperPreferences($(this));
                 scheduleListingHelperUpdate($(this), 0);
             });
 
+            $('.market-seeding-listing-helper-modal').on('hidden.bs.modal', function () {
+                resetListingHelper($(this));
+            });
+
             $(document).on('input change', '.market-seeding-listing-helper-input, .market-seeding-listing-helper-markup, .market-seeding-listing-helper-tax, .market-seeding-listing-helper-broker, .market-seeding-listing-helper-competitive, .market-seeding-listing-helper-exclude-problem-items', function () {
-                scheduleListingHelperUpdate($(this).closest('.market-seeding-listing-helper-modal'), 250);
+                var $modal = $(this).closest('.market-seeding-listing-helper-modal');
+
+                if (!$(this).hasClass('market-seeding-listing-helper-input')) {
+                    saveListingHelperPreferences($modal);
+                }
+
+                scheduleListingHelperUpdate($modal, 250);
             });
 
             $(document).on('click', '.market-seeding-copy-listing-helper', function () {
@@ -1321,6 +1333,105 @@
                 }, delay));
             }
 
+            function resetListingHelper($modal) {
+                var $table = $modal.find('.market-seeding-listing-helper-review-table');
+                var timer = $modal.data('listing-helper-timer');
+
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable($table[0])) {
+                    $table.DataTable().destroy();
+                }
+
+                if (timer) {
+                    window.clearTimeout(timer);
+                }
+
+                $modal.find('.market-seeding-listing-helper-input').val('');
+                $modal.find('.market-seeding-listing-helper-output').val('');
+                $modal.find('.market-seeding-listing-helper-warning').addClass('d-none').empty();
+                $modal.find('.market-seeding-listing-helper-review').addClass('d-none');
+                $table.find('tbody').empty();
+                $modal.removeData('listing-helper-timer listing-helper-price-key listing-helper-prices listing-helper-extra-warnings');
+
+                $modal.find('[data-listing-helper-stat="items"]').text('0');
+                $modal.find('[data-listing-helper-stat="quantity"]').text('0');
+                $modal.find('[data-listing-helper-stat="value"]').text('0.00 ISK');
+                $modal.find('[data-listing-helper-stat="profit"]').text('0.00 ISK');
+                $modal.find('[data-listing-helper-stat="fees"]').text('0.00 ISK');
+                $modal.find('[data-listing-helper-stat="competitive"]').text('0');
+            }
+
+            function applyListingHelperPreferences($modal) {
+                var preferences = readListingHelperPreferences();
+
+                if (!preferences) {
+                    return;
+                }
+
+                if (preferences.markup !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-markup').val(preferences.markup);
+                }
+
+                if (preferences.tax !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-tax').val(preferences.tax);
+                }
+
+                if (preferences.broker !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-broker').val(preferences.broker);
+                }
+
+                if (preferences.competitive !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-competitive').prop('checked', !!preferences.competitive);
+                }
+
+                if (preferences.excludeProblemItems !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-exclude-problem-items').prop('checked', !!preferences.excludeProblemItems);
+                }
+            }
+
+            function saveListingHelperPreferences($modal) {
+                var storage = listingHelperStorage();
+
+                if (!storage) {
+                    return;
+                }
+
+                var preferences = {
+                    markup: $modal.find('.market-seeding-listing-helper-markup').val(),
+                    tax: $modal.find('.market-seeding-listing-helper-tax').val(),
+                    broker: $modal.find('.market-seeding-listing-helper-broker').val(),
+                    competitive: $modal.find('.market-seeding-listing-helper-competitive').is(':checked'),
+                    excludeProblemItems: $modal.find('.market-seeding-listing-helper-exclude-problem-items').is(':checked')
+                };
+
+                try {
+                    storage.setItem(listingHelperPreferenceKey, JSON.stringify(preferences));
+                } catch (e) {
+                    // Some browsers block localStorage in private modes. The helper still works without saved preferences.
+                }
+            }
+
+            function readListingHelperPreferences() {
+                var storage = listingHelperStorage();
+
+                if (!storage) {
+                    return null;
+                }
+
+                try {
+                    return JSON.parse(storage.getItem(listingHelperPreferenceKey) || 'null');
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function listingHelperStorage() {
+                try {
+                    return window.localStorage || null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
             function updateListingHelper($modal) {
                 var parsed = parseListingHelperTransactions($modal.find('.market-seeding-listing-helper-input').val());
                 var names = Object.keys(parsed.items).sort();
@@ -1383,7 +1494,10 @@
 
                     var columns = line.split('\t');
 
-                    if (columns.length < 5) {
+                    var isCharacterLog = columns.length === 7;
+                    var isCorporationLog = columns.length >= 9;
+
+                    if (!isCharacterLog && !isCorporationLog) {
                         result.skipped++;
                         return;
                     }
@@ -1444,7 +1558,8 @@
                 $.each(parsed.items, function (itemName, item) {
                     var priceInfo = prices[itemName] || {};
                     var markupPrice = roundUpToEvePrice(item.highestCost * (1 + (markup / 100)));
-                    var competitivePrice = useCompetitive && priceInfo.local_price ? previousEvePrice(parseFloat(priceInfo.local_price)) : null;
+                    var localUndercutPrice = priceInfo.local_price ? previousEvePrice(parseFloat(priceInfo.local_price)) : null;
+                    var competitivePrice = useCompetitive ? localUndercutPrice : null;
                     var sellPrice = competitivePrice ? Math.min(markupPrice, competitivePrice) : markupPrice;
                     var gross = sellPrice * item.quantity;
                     var basis = item.highestCost * item.quantity;
@@ -1470,6 +1585,10 @@
                     if (isBelowBreakEven) {
                         stats.belowBreakEven++;
                         notes.push({ label: 'Below break-even', className: 'badge-danger' });
+                    }
+
+                    if (!useCompetitive && localUndercutPrice && sellPrice > localUndercutPrice) {
+                        notes.push({ label: 'Above local lowest', className: 'badge-warning' });
                     }
 
                     if (!notes.length) {
@@ -1586,6 +1705,7 @@
                     $table.DataTable({
                         order: [],
                         paging: true,
+                        deferRender: true,
                         pageLength: 10,
                         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
                         autoWidth: false,
