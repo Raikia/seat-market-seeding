@@ -124,6 +124,7 @@ class MarketStockReport
                 $missingQuantity = max(0, $item->desired_quantity - $currentQuantity);
                 $warningQuantity = (int) $item->warning_quantity;
                 $isLow = $currentQuantity < $warningQuantity;
+                $stockStatus = $currentQuantity <= 0 ? 'empty' : ($isLow ? 'low' : 'stocked');
                 $priceDelta = $localPrice && $jitaPrice ? (($localPrice - $jitaPrice) / $jitaPrice) * 100 : null;
                 $restockCost = $missingQuantity * (float) $jitaPrice;
                 $restockVolume = $missingQuantity * $itemVolume;
@@ -155,6 +156,7 @@ class MarketStockReport
                     'seeded_value' => $seededValue,
                     'desired_value' => $desiredValue,
                     'is_low' => $isLow,
+                    'stock_status' => $stockStatus,
                     'export_line' => $missingQuantity > 0 ? $item->type_name . "\t" . $missingQuantity : null,
                 ];
             })->values();

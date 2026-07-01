@@ -462,6 +462,14 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="market-seeding-filter-field">
+                            <label for="market-seeding-stock-status-filter">Stock Status</label>
+                            <select class="form-control form-control-sm" id="market-seeding-stock-status-filter">
+                                <option value="">All Statuses</option>
+                                <option value="low">Low Warning</option>
+                                <option value="empty">Empty</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -485,6 +493,7 @@
                         return [
                             'category' => $row['type_category'],
                             'group' => $row['type_group'] ?? 'Unknown',
+                            'status' => $row['stock_status'],
                             'line' => $row['export_line'],
                             'volume' => $row['restock_volume'],
                         ];
@@ -536,9 +545,6 @@
                         <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#{{ $exportId }}-modal">
                             <i class="fas fa-shopping-cart"></i> Restock List
                         </button>
-                        <a href="{{ route('market-seeding.export', $market->id) }}" class="btn btn-sm btn-default">
-                            <i class="fas fa-file-export"></i> Raw Export
-                        </a>
                     </div>
                 </div>
                 <div id="{{ $collapseId }}" class="collapse {{ $startsExpanded ? 'show' : '' }}">
@@ -577,6 +583,7 @@
                                         <th>Item</th>
                                         <th>Category</th>
                                         <th>Group</th>
+                                        <th>Status</th>
                                         <th class="text-right">Current</th>
                                         <th class="text-right">Target</th>
                                         <th class="text-right">Missing</th>
@@ -593,6 +600,7 @@
                                         <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}"
                                             data-category="{{ $row['type_category'] }}"
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
+                                            data-stock-status="{{ $row['stock_status'] }}"
                                             data-desired-quantity="{{ $row['item']->desired_quantity }}"
                                             data-covered-quantity="{{ min($row['current_quantity'], $row['item']->desired_quantity) }}"
                                             data-missing-quantity="{{ $row['missing_quantity'] }}"
@@ -618,6 +626,7 @@
                                             </td>
                                             <td>{{ $row['type_category'] }}</td>
                                             <td>{{ $row['type_group'] ?? 'Unknown' }}</td>
+                                            <td>{{ $row['stock_status'] }}</td>
                                             <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
                                             <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $row['missing_quantity'] }}">
@@ -668,9 +677,6 @@
                             <button type="button" class="btn btn-primary copy-market-export" data-target="{{ $exportId }}">
                                 <i class="fas fa-copy"></i> Copy Multi-Buy
                             </button>
-                            <a href="{{ route('market-seeding.export', $market->id) }}" class="btn btn-default">
-                                <i class="fas fa-file-export"></i> Raw Export
-                            </a>
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                         </div>
                     </div>
@@ -708,13 +714,13 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { targets: [1, 2], visible: false }
+                        { targets: [1, 2, 3], visible: false }
                     ],
                     stateSaveParams: function (settings, data) {
-                        data.marketSeedingSchema = 5;
+                        data.marketSeedingSchema = 6;
                     },
                     stateLoadParams: function (settings, data) {
-                        return data.marketSeedingSchema === 5;
+                        return data.marketSeedingSchema === 6;
                     },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -761,10 +767,15 @@
                 applyDashboardFilters();
             });
 
+            $('#market-seeding-stock-status-filter').on('change', function () {
+                applyDashboardFilters();
+            });
+
             $('#market-seeding-reset-filters').on('click', function () {
                 $('#market-seeding-market-filter').val('all').trigger('change');
                 $('#market-seeding-type-filter').val('');
                 $('#market-seeding-group-filter').val('');
+                $('#market-seeding-stock-status-filter').val('');
                 updateGroupFilterOptions();
                 applyDashboardFilters();
             });
@@ -817,11 +828,19 @@
             function applyDashboardFilters() {
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
+                var stockStatus = $('#market-seeding-stock-status-filter').val();
 
                 $('.market-seeding-dashboard-table').each(function () {
                     if (!$.fn.DataTable || !$.fn.DataTable.isDataTable(this)) {
                         $(this).find('tbody tr').each(function () {
-                            var matches = matchesTypeFilters($(this).data('category'), $(this).data('group'), typeCategory, typeGroup);
+                            var matches = matchesDashboardFilters(
+                                $(this).data('category'),
+                                $(this).data('group'),
+                                $(this).data('stock-status'),
+                                typeCategory,
+                                typeGroup,
+                                stockStatus
+                            );
                             $(this).toggle(matches);
                         });
                         return;
@@ -833,7 +852,10 @@
                         .search(typeCategory ? '^' + escapeRegex(typeCategory) + '$' : '', true, false);
                     table
                         .column(2)
-                        .search(typeGroup ? '^' + escapeRegex(typeGroup) + '$' : '', true, false)
+                        .search(typeGroup ? '^' + escapeRegex(typeGroup) + '$' : '', true, false);
+                    table
+                        .column(3)
+                        .search(stockStatus ? '^' + escapeRegex(stockStatus) + '$' : '', true, false)
                         .draw();
                 });
 
@@ -939,9 +961,10 @@
 
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
+                var stockStatus = $('#market-seeding-stock-status-filter').val();
                 var lines = $(textarea).data('lines') || [];
                 var filtered = $.grep(lines, function (line) {
-                    return matchesTypeFilters(line.category, line.group, typeCategory, typeGroup);
+                    return matchesDashboardFilters(line.category, line.group, line.status, typeCategory, typeGroup, stockStatus);
                 });
                 var volume = filtered.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
@@ -954,9 +977,10 @@
                 modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
             }
 
-            function matchesTypeFilters(category, group, selectedCategory, selectedGroup) {
+            function matchesDashboardFilters(category, group, stockStatus, selectedCategory, selectedGroup, selectedStatus) {
                 return (!selectedCategory || category === selectedCategory)
-                    && (!selectedGroup || group === selectedGroup);
+                    && (!selectedGroup || group === selectedGroup)
+                    && (!selectedStatus || stockStatus === selectedStatus);
             }
 
             function updateFilterToggleButton(expanded) {

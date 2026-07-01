@@ -40,18 +40,6 @@ class MarketSeedingController extends Controller
         return view('seat-market-seeding::index', compact('stockReport'));
     }
 
-    public function export(SeededMarket $market, MarketStockReport $report)
-    {
-        abort_unless($this->canViewMarket($market), 403);
-
-        $stockReport = $report->build(collect([$market]));
-        $export = $stockReport['markets'][0]['export'] ?? '';
-
-        return response($export, 200, [
-            'Content-Type' => 'text/plain',
-        ]);
-    }
-
     public function itemHistory(Request $request, SeededMarketItem $item, MarketStockReport $report)
     {
         $market = $item->market;

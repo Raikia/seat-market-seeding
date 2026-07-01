@@ -25,11 +25,6 @@ Route::group([
         'uses' => 'MarketSeedingController@itemHistory',
     ]);
 
-    Route::get('/markets/{market}/export', [
-        'as' => 'market-seeding.export',
-        'uses' => 'MarketSeedingController@export',
-    ]);
-
     Route::group(['middleware' => 'can:seat-market-seeding.manager'], function () {
         Route::get('/settings', [
             'as' => 'market-seeding.settings',
