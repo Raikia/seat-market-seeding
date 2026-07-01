@@ -18,6 +18,15 @@ class MarketStockReport
 
     const SHIP_CATEGORY_ID = 6;
 
+    const PRIORITY_WEIGHTS = [
+        'status_empty' => 50,
+        'status_low' => 25,
+        'coverage' => 35,
+        'sales' => 25,
+        'value' => 15,
+        'value_log_multiplier' => 2,
+    ];
+
     const SHIP_PACKAGED_VOLUMES = [
         'Capsule' => 500,
         'Shuttle' => 500,
@@ -70,6 +79,10 @@ class MarketStockReport
         'Porpoise' => 5000,
     ];
 
+    public function __construct(private MarketSeedingSettings $settings)
+    {
+    }
+
     public function build(Collection $markets): array
     {
         $this->loadMarketRelations($markets);
@@ -84,6 +97,8 @@ class MarketStockReport
         $jitaPrices = $this->jitaSellPrices($typeIds);
         $fallbackPrices = Price::whereIn('type_id', $typeIds)->get()->keyBy('type_id');
         $typeVolumes = $this->packagedVolumes($typeIds);
+        $recommendationSalesDays = $this->settings->recommendationSalesDays();
+        $salesByItem = $this->estimatedSalesByItem($markets, $recommendationSalesDays);
 
         $reports = [];
         $totals = [
@@ -111,7 +126,7 @@ class MarketStockReport
                 'health_score' => 100,
             ];
 
-            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, &$marketTotals) {
+            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, $salesByItem, $recommendationSalesDays, &$marketTotals) {
                 $key = $market->location_id . ':' . $item->type_id;
                 $local = $localOrders->get($key);
                 $currentQuantity = $local ? (int) $local->quantity : 0;
@@ -132,6 +147,14 @@ class MarketStockReport
                 $restockVolume = $missingQuantity * $itemVolume;
                 $desiredValue = $item->desired_quantity * (float) $jitaPrice;
                 $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
+                $priority = $this->priorityScore(
+                    $stockStatus,
+                    (int) $item->desired_quantity,
+                    $missingQuantity,
+                    (int) $salesByItem->get($item->id, 0),
+                    $restockCost,
+                    $recommendationSalesDays
+                );
 
                 $marketTotals['desired_value'] += $desiredValue;
                 $marketTotals['seeded_value'] += $seededValue;
@@ -159,6 +182,7 @@ class MarketStockReport
                     'desired_value' => $desiredValue,
                     'is_low' => $isLow,
                     'stock_status' => $stockStatus,
+                    'priority' => $priority,
                     'export_line' => $missingQuantity > 0 ? $item->type_name . "\t" . $missingQuantity : null,
                 ];
             })->values();
@@ -292,6 +316,97 @@ class MarketStockReport
         $penalty = (($lowLines * 0.5) + $emptyLines) / $trackedLines * 100;
 
         return round(max(0, min(100, 100 - $penalty)), 1);
+    }
+
+    private function priorityScore(string $stockStatus, int $targetQuantity, int $missingQuantity, int $estimatedSoldQuantity, float $restockCost, int $salesWindowDays): array
+    {
+        $targetQuantity = max(1, $targetQuantity);
+        $missingPercent = min(1, max(0, $missingQuantity / $targetQuantity));
+        $statusScore = match ($stockStatus) {
+            'empty' => self::PRIORITY_WEIGHTS['status_empty'],
+            'low' => self::PRIORITY_WEIGHTS['status_low'],
+            default => 0,
+        };
+        $coverageScore = $missingPercent * self::PRIORITY_WEIGHTS['coverage'];
+        $salesScore = min(
+            self::PRIORITY_WEIGHTS['sales'],
+            ($estimatedSoldQuantity / $targetQuantity) * self::PRIORITY_WEIGHTS['sales']
+        );
+        $valueScore = $restockCost > 0
+            ? min(
+                self::PRIORITY_WEIGHTS['value'],
+                log10($restockCost + 1) * self::PRIORITY_WEIGHTS['value_log_multiplier']
+            )
+            : 0;
+        $score = round($statusScore + $coverageScore + $salesScore + $valueScore, 1);
+
+        return [
+            'score' => $score,
+            'level' => $this->priorityLevel($score),
+            'label' => $this->priorityLabel($score),
+            'status_score' => round($statusScore, 1),
+            'coverage_score' => round($coverageScore, 1),
+            'sales_score' => round($salesScore, 1),
+            'value_score' => round($valueScore, 1),
+            'missing_percent' => round($missingPercent * 100, 1),
+            'estimated_sold_quantity' => $estimatedSoldQuantity,
+            'sales_window_days' => $salesWindowDays,
+            'restock_cost' => round($restockCost, 2),
+        ];
+    }
+
+    private function priorityLevel(float $score): string
+    {
+        if ($score >= 100) {
+            return 'critical';
+        }
+
+        if ($score >= 70) {
+            return 'high';
+        }
+
+        if ($score >= 35) {
+            return 'medium';
+        }
+
+        if ($score > 0) {
+            return 'low';
+        }
+
+        return 'none';
+    }
+
+    private function priorityLabel(float $score): string
+    {
+        return match ($this->priorityLevel($score)) {
+            'critical' => 'Critical',
+            'high' => 'High',
+            'medium' => 'Medium',
+            'low' => 'Low',
+            default => 'None',
+        };
+    }
+
+    private function estimatedSalesByItem(Collection $markets, int $salesWindowDays): Collection
+    {
+        $itemIds = $markets
+            ->flatMap(fn (SeededMarket $market) => $market->items->pluck('id'))
+            ->map(fn ($itemId) => (int) $itemId)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($itemIds->isEmpty()) {
+            return collect();
+        }
+
+        return MarketStockDailySummary::query()
+            ->selectRaw('item_id, SUM(estimated_sold_quantity) as estimated_sold_quantity')
+            ->whereIn('item_id', $itemIds)
+            ->where('summary_date', '>=', now()->subDays(max(1, $salesWindowDays) - 1)->toDateString())
+            ->groupBy('item_id')
+            ->pluck('estimated_sold_quantity', 'item_id')
+            ->map(fn ($quantity) => (int) $quantity);
     }
 
     private function packagedVolumes(Collection $typeIds): Collection

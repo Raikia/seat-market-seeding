@@ -23,6 +23,26 @@
             return number_format((float) $value, 1, '.', ',') . '%';
         };
         $healthTooltip = 'Health is based on tracked item lines. Stocked items have no penalty, low items count as half unhealthy, and empty items count as fully unhealthy.';
+        $priorityHelpTooltip = 'Priority helps sort restock work. It combines stock status, percent of target missing, recent estimated sales, and restock value. Empty items score higher than low items, and expensive or frequently sold items can move up the list.';
+        $priorityBadge = function ($level) {
+            return [
+                'critical' => 'badge-danger',
+                'high' => 'badge-warning',
+                'medium' => 'badge-info',
+                'low' => 'badge-secondary',
+                'none' => 'badge-success',
+            ][$level] ?? 'badge-secondary';
+        };
+        $priorityTooltip = function ($priority) use ($whole, $percent, $isk) {
+            return implode('<br>', [
+                '<strong>' . e($priority['label']) . ' priority: ' . $priority['score'] . '</strong>',
+                'Status: +' . $priority['status_score'],
+                'Missing: ' . $percent($priority['missing_percent']) . ' = +' . $priority['coverage_score'],
+                'Sales: ' . $whole($priority['estimated_sold_quantity']) . ' / ' . $whole($priority['sales_window_days']) . ' days = +' . $priority['sales_score'],
+                'Value: ' . $isk($priority['restock_cost']) . ' = +' . $priority['value_score'],
+                '<strong>Total: ' . $priority['status_score'] . ' + ' . $priority['coverage_score'] . ' + ' . $priority['sales_score'] . ' + ' . $priority['value_score'] . ' = ' . $priority['score'] . '</strong>',
+            ]);
+        };
         $singleMarket = count($stockReport['markets']) === 1;
         $stockRows = collect($stockReport['markets'])->flatMap(fn ($marketReport) => $marketReport['rows']);
         $typeCategories = $stockRows->pluck('type_category')->unique()->sort()->values();
@@ -630,6 +650,22 @@
                                 <option value="empty">Empty</option>
                             </select>
                         </div>
+                        <div class="market-seeding-filter-field">
+                            <label for="market-seeding-priority-filter">
+                                Priority
+                                <i class="fas fa-question-circle text-muted"
+                                   data-toggle="tooltip"
+                                   title="{{ $priorityHelpTooltip }}"></i>
+                            </label>
+                            <select class="form-control form-control-sm" id="market-seeding-priority-filter">
+                                <option value="">All Priorities</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -654,6 +690,7 @@
                             'category' => $row['type_category'],
                             'group' => $row['type_group'] ?? 'Unknown',
                             'status' => $row['stock_status'],
+                            'priority' => $row['priority']['level'],
                             'name' => $row['item']->type_name,
                             'quantity' => $row['missing_quantity'],
                             'line' => $row['export_line'],
@@ -752,6 +789,8 @@
                                         <th>Category</th>
                                         <th>Group</th>
                                         <th>Status</th>
+                                        <th>Priority Level</th>
+                                        <th>Priority</th>
                                         <th class="text-right">Current</th>
                                         <th class="text-right">Target</th>
                                         <th class="text-right">Missing</th>
@@ -769,6 +808,7 @@
                                             data-category="{{ $row['type_category'] }}"
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
                                             data-stock-status="{{ $row['stock_status'] }}"
+                                            data-priority="{{ $row['priority']['level'] }}"
                                             data-desired-quantity="{{ $row['item']->desired_quantity }}"
                                             data-missing-quantity="{{ $row['missing_quantity'] }}"
                                             data-seeded-value="{{ $row['seeded_value'] }}"
@@ -794,6 +834,15 @@
                                             <td>{{ $row['type_category'] }}</td>
                                             <td>{{ $row['type_group'] ?? 'Unknown' }}</td>
                                             <td>{{ $row['stock_status'] }}</td>
+                                            <td>{{ $row['priority']['level'] }}</td>
+                                            <td data-order="{{ $row['priority']['score'] }}">
+                                                <span class="badge {{ $priorityBadge($row['priority']['level']) }}"
+                                                      data-toggle="tooltip"
+                                                      data-html="true"
+                                                      title="{!! $priorityTooltip($row['priority']) !!}">
+                                                    {{ $row['priority']['label'] }}
+                                                </span>
+                                            </td>
                                             <td class="text-right" data-order="{{ $row['current_quantity'] }}">{{ $whole($row['current_quantity']) }}</td>
                                             <td class="text-right" data-order="{{ $row['item']->desired_quantity }}">{{ $whole($row['item']->desired_quantity) }}</td>
                                             <td class="text-right" data-order="{{ $row['missing_quantity'] }}">
@@ -1035,13 +1084,13 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { targets: [1, 2, 3], visible: false }
+                        { targets: [1, 2, 3, 4], visible: false }
                     ],
                     stateSaveParams: function (settings, data) {
-                        data.marketSeedingSchema = 6;
+                        data.marketSeedingSchema = 8;
                     },
                     stateLoadParams: function (settings, data) {
-                        return data.marketSeedingSchema === 6;
+                        return data.marketSeedingSchema === 8;
                     },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -1122,11 +1171,16 @@
                 applyDashboardFilters();
             });
 
+            $('#market-seeding-priority-filter').on('change', function () {
+                applyDashboardFilters();
+            });
+
             $('#market-seeding-reset-filters').on('click', function () {
                 $('#market-seeding-market-filter').val('all').trigger('change');
                 $('#market-seeding-type-filter').val('');
                 $('#market-seeding-group-filter').val('');
                 $('#market-seeding-stock-status-filter').val('');
+                $('#market-seeding-priority-filter').val('');
                 updateGroupFilterOptions();
                 applyDashboardFilters();
             });
@@ -1175,7 +1229,10 @@
             applyDashboardFilters();
             updateFilterToggleButton(false);
             if ($.fn.tooltip) {
-                $('[data-toggle="tooltip"]').tooltip();
+                $('[data-toggle="tooltip"]').tooltip({
+                    container: 'body',
+                    html: true
+                });
             }
             openDashboardItemFromHash();
 
@@ -1183,6 +1240,7 @@
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
                 var stockStatus = $('#market-seeding-stock-status-filter').val();
+                var priority = $('#market-seeding-priority-filter').val();
 
                 $('.market-seeding-dashboard-table').each(function () {
                     if (!$.fn.DataTable || !$.fn.DataTable.isDataTable(this)) {
@@ -1191,9 +1249,11 @@
                                 $(this).data('category'),
                                 $(this).data('group'),
                                 $(this).data('stock-status'),
+                                $(this).data('priority'),
                                 typeCategory,
                                 typeGroup,
-                                stockStatus
+                                stockStatus,
+                                priority
                             );
                             $(this).toggle(matches);
                         });
@@ -1209,7 +1269,10 @@
                         .search(typeGroup ? '^' + escapeRegex(typeGroup) + '$' : '', true, false);
                     table
                         .column(3)
-                        .search(stockStatusSearchRegex(stockStatus), true, false)
+                        .search(stockStatusSearchRegex(stockStatus), true, false);
+                    table
+                        .column(4)
+                        .search(priority ? '^' + escapeRegex(priority) + '$' : '', true, false)
                         .draw();
                 });
 
@@ -1326,9 +1389,10 @@
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
                 var stockStatus = $('#market-seeding-stock-status-filter').val();
+                var priority = $('#market-seeding-priority-filter').val();
                 var lines = $(textarea).data('lines') || [];
                 var filtered = $.grep(lines, function (line) {
-                    return matchesDashboardFilters(line.category, line.group, line.status, typeCategory, typeGroup, stockStatus);
+                    return matchesDashboardFilters(line.category, line.group, line.status, line.priority, typeCategory, typeGroup, stockStatus, priority);
                 });
                 var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
                 var selected = applyFreightLimit(filtered, freightLimit);
@@ -1366,7 +1430,7 @@
                     return lines;
                 }
 
-                    var candidates = $.map(lines, function (line, index) {
+                var candidates = $.map(lines, function (line, index) {
                     return $.extend({}, line, {
                         originalIndex: index,
                         quantity: Number(line.quantity || 0),
@@ -1457,10 +1521,11 @@
                 };
             }
 
-            function matchesDashboardFilters(category, group, stockStatus, selectedCategory, selectedGroup, selectedStatus) {
+            function matchesDashboardFilters(category, group, stockStatus, priority, selectedCategory, selectedGroup, selectedStatus, selectedPriority) {
                 return (!selectedCategory || category === selectedCategory)
                     && (!selectedGroup || group === selectedGroup)
-                    && matchesStockStatusFilter(stockStatus, selectedStatus);
+                    && matchesStockStatusFilter(stockStatus, selectedStatus)
+                    && (!selectedPriority || priority === selectedPriority);
             }
 
             function matchesStockStatusFilter(stockStatus, selectedStatus) {

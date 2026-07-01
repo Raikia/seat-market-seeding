@@ -100,6 +100,49 @@ class MarketStockReportTest extends TestCase
         $this->assertSame(50.0, $marketReport['totals']['health_score']);
     }
 
+    public function test_build_calculates_restock_priority_from_status_shortage_sales_and_value(): void
+    {
+        $this->seedSde();
+        $this->seedType(621, 'Caracal', ['groupID' => 25, 'volume' => 112000]);
+
+        $market = $this->createMarket(['location_id' => 60000001]);
+        $item = app(StockTargetProjector::class)->setManualTarget($market, 621, 'Caracal', 10, 4);
+
+        DB::table('market_orders')->insert([
+            'order_id' => 1,
+            'location_id' => MarketStockReport::JITA_STATION_ID,
+            'type_id' => 621,
+            'volume_remaining' => 100,
+            'price' => 10000000,
+            'is_buy_order' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        MarketStockDailySummary::create([
+            'summary_date' => now()->toDateString(),
+            'market_id' => $market->id,
+            'item_id' => $item->id,
+            'type_id' => 621,
+            'market_name' => $market->name,
+            'location_name' => $market->location_name,
+            'type_name' => $item->type_name,
+            'type_category' => 'Ships',
+            'estimated_sold_quantity' => 5,
+        ]);
+
+        $report = app(MarketStockReport::class)->build(collect([$market->fresh()]));
+        $priority = $report['markets'][0]['rows']->first()['priority'];
+
+        $this->assertSame('critical', $priority['level']);
+        $this->assertSame('Critical', $priority['label']);
+        $this->assertSame(112.5, $priority['score']);
+        $this->assertSame(50.0, $priority['status_score']);
+        $this->assertSame(35.0, $priority['coverage_score']);
+        $this->assertSame(12.5, $priority['sales_score']);
+        $this->assertSame(15.0, $priority['value_score']);
+    }
+
     public function test_item_details_uses_latest_summary_quantity_when_no_local_order_exists(): void
     {
         $this->seedSde();
