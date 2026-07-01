@@ -235,24 +235,78 @@
         }
         .market-seeding-listing-helper-grid {
             display: grid;
+            align-items: start;
             gap: 1rem;
             grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
         }
+        .market-seeding-listing-helper-intro {
+            align-items: flex-start;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            display: flex;
+            gap: .75rem;
+            margin-bottom: 1rem;
+            padding: .8rem .95rem;
+        }
+        .market-seeding-listing-helper-intro i {
+            color: #17a2b8;
+            margin-top: .15rem;
+        }
+        .market-seeding-listing-helper-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: .9rem;
+        }
+        .market-seeding-listing-helper-panel + .market-seeding-listing-helper-panel {
+            margin-top: 1rem;
+        }
+        .market-seeding-listing-helper-section-title {
+            align-items: center;
+            display: flex;
+            gap: .45rem;
+            font-size: .82rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            margin-bottom: .8rem;
+            text-transform: uppercase;
+        }
+        .market-seeding-listing-helper-section-title i {
+            color: #17a2b8;
+        }
         .market-seeding-listing-helper-settings {
             display: grid;
-            gap: .75rem;
+            gap: .65rem;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .market-seeding-listing-helper-settings .form-group {
+            margin-bottom: 0;
+        }
+        .market-seeding-listing-helper-option {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: .7rem .75rem .7rem 2.35rem;
+        }
+        .market-seeding-listing-helper-option label {
+            font-size: .86rem;
+            line-height: 1.35;
+            margin-bottom: 0;
+        }
+        .market-seeding-listing-helper-option small {
+            display: block;
+            line-height: 1.3;
+            margin-top: .25rem;
         }
         .market-seeding-listing-helper-stat-grid {
             display: grid;
             gap: .6rem;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             margin-bottom: 1rem;
         }
         .market-seeding-listing-helper-stat {
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            padding: .65rem .75rem;
+            padding: .6rem .7rem;
         }
         .market-seeding-listing-helper-stat span {
             color: #6c757d;
@@ -264,17 +318,32 @@
         .market-seeding-listing-helper-stat strong {
             display: block;
             font-size: 1rem;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+        .market-seeding-listing-helper-stat.is-wide {
+            grid-column: span 3;
+        }
+        .market-seeding-listing-helper-output-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: .45rem;
         }
         .market-seeding-listing-helper-output {
             font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
         .market-seeding-listing-helper-warning {
             font-size: .82rem;
+            margin-top: 1rem;
             max-height: 160px;
             overflow-y: auto;
         }
         .market-seeding-listing-helper-review {
-            margin-top: .75rem;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-top: 1rem;
+            padding: .9rem;
         }
         .market-seeding-listing-helper-review-table {
             margin-bottom: 0;
@@ -390,6 +459,22 @@
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-panel input.form-control {
+            background: #2f3a40;
+            border-color: #4c5a61;
+            color: #e9ecef;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-intro,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-panel,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-option,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-review {
+            background: #1f292e;
+            border-color: #3c4b54;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-section-title i,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-intro i {
+            color: #55c3c7;
         }
         .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-stat {
             background: #1f292e;
@@ -769,80 +854,104 @@
                             </button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted">
-                                Paste EVE wallet transaction rows from your restock purchase. The helper groups duplicate item names, uses the highest unit cost found for each item, applies markup and fees, and outputs one multi-sell line per item in the format <code>Item Name price</code>.
-                            </p>
+                            <div class="market-seeding-listing-helper-intro">
+                                <i class="fas fa-magic"></i>
+                                <div>
+                                    <strong>Build EVE multi-sell lines from wallet transactions.</strong>
+                                    <div class="text-muted small">
+                                        Paste your restock purchase log. Duplicate items are grouped, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
+                                    </div>
+                                </div>
+                            </div>
                             <div class="market-seeding-listing-helper-grid">
                                 <div>
-                                    <div class="form-group">
-                                        <label>Wallet Transactions</label>
-                                        <textarea class="form-control market-seeding-listing-helper-input" rows="14" placeholder="Paste wallet transactions here..."></textarea>
-                                        <small class="form-text text-muted">Expected columns: date, quantity, item name, unit cost, total cost, seller, station, character, wallet.</small>
+                                    <div class="market-seeding-listing-helper-panel">
+                                        <div class="market-seeding-listing-helper-section-title">
+                                            <i class="fas fa-paste"></i> Paste Transactions
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <textarea class="form-control market-seeding-listing-helper-input" rows="10" placeholder="Paste wallet transactions here..."></textarea>
+                                            <small class="form-text text-muted">Expected columns: date, quantity, item name, unit cost, total cost, seller, station, character, wallet.</small>
+                                        </div>
                                     </div>
-                                    <div class="market-seeding-listing-helper-settings">
-                                        <div class="form-group">
-                                            <label>% Markup</label>
-                                            <input type="number" class="form-control market-seeding-listing-helper-markup" value="15" step="0.01">
+                                    <div class="market-seeding-listing-helper-panel">
+                                        <div class="market-seeding-listing-helper-section-title">
+                                            <i class="fas fa-sliders-h"></i> Pricing Rules
                                         </div>
-                                        <div class="form-group">
-                                            <label>Sales Tax %</label>
-                                            <input type="number" class="form-control market-seeding-listing-helper-tax" value="3.37" step="0.01" min="0">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Broker Fee %</label>
-                                            <input type="number" class="form-control market-seeding-listing-helper-broker" value="1.00" step="0.01" min="0">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Pricing Mode</label>
-                                            <div class="custom-control custom-checkbox mt-2">
-                                                <input type="checkbox" class="custom-control-input market-seeding-listing-helper-competitive" id="{{ $exportId }}-listing-helper-competitive">
-                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-competitive">Use cached local sell orders from SeAT when available, then choose the lower of markup price and local undercut.</label>
+                                        <div class="market-seeding-listing-helper-settings">
+                                            <div class="form-group">
+                                                <label>% Markup</label>
+                                                <input type="number" class="form-control market-seeding-listing-helper-markup" value="25" step="0.01">
                                             </div>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Output Cleanup</label>
-                                            <div class="custom-control custom-checkbox mt-2">
+                                            <div class="form-group">
+                                                <label>Sales Tax %</label>
+                                                <input type="number" class="form-control market-seeding-listing-helper-tax" value="3.37" step="0.01" min="0">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Broker Fee %</label>
+                                                <input type="number" class="form-control market-seeding-listing-helper-broker" value="1.00" step="0.01" min="0">
+                                            </div>
+                                            <div class="custom-control custom-checkbox market-seeding-listing-helper-option">
+                                                <input type="checkbox" class="custom-control-input market-seeding-listing-helper-competitive" id="{{ $exportId }}-listing-helper-competitive">
+                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-competitive">
+                                                    List competitively as lowest sell order
+                                                    <small class="text-muted">When SeAT has local sell orders cached, use the lower of markup price and local undercut.</small>
+                                                </label>
+                                            </div>
+                                            <div class="custom-control custom-checkbox market-seeding-listing-helper-option">
                                                 <input type="checkbox" class="custom-control-input market-seeding-listing-helper-exclude-problem-items" id="{{ $exportId }}-listing-helper-exclude-problem-items">
-                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-exclude-problem-items">Remove SDE-missing and below break-even items from the multi-sell output.</label>
+                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-exclude-problem-items">
+                                                    Clean multi-sell output
+                                                    <small class="text-muted">Remove SDE-missing and below break-even items from the copy box.</small>
+                                                </label>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="alert alert-warning d-none market-seeding-listing-helper-warning"></div>
                                 </div>
                                 <div>
-                                    <div class="market-seeding-listing-helper-stat-grid">
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Unique Items</span>
-                                            <strong data-listing-helper-stat="items">0</strong>
+                                    <div class="market-seeding-listing-helper-panel">
+                                        <div class="market-seeding-listing-helper-section-title">
+                                            <i class="fas fa-chart-pie"></i> Summary
                                         </div>
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Total Quantity</span>
-                                            <strong data-listing-helper-stat="quantity">0</strong>
-                                        </div>
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Total Sell Value</span>
-                                            <strong data-listing-helper-stat="value">0.00 ISK</strong>
-                                        </div>
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Estimated Profit</span>
-                                            <strong data-listing-helper-stat="profit">0.00 ISK</strong>
-                                        </div>
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Fees</span>
-                                            <strong data-listing-helper-stat="fees">0.00 ISK</strong>
-                                        </div>
-                                        <div class="market-seeding-listing-helper-stat">
-                                            <span>Competitive Lines</span>
-                                            <strong data-listing-helper-stat="competitive">0</strong>
+                                        <div class="market-seeding-listing-helper-stat-grid">
+                                            <div class="market-seeding-listing-helper-stat">
+                                                <span>Unique Items</span>
+                                                <strong data-listing-helper-stat="items">0</strong>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-stat">
+                                                <span>Total Qty</span>
+                                                <strong data-listing-helper-stat="quantity">0</strong>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-stat">
+                                                <span>Competitive</span>
+                                                <strong data-listing-helper-stat="competitive">0</strong>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-stat is-wide">
+                                                <span>Sell Value</span>
+                                                <strong data-listing-helper-stat="value">0.00 ISK</strong>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-stat is-wide">
+                                                <span>Profit</span>
+                                                <strong data-listing-helper-stat="profit">0.00 ISK</strong>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-stat is-wide">
+                                                <span>Fees</span>
+                                                <strong data-listing-helper-stat="fees">0.00 ISK</strong>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Multi-Sell Output</label>
-                                        <textarea class="form-control market-seeding-listing-helper-output" rows="12" readonly></textarea>
+                                    <div class="market-seeding-listing-helper-panel">
+                                        <div class="market-seeding-listing-helper-output-header">
+                                            <div class="market-seeding-listing-helper-section-title mb-0">
+                                                <i class="fas fa-tags"></i> Multi-Sell Output
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm market-seeding-copy-listing-helper">
+                                                <i class="fas fa-copy"></i> Copy
+                                            </button>
+                                        </div>
+                                        <textarea class="form-control market-seeding-listing-helper-output" rows="9" readonly></textarea>
                                     </div>
-                                    <button type="button" class="btn btn-primary btn-block market-seeding-copy-listing-helper">
-                                        <i class="fas fa-copy"></i> Copy Multi-Sell
-                                    </button>
                                 </div>
                             </div>
                             <div class="market-seeding-listing-helper-review d-none">
@@ -856,10 +965,10 @@
                                             <tr>
                                                 <th>Item</th>
                                                 <th class="text-right">Qty</th>
-                                                <th class="text-right">Cost</th>
-                                                <th class="text-right">Sell Price</th>
-                                                <th class="text-right">Local Sell</th>
-                                                <th class="text-right">Profit</th>
+                                                <th class="text-right">Unit Cost</th>
+                                                <th class="text-right">Unit Sell</th>
+                                                <th class="text-right">Local Unit Sell</th>
+                                                <th class="text-right">Total Profit</th>
                                                 <th class="text-right">Profit %</th>
                                                 <th>Notes</th>
                                             </tr>
