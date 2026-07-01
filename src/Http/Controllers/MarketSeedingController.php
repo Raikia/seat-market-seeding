@@ -25,6 +25,8 @@ use Seat\Web\Http\Controllers\Controller;
 
 class MarketSeedingController extends Controller
 {
+    const MIN_RECOMMENDATION_DAYS_WITH_DATA = 7;
+
     public function index(MarketStockReport $report)
     {
         $stockReport = Cache::remember($this->dashboardCacheKey(), now()->addMinutes(3), function () use ($report) {
@@ -477,15 +479,7 @@ class MarketSeedingController extends Controller
         $oldestSummaryDate = $this->filteredVisibleSummaries($request, $days)
             ->min('summary_date');
 
-        if (!$oldestSummaryDate) {
-            return $days;
-        }
-
-        $coveredDays = \Carbon\Carbon::parse($oldestSummaryDate)
-            ->startOfDay()
-            ->diffInDays(now()->startOfDay()) + 1;
-
-        return max(1, min($days, (int) $coveredDays));
+        return $this->coverageDaysFromSummaryDate($oldestSummaryDate, $days);
     }
 
     private function itemHistoryCoverageDays(SeededMarketItem $item, int $days): int
@@ -495,8 +489,13 @@ class MarketSeedingController extends Controller
             ->where('summary_date', '>=', now()->subDays($days - 1)->toDateString())
             ->min('summary_date');
 
+        return $this->coverageDaysFromSummaryDate($oldestSummaryDate, $days);
+    }
+
+    private function coverageDaysFromSummaryDate($oldestSummaryDate, int $days): int
+    {
         if (!$oldestSummaryDate) {
-            return $days;
+            return max(1, $days);
         }
 
         $coveredDays = \Carbon\Carbon::parse($oldestSummaryDate)
@@ -924,17 +923,22 @@ class MarketSeedingController extends Controller
             ->selectRaw('SUM(estimated_sold_quantity) as estimated_sold')
             ->selectRaw('SUM(restocked_quantity) as restocked')
             ->selectRaw('SUM(sales_events) as sales_events')
+            ->selectRaw('MIN(summary_date) as oldest_summary_date')
             ->groupBy('item_id')
             ->get()
+            ->each(function ($metric) use ($days) {
+                $metric->coverage_days = $this->coverageDaysFromSummaryDate($metric->oldest_summary_date, $days);
+            })
             ->keyBy('item_id');
     }
 
-    private function attachRecommendations($rows, int $days, $metrics, int $recommendationSalesDays, int $recommendationBufferPercentage): void
+    private function attachRecommendations($rows, int $fallbackDays, $metrics, int $recommendationSalesDays, int $recommendationBufferPercentage): void
     {
         foreach ($rows as $row) {
             $target = max(1, (int) ($row->target_quantity ?? $row->desired_quantity ?? 1));
             $metric = $metrics->get($row->item_id);
             $estimatedSold = (int) (optional($metric)->estimated_sold ?? $row->estimated_sold ?? 0);
+            $days = max(1, (int) (optional($metric)->coverage_days ?? $fallbackDays));
             $dailySold = $days > 0 ? $estimatedSold / $days : 0;
             $bufferMultiplier = 1 + ($recommendationBufferPercentage / 100);
             $salesRecommendation = (int) ceil($dailySold * $recommendationSalesDays * $bufferMultiplier);
@@ -952,6 +956,23 @@ class MarketSeedingController extends Controller
             $row->recommendation_sales_target = max(1, $salesRecommendation);
             $row->recommendation_raw_sales_target = $salesRecommendation;
             $row->recommendation_existing_target_covers = $target >= max(1, $salesRecommendation);
+
+            if ($days < self::MIN_RECOMMENDATION_DAYS_WITH_DATA) {
+                $row->recommended_quantity = $target;
+                $row->recommendation_differs = false;
+                $row->recommendation_driver = 'insufficient_data';
+                $row->recommendation_driver_label = 'Needs more data';
+                $row->recommendation_reason = sprintf(
+                    "No recommendation is shown yet because this item only has %s day%s of sales history.\n\nAt least %s days with data are required before target recommendations are made.\n\nCurrent sales signal: %s estimated sold, which is about %s per day.",
+                    number_format($days),
+                    $days === 1 ? '' : 's',
+                    number_format(self::MIN_RECOMMENDATION_DAYS_WITH_DATA),
+                    number_format($estimatedSold),
+                    number_format($dailySold, 2)
+                );
+
+                continue;
+            }
 
             if ($recommended <= $target) {
                 $row->recommendation_driver = 'covered';

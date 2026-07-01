@@ -174,7 +174,13 @@
         }
         .market-seeding-filter-actions {
             display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
             justify-content: flex-end;
+        }
+        .market-seeding-filter-actions .btn {
+            margin: 0;
+            white-space: nowrap;
         }
         .market-seeding-controls-actions {
             align-items: center;
