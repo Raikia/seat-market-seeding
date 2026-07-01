@@ -34,13 +34,13 @@
             ][$level] ?? 'badge-secondary';
         };
         $priorityTooltip = function ($priority) use ($whole, $percent, $isk) {
-            return implode('<br>', [
-                '<strong>' . e($priority['label']) . ' priority: ' . $priority['score'] . '</strong>',
+            return implode("\n", [
+                $priority['label'] . ' priority: ' . $priority['score'],
                 'Status: +' . $priority['status_score'],
                 'Missing: ' . $percent($priority['missing_percent']) . ' = +' . $priority['coverage_score'],
                 'Sales: ' . $whole($priority['estimated_sold_quantity']) . ' / ' . $whole($priority['sales_window_days']) . ' days = +' . $priority['sales_score'],
                 'Value: ' . $isk($priority['restock_cost']) . ' = +' . $priority['value_score'],
-                '<strong>Total: ' . $priority['status_score'] . ' + ' . $priority['coverage_score'] . ' + ' . $priority['sales_score'] . ' + ' . $priority['value_score'] . ' = ' . $priority['score'] . '</strong>',
+                'Total: ' . $priority['status_score'] . ' + ' . $priority['coverage_score'] . ' + ' . $priority['sales_score'] . ' + ' . $priority['value_score'] . ' = ' . $priority['score'],
             ]);
         };
         $singleMarket = count($stockReport['markets']) === 1;
@@ -259,6 +259,26 @@
         .market-seeding-metric strong {
             display: block;
             font-size: 1rem;
+        }
+        .market-seeding-priority-badge {
+            cursor: help;
+        }
+        .market-seeding-priority-tooltip {
+            background: #1f2d33;
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 6px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
+            color: #f4f7f9;
+            display: none;
+            font-size: .78rem;
+            line-height: 1.35;
+            max-width: 360px;
+            padding: .65rem .75rem;
+            pointer-events: none;
+            position: fixed;
+            text-align: left;
+            white-space: pre-line;
+            z-index: 3000;
         }
         .market-seeding-listing-helper-grid {
             display: grid;
@@ -842,10 +862,9 @@
                                             <td>{{ $row['stock_status'] }}</td>
                                             <td>{{ $row['priority']['level'] }}</td>
                                             <td data-order="{{ $row['priority']['score'] }}">
-                                                <span class="badge {{ $priorityBadge($row['priority']['level']) }}"
-                                                      data-toggle="tooltip"
-                                                      data-html="true"
-                                                      title="{!! $priorityTooltip($row['priority']) !!}">
+                                                <span class="badge {{ $priorityBadge($row['priority']['level']) }} market-seeding-priority-badge"
+                                                      data-priority-tooltip="{{ $priorityTooltip($row['priority']) }}"
+                                                      aria-label="{{ $priorityTooltip($row['priority']) }}">
                                                     {{ $row['priority']['label'] }}
                                                 </span>
                                             </td>
@@ -1240,7 +1259,66 @@
                     html: true
                 });
             }
+            initializePriorityTooltips();
             openDashboardItemFromHash();
+
+            function initializePriorityTooltips() {
+                if ($(document.body).data('market-seeding-priority-tooltips')) {
+                    return;
+                }
+
+                $(document.body).data('market-seeding-priority-tooltips', true);
+
+                var $tooltip = $('<div class="market-seeding-priority-tooltip" role="tooltip"></div>').appendTo(document.body);
+
+                function positionTooltip(event) {
+                    var margin = 14;
+                    var left = event.clientX + margin;
+                    var top = event.clientY + margin;
+
+                    $tooltip.css({
+                        left: 0,
+                        top: 0,
+                        display: 'block'
+                    });
+
+                    var width = $tooltip.outerWidth();
+                    var height = $tooltip.outerHeight();
+
+                    if (left + width + margin > window.innerWidth) {
+                        left = Math.max(margin, event.clientX - width - margin);
+                    }
+
+                    if (top + height + margin > window.innerHeight) {
+                        top = Math.max(margin, event.clientY - height - margin);
+                    }
+
+                    $tooltip.css({
+                        left: left + 'px',
+                        top: top + 'px'
+                    });
+                }
+
+                $(document)
+                    .on('mouseenter focusin', '.market-seeding-priority-badge', function (event) {
+                        var text = $(this).attr('data-priority-tooltip');
+
+                        if (!text) {
+                            return;
+                        }
+
+                        $tooltip.text(text);
+                        positionTooltip(event);
+                    })
+                    .on('mousemove', '.market-seeding-priority-badge', function (event) {
+                        if ($tooltip.is(':visible')) {
+                            positionTooltip(event);
+                        }
+                    })
+                    .on('mouseleave focusout', '.market-seeding-priority-badge', function () {
+                        $tooltip.hide().text('');
+                    });
+            }
 
             function applyDashboardFilters() {
                 var typeCategory = $('#market-seeding-type-filter').val();
