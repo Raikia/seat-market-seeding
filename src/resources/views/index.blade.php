@@ -233,6 +233,72 @@
             display: block;
             font-size: 1rem;
         }
+        .market-seeding-listing-helper-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+        }
+        .market-seeding-listing-helper-settings {
+            display: grid;
+            gap: .75rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .market-seeding-listing-helper-stat-grid {
+            display: grid;
+            gap: .6rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 1rem;
+        }
+        .market-seeding-listing-helper-stat {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: .65rem .75rem;
+        }
+        .market-seeding-listing-helper-stat span {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .market-seeding-listing-helper-stat strong {
+            display: block;
+            font-size: 1rem;
+        }
+        .market-seeding-listing-helper-output {
+            font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+        .market-seeding-listing-helper-warning {
+            font-size: .82rem;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        .market-seeding-listing-helper-review {
+            margin-top: .75rem;
+        }
+        .market-seeding-listing-helper-review-table {
+            margin-bottom: 0;
+        }
+        .market-seeding-listing-helper-review-table th {
+            border-top: 0;
+            color: #6c757d;
+            font-size: .72rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .market-seeding-listing-helper-review-table td {
+            vertical-align: middle;
+        }
+        .market-seeding-listing-helper-review-table .badge {
+            margin: .05rem .1rem .05rem 0;
+        }
+        @media (max-width: 991px) {
+            .market-seeding-listing-helper-grid,
+            .market-seeding-listing-helper-settings,
+            .market-seeding-listing-helper-stat-grid {
+                grid-template-columns: 1fr;
+            }
+        }
         .market-seeding-source-icons {
             display: inline-flex;
             gap: .25rem;
@@ -324,6 +390,13 @@
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-stat {
+            background: #1f292e;
+            border-color: #3c4b54;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-stat span {
+            color: #b8c7ce;
         }
         .market-seeding-dark-skin .table-warning,
         .market-seeding-dark-skin .table-warning > td {
@@ -545,6 +618,9 @@
                         <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#{{ $exportId }}-modal">
                             <i class="fas fa-shopping-cart"></i> Restock List
                         </button>
+                        <button type="button" class="btn btn-sm btn-default" data-toggle="modal" data-target="#{{ $exportId }}-listing-helper-modal">
+                            <i class="fas fa-tags"></i> Listing Helper
+                        </button>
                     </div>
                 </div>
                 <div id="{{ $collapseId }}" class="collapse {{ $startsExpanded ? 'show' : '' }}">
@@ -682,6 +758,123 @@
                     </div>
                 </div>
             </div>
+
+            <div class="modal fade market-seeding-modal {{ $marketSeedingThemeClass }} market-seeding-listing-helper-modal" id="{{ $exportId }}-listing-helper-modal" tabindex="-1" role="dialog" aria-labelledby="{{ $exportId }}-listing-helper-label" aria-hidden="true" data-pricing-url="{{ route('market-seeding.markets.listing-helper.prices', $market->id) }}">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="{{ $exportId }}-listing-helper-label">{{ $market->name }} Listing Helper</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted">
+                                Paste EVE wallet transaction rows from your restock purchase. The helper groups duplicate item names, uses the highest unit cost found for each item, applies markup and fees, and outputs one multi-sell line per item in the format <code>Item Name price</code>.
+                            </p>
+                            <div class="market-seeding-listing-helper-grid">
+                                <div>
+                                    <div class="form-group">
+                                        <label>Wallet Transactions</label>
+                                        <textarea class="form-control market-seeding-listing-helper-input" rows="14" placeholder="Paste wallet transactions here..."></textarea>
+                                        <small class="form-text text-muted">Expected columns: date, quantity, item name, unit cost, total cost, seller, station, character, wallet.</small>
+                                    </div>
+                                    <div class="market-seeding-listing-helper-settings">
+                                        <div class="form-group">
+                                            <label>% Markup</label>
+                                            <input type="number" class="form-control market-seeding-listing-helper-markup" value="15" step="0.01">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Sales Tax %</label>
+                                            <input type="number" class="form-control market-seeding-listing-helper-tax" value="3.37" step="0.01" min="0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Broker Fee %</label>
+                                            <input type="number" class="form-control market-seeding-listing-helper-broker" value="1.00" step="0.01" min="0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Pricing Mode</label>
+                                            <div class="custom-control custom-checkbox mt-2">
+                                                <input type="checkbox" class="custom-control-input market-seeding-listing-helper-competitive" id="{{ $exportId }}-listing-helper-competitive">
+                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-competitive">Use cached local sell orders from SeAT when available, then choose the lower of markup price and local undercut.</label>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Output Cleanup</label>
+                                            <div class="custom-control custom-checkbox mt-2">
+                                                <input type="checkbox" class="custom-control-input market-seeding-listing-helper-exclude-problem-items" id="{{ $exportId }}-listing-helper-exclude-problem-items">
+                                                <label class="custom-control-label" for="{{ $exportId }}-listing-helper-exclude-problem-items">Remove SDE-missing and below break-even items from the multi-sell output.</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-warning d-none market-seeding-listing-helper-warning"></div>
+                                </div>
+                                <div>
+                                    <div class="market-seeding-listing-helper-stat-grid">
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Unique Items</span>
+                                            <strong data-listing-helper-stat="items">0</strong>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Total Quantity</span>
+                                            <strong data-listing-helper-stat="quantity">0</strong>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Total Sell Value</span>
+                                            <strong data-listing-helper-stat="value">0.00 ISK</strong>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Estimated Profit</span>
+                                            <strong data-listing-helper-stat="profit">0.00 ISK</strong>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Fees</span>
+                                            <strong data-listing-helper-stat="fees">0.00 ISK</strong>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-stat">
+                                            <span>Competitive Lines</span>
+                                            <strong data-listing-helper-stat="competitive">0</strong>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Multi-Sell Output</label>
+                                        <textarea class="form-control market-seeding-listing-helper-output" rows="12" readonly></textarea>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-block market-seeding-copy-listing-helper">
+                                        <i class="fas fa-copy"></i> Copy Multi-Sell
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="market-seeding-listing-helper-review d-none">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <strong>Item Review</strong>
+                                    <span class="text-muted small">Populates automatically from the pasted transactions.</span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm market-seeding-listing-helper-review-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Item</th>
+                                                <th class="text-right">Qty</th>
+                                                <th class="text-right">Cost</th>
+                                                <th class="text-right">Sell Price</th>
+                                                <th class="text-right">Local Sell</th>
+                                                <th class="text-right">Profit</th>
+                                                <th class="text-right">Profit %</th>
+                                                <th>Notes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         @empty
             <div class="alert alert-info">
                 No seeded markets have been configured yet.
@@ -704,6 +897,7 @@
             var dashboardTables = null;
             var targetTrendChart = null;
             var dashboardItemDetails = @json($dashboardItemDetails);
+            var listingHelperCsrfToken = '{{ csrf_token() }}';
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
@@ -731,6 +925,21 @@
 
             $('.copy-market-export').on('click', function () {
                 var textarea = document.getElementById($(this).data('target'));
+                textarea.select();
+                document.execCommand('copy');
+            });
+
+            $('.market-seeding-listing-helper-modal').on('shown.bs.modal', function () {
+                scheduleListingHelperUpdate($(this), 0);
+            });
+
+            $(document).on('input change', '.market-seeding-listing-helper-input, .market-seeding-listing-helper-markup, .market-seeding-listing-helper-tax, .market-seeding-listing-helper-broker, .market-seeding-listing-helper-competitive, .market-seeding-listing-helper-exclude-problem-items', function () {
+                scheduleListingHelperUpdate($(this).closest('.market-seeding-listing-helper-modal'), 250);
+            });
+
+            $(document).on('click', '.market-seeding-copy-listing-helper', function () {
+                var textarea = $(this).closest('.market-seeding-listing-helper-modal').find('.market-seeding-listing-helper-output')[0];
+
                 textarea.select();
                 document.execCommand('copy');
             });
@@ -989,6 +1198,339 @@
                     .html(expanded
                         ? '<i class="fas fa-sliders-h"></i> Hide Filters'
                         : '<i class="fas fa-sliders-h"></i> Show Filters');
+            }
+
+            function scheduleListingHelperUpdate($modal, delay) {
+                var timer = $modal.data('listing-helper-timer');
+
+                if (timer) {
+                    window.clearTimeout(timer);
+                }
+
+                $modal.data('listing-helper-timer', window.setTimeout(function () {
+                    updateListingHelper($modal);
+                }, delay));
+            }
+
+            function updateListingHelper($modal) {
+                var parsed = parseListingHelperTransactions($modal.find('.market-seeding-listing-helper-input').val());
+                var names = Object.keys(parsed.items).sort();
+                var priceKey = names.join('\n');
+
+                if (!names.length) {
+                    renderListingHelper($modal, parsed, {});
+                    return;
+                }
+
+                if ($modal.data('listing-helper-price-key') !== priceKey) {
+                    $modal.data('listing-helper-price-key', priceKey);
+                    $modal.data('listing-helper-prices', {});
+                    fetchListingHelperPrices($modal, names, priceKey);
+                }
+
+                renderListingHelper($modal, parsed, $modal.data('listing-helper-prices') || {});
+            }
+
+            function fetchListingHelperPrices($modal, names, priceKey) {
+                $.ajax({
+                    url: $modal.data('pricing-url'),
+                    method: 'POST',
+                    data: {
+                        _token: listingHelperCsrfToken,
+                        items: names
+                    },
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                }).done(function (response) {
+                    if ($modal.data('listing-helper-price-key') !== priceKey) {
+                        return;
+                    }
+
+                    $modal.data('listing-helper-prices', response.prices || {});
+                    updateListingHelper($modal);
+                }).fail(function () {
+                    var warnings = $modal.data('listing-helper-extra-warnings') || [];
+
+                    warnings.push('Could not refresh local market prices. Output is based on purchase cost plus markup only.');
+                    $modal.data('listing-helper-extra-warnings', warnings);
+                    renderListingHelper($modal, parseListingHelperTransactions($modal.find('.market-seeding-listing-helper-input').val()), $modal.data('listing-helper-prices') || {});
+                });
+            }
+
+            function parseListingHelperTransactions(text) {
+                var result = {
+                    items: {},
+                    skipped: 0,
+                    transactionCount: 0
+                };
+
+                String(text || '').split(/\r?\n/).forEach(function (line) {
+                    line = $.trim(line);
+
+                    if (!line) {
+                        return;
+                    }
+
+                    var columns = line.split('\t');
+
+                    if (columns.length < 5) {
+                        result.skipped++;
+                        return;
+                    }
+
+                    var quantity = parseNumber(columns[1]);
+                    var itemName = $.trim(columns[2]);
+                    var unitCost = parseMoney(columns[3]);
+
+                    if (!itemName || quantity <= 0 || unitCost <= 0) {
+                        result.skipped++;
+                        return;
+                    }
+
+                    if (!result.items[itemName]) {
+                        result.items[itemName] = {
+                            name: itemName,
+                            quantity: 0,
+                            highestCost: 0,
+                            transactionCount: 0
+                        };
+                    }
+
+                    result.items[itemName].quantity += quantity;
+                    result.items[itemName].highestCost = Math.max(result.items[itemName].highestCost, unitCost);
+                    result.items[itemName].transactionCount++;
+                    result.transactionCount++;
+                });
+
+                return result;
+            }
+
+            function renderListingHelper($modal, parsed, prices) {
+                var markup = parseFloat($modal.find('.market-seeding-listing-helper-markup').val() || 0);
+                var salesTax = parseFloat($modal.find('.market-seeding-listing-helper-tax').val() || 0);
+                var brokerFee = parseFloat($modal.find('.market-seeding-listing-helper-broker').val() || 0);
+                var feeRate = Math.max(0, (salesTax + brokerFee) / 100);
+                var useCompetitive = $modal.find('.market-seeding-listing-helper-competitive').is(':checked');
+                var excludeProblemItems = $modal.find('.market-seeding-listing-helper-exclude-problem-items').is(':checked');
+                var lines = [];
+                var warnings = [];
+                var stats = {
+                    uniqueItems: 0,
+                    quantity: 0,
+                    value: 0,
+                    profit: 0,
+                    fees: 0,
+                    competitive: 0,
+                    unknown: 0,
+                    noLocal: 0,
+                    belowBreakEven: 0
+                };
+                var reviewRows = [];
+
+                if (parsed.skipped) {
+                    warnings.push(parsed.skipped + ' transaction line(s) could not be parsed.');
+                }
+
+                $.each(parsed.items, function (itemName, item) {
+                    var priceInfo = prices[itemName] || {};
+                    var markupPrice = roundUpToEvePrice(item.highestCost * (1 + (markup / 100)));
+                    var competitivePrice = useCompetitive && priceInfo.local_price ? previousEvePrice(parseFloat(priceInfo.local_price)) : null;
+                    var sellPrice = competitivePrice ? Math.min(markupPrice, competitivePrice) : markupPrice;
+                    var gross = sellPrice * item.quantity;
+                    var basis = item.highestCost * item.quantity;
+                    var fees = gross * feeRate;
+                    var profit = gross - basis - fees;
+                    var profitPercent = basis > 0 ? (profit / basis) * 100 : 0;
+
+                    var usedCompetitive = competitivePrice && sellPrice === competitivePrice;
+
+                    var notes = [];
+
+                    var isUnknown = priceInfo.found === false;
+                    var isBelowBreakEven = profit < 0;
+
+                    if (isUnknown) {
+                        stats.unknown++;
+                        notes.push({ label: 'SDE missing', className: 'badge-danger' });
+                    } else if (useCompetitive && !priceInfo.local_price) {
+                        stats.noLocal++;
+                        notes.push({ label: 'No local sell', className: 'badge-info' });
+                    }
+
+                    if (isBelowBreakEven) {
+                        stats.belowBreakEven++;
+                        notes.push({ label: 'Below break-even', className: 'badge-danger' });
+                    }
+
+                    if (!notes.length) {
+                        notes.push({
+                            label: usedCompetitive ? 'Competitive' : 'Markup',
+                            className: usedCompetitive ? 'badge-primary' : 'badge-success'
+                        });
+                    }
+
+                    reviewRows.push({
+                        name: item.name,
+                        quantity: item.quantity,
+                        highestCost: item.highestCost,
+                        sellPrice: sellPrice,
+                        localPrice: priceInfo.local_price ? parseFloat(priceInfo.local_price) : null,
+                        jitaPrice: priceInfo.jita_price ? parseFloat(priceInfo.jita_price) : null,
+                        profit: profit,
+                        profitPercent: profitPercent,
+                        notes: notes
+                    });
+
+                    if (!excludeProblemItems || (!isUnknown && !isBelowBreakEven)) {
+                        stats.uniqueItems++;
+                        stats.quantity += item.quantity;
+                        stats.value += gross;
+                        stats.fees += fees;
+                        stats.profit += profit;
+                        if (usedCompetitive) {
+                            stats.competitive++;
+                        }
+                        lines.push(item.name + ' ' + formatEvePrice(sellPrice));
+                    }
+                });
+
+                ($modal.data('listing-helper-extra-warnings') || []).forEach(function (warning) {
+                    warnings.push(warning);
+                });
+                $modal.removeData('listing-helper-extra-warnings');
+
+                $modal.find('.market-seeding-listing-helper-output').val(lines.join('\n'));
+                $modal.find('[data-listing-helper-stat="items"]').text(numberWithCommas(stats.uniqueItems));
+                $modal.find('[data-listing-helper-stat="quantity"]').text(numberWithCommas(stats.quantity));
+                $modal.find('[data-listing-helper-stat="value"]').text(formatMetricMoney(stats.value));
+                $modal.find('[data-listing-helper-stat="profit"]').text(formatSignedMoney(stats.profit));
+                $modal.find('[data-listing-helper-stat="fees"]').text(formatMetricMoney(stats.fees));
+                $modal.find('[data-listing-helper-stat="competitive"]').text(numberWithCommas(stats.competitive));
+
+                var $warning = $modal.find('.market-seeding-listing-helper-warning');
+
+                if (warnings.length) {
+                    $warning.removeClass('d-none').html(warnings.map(escapeHtml).join('<br>'));
+                } else {
+                    $warning.addClass('d-none').empty();
+                }
+
+                renderListingHelperReview($modal, reviewRows);
+            }
+
+            function renderListingHelperReview($modal, rows) {
+                var $panel = $modal.find('.market-seeding-listing-helper-review');
+                var $table = $panel.find('.market-seeding-listing-helper-review-table');
+                var $body = $table.find('tbody');
+
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable($table[0])) {
+                    $table.DataTable().destroy();
+                }
+
+                $body.empty();
+
+                if (!rows.length) {
+                    $panel.addClass('d-none');
+                    return;
+                }
+
+                rows.sort(function (a, b) {
+                    var aProblem = a.notes.some(function (note) { return note.className === 'badge-danger' || note.className === 'badge-info'; });
+                    var bProblem = b.notes.some(function (note) { return note.className === 'badge-danger' || note.className === 'badge-info'; });
+
+                    if (aProblem !== bProblem) {
+                        return aProblem ? -1 : 1;
+                    }
+
+                    return a.name.localeCompare(b.name);
+                });
+
+                rows.forEach(function (row) {
+                    var noteHtml = row.notes.map(function (note) {
+                        return '<span class="badge ' + note.className + '">' + escapeHtml(note.label) + '</span>';
+                    }).join(' ');
+
+                    var localPrice = row.localPrice ? formatMetricMoney(row.localPrice) : '<span class="text-muted">None</span>';
+                    var profitClass = row.profit < 0 ? 'text-danger' : 'text-success';
+
+                    $body.append(
+                        '<tr>' +
+                            '<td>' +
+                                '<strong>' + escapeHtml(row.name) + '</strong>' +
+                                (row.jitaPrice ? '<div class="text-muted small">Jita ' + formatMetricMoney(row.jitaPrice) + '</div>' : '') +
+                            '</td>' +
+                            '<td class="text-right" data-order="' + row.quantity + '">' + numberWithCommas(row.quantity) + '</td>' +
+                            '<td class="text-right" data-order="' + row.highestCost + '">' + formatMetricMoney(row.highestCost) + '</td>' +
+                            '<td class="text-right" data-order="' + row.sellPrice + '"><strong>' + formatMetricMoney(row.sellPrice) + '</strong></td>' +
+                            '<td class="text-right" data-order="' + (row.localPrice || 0) + '">' + localPrice + '</td>' +
+                            '<td class="text-right ' + profitClass + '" data-order="' + row.profit + '">' + formatSignedMoney(row.profit) + '</td>' +
+                            '<td class="text-right ' + profitClass + '" data-order="' + row.profitPercent + '">' + formatPercent(row.profitPercent) + '</td>' +
+                            '<td>' + noteHtml + '</td>' +
+                        '</tr>'
+                    );
+                });
+
+                $panel.removeClass('d-none');
+
+                if ($.fn.DataTable) {
+                    $table.DataTable({
+                        order: [],
+                        paging: true,
+                        pageLength: 10,
+                        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                        autoWidth: false,
+                        stateSave: false,
+                        language: {
+                            emptyTable: 'Paste wallet transactions to review listing helper pricing.',
+                            zeroRecords: 'No item review rows match this search.'
+                        }
+                    });
+                }
+            }
+
+            function previousEvePrice(price) {
+                price = Math.max(0.01, parseFloat(price || 0));
+
+                var tick = evePriceTick(price);
+
+                return Math.max(0.01, Math.floor(((price - tick) / tick) + 0.0000001) * tick);
+            }
+
+            function roundUpToEvePrice(price) {
+                price = Math.max(0.01, parseFloat(price || 0));
+
+                var tick = evePriceTick(price);
+
+                return Math.ceil((price / tick) - 0.0000001) * tick;
+            }
+
+            function evePriceTick(price) {
+                price = Math.max(0.01, parseFloat(price || 0));
+
+                return Math.max(0.01, Math.pow(10, Math.floor(Math.log10(price)) - 3));
+            }
+
+            function parseNumber(value) {
+                return parseInt(String(value || '').replace(/,/g, ''), 10) || 0;
+            }
+
+            function parseMoney(value) {
+                return parseFloat(String(value || '').replace(/ISK/ig, '').replace(/,/g, '').replace(/\s/g, '')) || 0;
+            }
+
+            function formatEvePrice(value) {
+                return Number(value || 0).toFixed(2);
+            }
+
+            function formatSignedMoney(value) {
+                var number = Number(value || 0);
+                var prefix = number > 0 ? '+' : (number < 0 ? '-' : '');
+
+                return prefix + Math.abs(number).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ISK';
             }
 
             function escapeRegex(value) {

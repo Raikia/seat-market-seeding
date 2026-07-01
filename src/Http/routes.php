@@ -25,6 +25,11 @@ Route::group([
         'uses' => 'MarketSeedingController@itemHistory',
     ]);
 
+    Route::post('/markets/{market}/listing-helper/prices', [
+        'as' => 'market-seeding.markets.listing-helper.prices',
+        'uses' => 'MarketSeedingController@listingHelperPrices',
+    ]);
+
     Route::group(['middleware' => 'can:seat-market-seeding.manager'], function () {
         Route::get('/settings', [
             'as' => 'market-seeding.settings',

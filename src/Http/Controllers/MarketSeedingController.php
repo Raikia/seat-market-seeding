@@ -104,6 +104,68 @@ class MarketSeedingController extends Controller
         ]);
     }
 
+    public function listingHelperPrices(Request $request, SeededMarket $market)
+    {
+        abort_unless($this->canViewMarket($market), 403);
+
+        $data = $request->validate([
+            'items' => 'required|array|max:500',
+            'items.*' => 'required|string|max:255',
+        ]);
+
+        $names = collect($data['items'])
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->values();
+
+        if ($names->isEmpty()) {
+            return response()->json(['prices' => []]);
+        }
+
+        $types = InvType::query()
+            ->whereIn('typeName', $names->all())
+            ->get(['typeID', 'typeName']);
+        $typesByName = $types->keyBy(fn (InvType $type) => mb_strtolower($type->typeName));
+        $typeIds = $types->pluck('typeID')->map(fn ($typeId) => (int) $typeId)->values();
+        $localPrices = $this->listingHelperSellPrices($market->location_id, $typeIds);
+        $jitaPrices = $this->listingHelperSellPrices(MarketStockReport::JITA_STATION_ID, $typeIds);
+        $fallbackPrices = Price::query()
+            ->whereIn('type_id', $typeIds)
+            ->get()
+            ->mapWithKeys(function (Price $price) {
+                return [
+                    (int) $price->type_id => (float) ($price->sell_price ?: $price->average_price ?: 0),
+                ];
+            });
+
+        $prices = $names->mapWithKeys(function ($name) use ($typesByName, $localPrices, $jitaPrices, $fallbackPrices) {
+            $type = $typesByName->get(mb_strtolower($name));
+
+            if (!$type) {
+                return [$name => [
+                    'found' => false,
+                    'type_id' => null,
+                    'type_name' => $name,
+                    'local_price' => null,
+                    'jita_price' => null,
+                ]];
+            }
+
+            $typeId = (int) $type->typeID;
+
+            return [$name => [
+                'found' => true,
+                'type_id' => $typeId,
+                'type_name' => $type->typeName,
+                'local_price' => $localPrices->get($typeId),
+                'jita_price' => $jitaPrices->get($typeId) ?: $fallbackPrices->get($typeId),
+            ]];
+        });
+
+        return response()->json(['prices' => $prices]);
+    }
+
     private function itemSourceDetails(SeededMarketItem $item): array
     {
         $sources = $item->sources()
@@ -1233,6 +1295,28 @@ class MarketSeedingController extends Controller
                 $query->whereNull('role_id')
                     ->orWhereIn('role_id', $roleIds);
             });
+    }
+
+    private function listingHelperSellPrices(int $locationId, $typeIds)
+    {
+        $typeIds = collect($typeIds)
+            ->map(fn ($typeId) => (int) $typeId)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($typeIds->isEmpty()) {
+            return collect();
+        }
+
+        return MarketOrder::query()
+            ->selectRaw('type_id, MIN(price) as price')
+            ->where('location_id', $locationId)
+            ->whereIn('type_id', $typeIds)
+            ->where('is_buy_order', false)
+            ->groupBy('type_id')
+            ->pluck('price', 'type_id')
+            ->map(fn ($price) => (float) $price);
     }
 
     private function visibleMarkets()

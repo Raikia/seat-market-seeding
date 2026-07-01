@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Tests\Unit\Http;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Raikia\SeatMarketSeeding\Http\Controllers\MarketSeedingController;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
@@ -318,5 +319,58 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertFalse($payload['source_details']['flags']['doctrine']);
         $this->assertSame('Manual add', $payload['source_details']['manual'][0]['label']);
         $this->assertSame(25, $payload['source_details']['manual'][0]['quantity']);
+    }
+
+    public function test_listing_helper_prices_resolve_local_and_jita_prices(): void
+    {
+        $this->seedSde();
+        $this->seedType(2048, 'Damage Control II');
+        $this->seedType(1234, 'Known Without Local');
+        $market = $this->createMarket(['location_id' => 60000001]);
+
+        DB::table('market_orders')->insert([
+            [
+                'location_id' => 60000001,
+                'type_id' => 2048,
+                'volume_remaining' => 5,
+                'price' => 1500000,
+                'is_buy_order' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'location_id' => MarketStockReport::JITA_STATION_ID,
+                'type_id' => 2048,
+                'volume_remaining' => 5,
+                'price' => 1200000,
+                'is_buy_order' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+        DB::table('market_prices')->insert([
+            'type_id' => 1234,
+            'average_price' => 750000,
+            'sell_price' => 800000,
+            'adjusted_price' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = app(MarketSeedingController::class)->listingHelperPrices(
+            Request::create('/market-seeding/markets/' . $market->id . '/listing-helper/prices', 'POST', [
+                'items' => ['Damage Control II', 'Known Without Local', 'Unknown Thing'],
+            ]),
+            $market
+        );
+        $payload = $response->getData(true);
+
+        $this->assertTrue($payload['prices']['Damage Control II']['found']);
+        $this->assertEquals(1500000.0, $payload['prices']['Damage Control II']['local_price']);
+        $this->assertEquals(1200000.0, $payload['prices']['Damage Control II']['jita_price']);
+        $this->assertTrue($payload['prices']['Known Without Local']['found']);
+        $this->assertNull($payload['prices']['Known Without Local']['local_price']);
+        $this->assertEquals(800000.0, $payload['prices']['Known Without Local']['jita_price']);
+        $this->assertFalse($payload['prices']['Unknown Thing']['found']);
     }
 }
