@@ -647,9 +647,13 @@
             gap: 1rem;
             grid-template-columns: minmax(280px, .9fr) minmax(0, 1.35fr);
         }
+        .market-seeding-edit-target-modal.is-read-only .edit-target-workspace {
+            grid-template-columns: minmax(520px, 1.35fr) minmax(320px, .9fr);
+        }
         .market-seeding-edit-target-modal .edit-target-panel {
             border: 1px solid #dee2e6;
             border-radius: 8px;
+            min-width: 0;
             padding: 1rem;
         }
         .market-seeding-edit-target-modal .edit-target-panel-title {

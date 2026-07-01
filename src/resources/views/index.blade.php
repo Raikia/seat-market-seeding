@@ -30,6 +30,23 @@
             ->unique(fn ($row) => $row['category'] . '|' . $row['group'])
             ->sortBy('group')
             ->values();
+        $dashboardItemDetails = [];
+        foreach ($stockReport['markets'] as $marketReport) {
+            $market = $marketReport['market'];
+
+            foreach ($marketReport['rows'] as $row) {
+                $item = $row['item'];
+                $dashboardItemDetails[$item->id] = [
+                    'item_id' => $item->id,
+                    'market_id' => $market->id,
+                    'history_url' => route('market-seeding.items.history', $item->id),
+                    'item_name' => $item->type_name,
+                    'market_name' => $market->name . ' - ' . $market->location_name,
+                    'desired_quantity' => $item->desired_quantity,
+                    'warning_quantity' => $item->warning_quantity,
+                ];
+            }
+        }
     @endphp
 
     @include('seat-market-seeding::partials.item-detail-modal-styles')
@@ -580,6 +597,7 @@
                                                 <button type="button"
                                                         class="btn btn-link btn-xs p-0 market-seeding-view-item"
                                                         title="View item details"
+                                                        data-item-id="{{ $row['item']->id }}"
                                                         data-history-url="{{ route('market-seeding.items.history', $row['item']->id) }}"
                                                         data-item-name="{{ $row['item']->type_name }}"
                                                         data-market-name="{{ $market->name }} - {{ $market->location_name }}"
@@ -670,6 +688,7 @@
         $(function () {
             var dashboardTables = null;
             var targetTrendChart = null;
+            var dashboardItemDetails = @json($dashboardItemDetails);
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
@@ -754,22 +773,17 @@
             });
 
             $(document).on('click', '.market-seeding-view-item', function () {
-                var $button = $(this);
+                openDashboardItemDetails(itemDetailsFromButton($(this)), true);
+            });
 
-                $('#market-seeding-edit-target-title').text('Item Details');
-                $('#market-seeding-edit-target-modal').addClass('is-read-only');
-                $('#market-seeding-edit-target-adjust-panel').hide();
-                $('#market-seeding-edit-target-save').hide();
-                $('#market-seeding-edit-target-form').attr('action', '');
-                $('#market-seeding-edit-target-item').text($button.data('item-name'));
-                $('#market-seeding-edit-target-market').text($button.data('market-name'));
-                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
-                $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity'));
-                $('#market-seeding-edit-target-success').addClass('d-none').text('');
-                $('#market-seeding-edit-target-error').addClass('d-none').text('');
-                resetItemDetails();
-                loadItemDetails($button.data('history-url'));
-                $('#market-seeding-edit-target-modal').modal('show');
+            $('#market-seeding-edit-target-modal').on('hidden.bs.modal', function () {
+                if (parseDashboardItemHash(window.location.hash)) {
+                    replaceDashboardHash('');
+                }
+            });
+
+            $(window).on('hashchange', function () {
+                openDashboardItemFromHash();
             });
 
             $('#market-seeding-expand-all').on('click', function () {
@@ -789,6 +803,7 @@
             updateGroupFilterOptions();
             applyDashboardFilters();
             updateFilterToggleButton(false);
+            openDashboardItemFromHash();
 
             function applyDashboardFilters() {
                 var typeCategory = $('#market-seeding-type-filter').val();
@@ -1197,6 +1212,83 @@
                         '</tr>'
                     );
                 });
+            }
+
+            function openDashboardItemDetails(itemDetails, updateHash) {
+                if (!itemDetails || !itemDetails.history_url) {
+                    return false;
+                }
+
+                var itemId = itemDetails.item_id;
+                var $card = $('.market-seeding-card[data-market-id="' + itemDetails.market_id + '"]');
+
+                if ($card.length) {
+                    $card.show();
+                    $card.find('.collapse').collapse('show');
+                }
+
+                $('#market-seeding-edit-target-title').text('Item Details');
+                $('#market-seeding-edit-target-modal').addClass('is-read-only');
+                $('#market-seeding-edit-target-adjust-panel').hide();
+                $('#market-seeding-edit-target-save').hide();
+                $('#market-seeding-edit-target-form').attr('action', '');
+                $('#market-seeding-edit-target-item').text(itemDetails.item_name);
+                $('#market-seeding-edit-target-market').text(itemDetails.market_name);
+                $('#market-seeding-edit-target-quantity').val(itemDetails.desired_quantity);
+                $('#market-seeding-edit-warning-quantity').val(itemDetails.warning_quantity);
+                $('#market-seeding-edit-target-success').addClass('d-none').text('');
+                $('#market-seeding-edit-target-error').addClass('d-none').text('');
+
+                if (updateHash && itemId) {
+                    replaceDashboardHash('#item-' + itemId);
+                }
+
+                resetItemDetails();
+                loadItemDetails(itemDetails.history_url);
+                $('#market-seeding-edit-target-modal').modal('show');
+
+                return true;
+            }
+
+            function itemDetailsFromButton($button) {
+                return {
+                    item_id: $button.data('item-id'),
+                    market_id: $button.closest('.market-seeding-card').data('market-id'),
+                    history_url: $button.data('history-url'),
+                    item_name: $button.data('item-name'),
+                    market_name: $button.data('market-name'),
+                    desired_quantity: $button.data('desired-quantity'),
+                    warning_quantity: $button.data('warning-quantity')
+                };
+            }
+
+            function openDashboardItemFromHash() {
+                var itemId = parseDashboardItemHash(window.location.hash);
+
+                if (!itemId) {
+                    return false;
+                }
+
+                return openDashboardItemDetails(dashboardItemDetails[itemId], false);
+            }
+
+            function parseDashboardItemHash(hash) {
+                var match = String(hash || '').match(/^#item-(\d+)$/);
+
+                return match ? match[1] : null;
+            }
+
+            function replaceDashboardHash(hash) {
+                var url = window.location.pathname + window.location.search + (hash || '');
+
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, document.title, url);
+                    return;
+                }
+
+                if (hash) {
+                    window.location.hash = hash;
+                }
             }
         });
     </script>
