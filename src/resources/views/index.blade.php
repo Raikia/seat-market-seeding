@@ -931,7 +931,7 @@
                                 <div>
                                     <strong>Build EVE multi-sell lines from wallet transactions.</strong>
                                     <div class="text-muted small">
-                                        Paste a character or corporation market transaction log. Duplicate items are grouped, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
+                                        Paste a character or corporation market transaction log. Purchase rows are grouped, sell rows are ignored, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
                                     </div>
                                 </div>
                             </div>
@@ -943,7 +943,7 @@
                                         </div>
                                         <div class="form-group mb-0">
                                             <textarea class="form-control market-seeding-listing-helper-input" rows="10" placeholder="Paste wallet transactions here..."></textarea>
-                                            <small class="form-text text-muted">Supports character logs with 7 columns and corporation logs with 9 columns. The helper reads date, quantity, item name, unit cost, total cost, seller, and station.</small>
+                                            <small class="form-text text-muted">Supports character logs with 7 columns and corporation logs with 9 columns. Only rows with a negative total cost are used.</small>
                                         </div>
                                     </div>
                                     <div class="market-seeding-listing-helper-panel">
@@ -1750,6 +1750,11 @@
                     var quantity = parseNumber(columns[1]);
                     var itemName = $.trim(columns[2]);
                     var unitCost = parseMoney(columns[3]);
+                    var totalCost = parseMoney(columns[4]);
+
+                    if (totalCost >= 0) {
+                        return;
+                    }
 
                     if (!itemName || quantity <= 0 || unitCost <= 0) {
                         result.skipped++;

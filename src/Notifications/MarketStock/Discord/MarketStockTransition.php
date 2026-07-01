@@ -43,7 +43,7 @@ class MarketStockTransition extends AbstractDiscordNotification
                         ->long();
                 });
 
-                $embed->field(function (DiscordEmbedField $field) {
+                $embed->field(function (DiscordEmbedField $field) use ($empty) {
                     $field->name($empty ? 'Empty Items' : 'Low Items')
                         ->value($this->formatItems())
                         ->long();
