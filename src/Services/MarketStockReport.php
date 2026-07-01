@@ -94,6 +94,9 @@ class MarketStockReport
             'missing_lines' => 0,
             'desired_quantity' => 0,
             'covered_quantity' => 0,
+            'tracked_lines' => 0,
+            'low_lines' => 0,
+            'empty_lines' => 0,
             'health_score' => 100,
         ];
 
@@ -106,6 +109,9 @@ class MarketStockReport
                 'missing_lines' => 0,
                 'desired_quantity' => 0,
                 'covered_quantity' => 0,
+                'tracked_lines' => 0,
+                'low_lines' => 0,
+                'empty_lines' => 0,
                 'health_score' => 100,
             ];
 
@@ -139,6 +145,9 @@ class MarketStockReport
                 $marketTotals['missing_lines'] += $missingQuantity > 0 ? 1 : 0;
                 $marketTotals['desired_quantity'] += (int) $item->desired_quantity;
                 $marketTotals['covered_quantity'] += $coveredQuantity;
+                $marketTotals['tracked_lines']++;
+                $marketTotals['low_lines'] += $stockStatus === 'low' ? 1 : 0;
+                $marketTotals['empty_lines'] += $stockStatus === 'empty' ? 1 : 0;
 
                 return [
                     'item' => $item,
@@ -161,7 +170,11 @@ class MarketStockReport
                 ];
             })->values();
 
-            $marketTotals['health_score'] = $this->healthScore($marketTotals['covered_quantity'], $marketTotals['desired_quantity']);
+            $marketTotals['health_score'] = $this->healthScore(
+                $marketTotals['low_lines'],
+                $marketTotals['empty_lines'],
+                $marketTotals['tracked_lines']
+            );
 
             foreach ($marketTotals as $key => $value) {
                 $totals[$key] += $value;
@@ -175,7 +188,11 @@ class MarketStockReport
             ];
         }
 
-        $totals['health_score'] = $this->healthScore($totals['covered_quantity'], $totals['desired_quantity']);
+        $totals['health_score'] = $this->healthScore(
+            $totals['low_lines'],
+            $totals['empty_lines'],
+            $totals['tracked_lines']
+        );
 
         return [
             'markets' => $reports,
@@ -273,13 +290,15 @@ class MarketStockReport
         });
     }
 
-    private function healthScore(int $coveredQuantity, int $desiredQuantity): float
+    private function healthScore(int $lowLines, int $emptyLines, int $trackedLines): float
     {
-        if ($desiredQuantity <= 0) {
+        if ($trackedLines <= 0) {
             return 100.0;
         }
 
-        return round(min(100, ($coveredQuantity / $desiredQuantity) * 100), 1);
+        $penalty = (($lowLines * 0.5) + $emptyLines) / $trackedLines * 100;
+
+        return round(max(0, min(100, 100 - $penalty)), 1);
     }
 
     private function packagedVolumes(Collection $typeIds): Collection

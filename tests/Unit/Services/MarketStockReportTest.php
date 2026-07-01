@@ -52,8 +52,52 @@ class MarketStockReportTest extends TestCase
         $this->assertSame(12000000.0, $row['local_price']);
         $this->assertSame(40000000.0, $row['restock_cost']);
         $this->assertSame(40000.0, $row['restock_volume']);
-        $this->assertSame(60.0, $marketReport['totals']['health_score']);
+        $this->assertSame(100.0, $marketReport['totals']['health_score']);
         $this->assertSame("Caracal\t4", $marketReport['export']);
+    }
+
+    public function test_health_score_penalizes_low_lines_less_than_empty_lines(): void
+    {
+        $this->seedSde();
+        $this->seedType(621, 'Caracal', ['groupID' => 25, 'volume' => 112000]);
+        $this->seedType(622, 'Scythe', ['groupID' => 25, 'volume' => 89000]);
+        $this->seedType(623, 'Osprey', ['groupID' => 25, 'volume' => 89000]);
+
+        $market = $this->createMarket(['location_id' => 60000001]);
+        app(StockTargetProjector::class)->setManualTarget($market, 621, 'Caracal', 10, 4);
+        app(StockTargetProjector::class)->setManualTarget($market, 622, 'Scythe', 10, 4);
+        app(StockTargetProjector::class)->setManualTarget($market, 623, 'Osprey', 10, 4);
+
+        DB::table('market_orders')->insert([
+            [
+                'order_id' => 1,
+                'location_id' => 60000001,
+                'type_id' => 621,
+                'volume_remaining' => 10,
+                'price' => 12000000,
+                'is_buy_order' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => 2,
+                'location_id' => 60000001,
+                'type_id' => 622,
+                'volume_remaining' => 2,
+                'price' => 10000000,
+                'is_buy_order' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $report = app(MarketStockReport::class)->build(collect([$market->fresh()]));
+        $marketReport = $report['markets'][0];
+
+        $this->assertSame(3, $marketReport['totals']['tracked_lines']);
+        $this->assertSame(1, $marketReport['totals']['low_lines']);
+        $this->assertSame(1, $marketReport['totals']['empty_lines']);
+        $this->assertSame(50.0, $marketReport['totals']['health_score']);
     }
 
     public function test_item_details_uses_latest_summary_quantity_when_no_local_order_exists(): void

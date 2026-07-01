@@ -22,6 +22,7 @@
         $percent = function ($value) {
             return number_format((float) $value, 1, '.', ',') . '%';
         };
+        $healthTooltip = 'Health is based on tracked item lines. Stocked items have no penalty, low items count as half unhealthy, and empty items count as fully unhealthy.';
         $singleMarket = count($stockReport['markets']) === 1;
         $stockRows = collect($stockReport['markets'])->flatMap(fn ($marketReport) => $marketReport['rows']);
         $typeCategories = $stockRows->pluck('type_category')->unique()->sort()->values();
@@ -624,6 +625,7 @@
                             <label for="market-seeding-stock-status-filter">Stock Status</label>
                             <select class="form-control form-control-sm" id="market-seeding-stock-status-filter">
                                 <option value="">All Statuses</option>
+                                <option value="low_or_empty">Low Warning + Empty</option>
                                 <option value="low">Low Warning</option>
                                 <option value="empty">Empty</option>
                             </select>
@@ -669,7 +671,7 @@
                                 $healthScore = $marketReport['totals']['health_score'] ?? 100;
                                 $healthBadge = $healthScore >= 90 ? 'badge-success' : ($healthScore >= 60 ? 'badge-warning' : 'badge-danger');
                             @endphp
-                            <span class="badge {{ $healthBadge }} market-seeding-health-badge">Health <span data-market-metric="header-health">{{ $percent($healthScore) }}</span></span>
+                            <span class="badge {{ $healthBadge }} market-seeding-health-badge" data-toggle="tooltip" title="{{ $healthTooltip }}">Health <span data-market-metric="header-health">{{ $percent($healthScore) }}</span></span>
                         </h3>
                         <small class="text-muted card-subtitle">
                             Missing <span data-market-metric="header-missing">{{ $whole($marketReport['totals']['missing_lines']) }}</span> line(s) &middot;
@@ -712,7 +714,7 @@
                     <div class="card-body">
                         <div class="market-seeding-metrics">
                             <div class="market-seeding-metric">
-                                <span>Health</span>
+                                <span data-toggle="tooltip" title="{{ $healthTooltip }}">Health <i class="fas fa-question-circle text-muted"></i></span>
                                 <strong data-market-metric="health">{{ $percent($marketReport['totals']['health_score'] ?? 100) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
@@ -1153,6 +1155,9 @@
             updateGroupFilterOptions();
             applyDashboardFilters();
             updateFilterToggleButton(false);
+            if ($.fn.tooltip) {
+                $('[data-toggle="tooltip"]').tooltip();
+            }
             openDashboardItemFromHash();
 
             function applyDashboardFilters() {
@@ -1185,7 +1190,7 @@
                         .search(typeGroup ? '^' + escapeRegex(typeGroup) + '$' : '', true, false);
                     table
                         .column(3)
-                        .search(stockStatus ? '^' + escapeRegex(stockStatus) + '$' : '', true, false)
+                        .search(stockStatusSearchRegex(stockStatus), true, false)
                         .draw();
                 });
 
@@ -1232,6 +1237,9 @@
                     var totals = {
                         desiredQuantity: 0,
                         coveredQuantity: 0,
+                        trackedLines: 0,
+                        lowLines: 0,
+                        emptyLines: 0,
                         seededValue: 0,
                         desiredValue: 0,
                         restockCost: 0,
@@ -1243,9 +1251,13 @@
                         var $row = $(this);
                         var desiredQuantity = Number($row.data('desired-quantity') || 0);
                         var missingQuantity = Number($row.data('missing-quantity') || 0);
+                        var stockStatus = String($row.data('stock-status') || '');
 
                         totals.desiredQuantity += desiredQuantity;
                         totals.coveredQuantity += Number($row.data('covered-quantity') || 0);
+                        totals.trackedLines++;
+                        totals.lowLines += stockStatus === 'low' ? 1 : 0;
+                        totals.emptyLines += stockStatus === 'empty' ? 1 : 0;
                         totals.seededValue += Number($row.data('seeded-value') || 0);
                         totals.desiredValue += Number($row.data('desired-value') || 0);
                         totals.restockCost += Number($row.data('restock-cost') || 0);
@@ -1253,9 +1265,7 @@
                         totals.missingLines += missingQuantity > 0 ? 1 : 0;
                     });
 
-                    var health = totals.desiredQuantity > 0
-                        ? (totals.coveredQuantity / totals.desiredQuantity) * 100
-                        : 100;
+                    var health = healthScoreFromLines(totals.lowLines, totals.emptyLines, totals.trackedLines);
 
                     $card.find('[data-market-metric="health"], [data-market-metric="header-health"]').text(formatPercent(health));
                     $card.find('[data-market-metric="seeded"]').text(formatMetricMoney(totals.seededValue));
@@ -1280,6 +1290,16 @@
                 $badge
                     .removeClass('badge-success badge-warning badge-danger')
                     .addClass(health >= 90 ? 'badge-success' : (health >= 60 ? 'badge-warning' : 'badge-danger'));
+            }
+
+            function healthScoreFromLines(lowLines, emptyLines, trackedLines) {
+                if (!trackedLines) {
+                    return 100;
+                }
+
+                var penalty = (((lowLines * 0.5) + emptyLines) / trackedLines) * 100;
+
+                return Math.max(0, Math.min(100, 100 - penalty));
             }
 
             function updateRestockExport(modal) {
@@ -1310,7 +1330,31 @@
             function matchesDashboardFilters(category, group, stockStatus, selectedCategory, selectedGroup, selectedStatus) {
                 return (!selectedCategory || category === selectedCategory)
                     && (!selectedGroup || group === selectedGroup)
-                    && (!selectedStatus || stockStatus === selectedStatus);
+                    && matchesStockStatusFilter(stockStatus, selectedStatus);
+            }
+
+            function matchesStockStatusFilter(stockStatus, selectedStatus) {
+                if (!selectedStatus) {
+                    return true;
+                }
+
+                if (selectedStatus === 'low_or_empty') {
+                    return stockStatus === 'low' || stockStatus === 'empty';
+                }
+
+                return stockStatus === selectedStatus;
+            }
+
+            function stockStatusSearchRegex(selectedStatus) {
+                if (!selectedStatus) {
+                    return '';
+                }
+
+                if (selectedStatus === 'low_or_empty') {
+                    return '^(low|empty)$';
+                }
+
+                return '^' + escapeRegex(selectedStatus) + '$';
             }
 
             function updateFilterToggleButton(expanded) {
