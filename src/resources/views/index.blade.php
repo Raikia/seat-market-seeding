@@ -32,6 +32,8 @@
             ->values();
     @endphp
 
+    @include('seat-market-seeding::partials.item-detail-modal-styles')
+
     <style>
         .market-seeding-shell .info-box-number {
             font-size: 1.05rem;
@@ -153,6 +155,16 @@
         .market-seeding-item-type {
             display: block;
             margin-left: 1.85rem;
+        }
+        .market-seeding-view-item {
+            color: #6c757d;
+            margin-left: .35rem;
+            vertical-align: middle;
+        }
+        .market-seeding-view-item:hover,
+        .market-seeding-view-item:focus {
+            color: #007bff;
+            text-decoration: none;
         }
         .market-seeding-card .card-header {
             align-items: center;
@@ -565,6 +577,16 @@
                                             <td>
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $row['source_flags']])
                                                 {{ $row['item']->type_name }}
+                                                <button type="button"
+                                                        class="btn btn-link btn-xs p-0 market-seeding-view-item"
+                                                        title="View item details"
+                                                        data-history-url="{{ route('market-seeding.items.history', $row['item']->id) }}"
+                                                        data-item-name="{{ $row['item']->type_name }}"
+                                                        data-market-name="{{ $market->name }} - {{ $market->location_name }}"
+                                                        data-desired-quantity="{{ $row['item']->desired_quantity }}"
+                                                        data-warning-quantity="{{ $row['item']->warning_quantity }}">
+                                                    <i class="fas fa-search"></i>
+                                                </button>
                                                 <span class="text-muted small market-seeding-item-type">{{ $row['type_category'] }} &middot; {{ $row['type_group'] ?? 'Unknown' }}</span>
                                             </td>
                                             <td>{{ $row['type_category'] }}</td>
@@ -636,6 +658,10 @@
             </div>
         @endforelse
     </div>
+    @include('seat-market-seeding::partials.item-detail-modal', [
+        'marketSeedingThemeClass' => $marketSeedingThemeClass,
+        'canManageMarketSeeding' => false,
+    ])
     </div>
 @endsection
 
@@ -643,6 +669,7 @@
     <script>
         $(function () {
             var dashboardTables = null;
+            var targetTrendChart = null;
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
@@ -724,6 +751,25 @@
 
             $('.market-seeding-modal').on('show.bs.modal', function () {
                 updateRestockExport($(this));
+            });
+
+            $(document).on('click', '.market-seeding-view-item', function () {
+                var $button = $(this);
+
+                $('#market-seeding-edit-target-title').text('Item Details');
+                $('#market-seeding-edit-target-modal').addClass('is-read-only');
+                $('#market-seeding-edit-target-adjust-panel').hide();
+                $('#market-seeding-edit-target-save').hide();
+                $('#market-seeding-edit-target-form').attr('action', '');
+                $('#market-seeding-edit-target-item').text($button.data('item-name'));
+                $('#market-seeding-edit-target-market').text($button.data('market-name'));
+                $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity'));
+                $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity'));
+                $('#market-seeding-edit-target-success').addClass('d-none').text('');
+                $('#market-seeding-edit-target-error').addClass('d-none').text('');
+                resetItemDetails();
+                loadItemDetails($button.data('history-url'));
+                $('#market-seeding-edit-target-modal').modal('show');
             });
 
             $('#market-seeding-expand-all').on('click', function () {
@@ -842,10 +888,314 @@
                 return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             }
 
-            function formatDecimal(value) {
+            function formatDecimal(value, decimals) {
+                decimals = typeof decimals === 'number' ? decimals : 2;
+
                 return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals
+                });
+            }
+
+            function numberWithCommas(value) {
+                value = parseInt(value || 0, 10);
+
+                return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            }
+
+            function formatMoney(value) {
+                value = parseFloat(value);
+
+                if (!isFinite(value) || value <= 0) {
+                    return '-';
+                }
+
+                return value.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
+                }) + ' ISK';
+            }
+
+            function escapeHtml(value) {
+                return $('<div>').text(value || '').html();
+            }
+
+            function eveTypeIconUrl(typeId, size) {
+                typeId = parseInt(typeId || 0, 10);
+                size = size || 64;
+
+                return typeId > 0 ? 'https://images.evetech.net/types/' + typeId + '/icon?size=' + size : '';
+            }
+
+            function eveTypeRenderUrl(typeId, size) {
+                typeId = parseInt(typeId || 0, 10);
+                size = size || 64;
+
+                return typeId > 0 ? 'https://images.evetech.net/types/' + typeId + '/render?size=' + size : '';
+            }
+
+            function resetItemDetails() {
+                $('#market-seeding-detail-current').text('Loading...');
+                $('#market-seeding-detail-missing').text('Loading...');
+                $('#market-seeding-detail-hero-missing').text('Loading...');
+                $('#market-seeding-detail-local-price').text('Loading...');
+                $('#market-seeding-detail-price-delta').text('vs Jita');
+                $('#market-seeding-detail-jita-price').text('Loading...');
+                $('#market-seeding-detail-seeded-value').text('Loading...');
+                $('#market-seeding-detail-target-value').text('Loading...');
+                $('#market-seeding-detail-restock-value').text('Loading...');
+                $('#market-seeding-detail-restock-volume').text('Loading...');
+                $('#market-seeding-detail-item-volume').text('Packaged m3');
+                $('#market-seeding-detail-source-badges').empty();
+                $('#market-seeding-detail-source-list').html('<div class="text-muted">Loading source details...</div>');
+                $('#market-seeding-detail-trend-summary').text('Loading...');
+                $('#market-seeding-edit-target-history').html('<tr><td colspan="5" class="text-muted">Loading transition history...</td></tr>');
+                $('#market-seeding-edit-target-change-history').html('<tr><td colspan="5" class="text-muted">Loading target changes...</td></tr>');
+                $('#market-seeding-edit-target-icon').addClass('d-none').attr('src', '').attr('alt', '');
+                $('.edit-target-delta').text('').removeClass('is-positive is-negative');
+
+                if (targetTrendChart) {
+                    targetTrendChart.destroy();
+                    targetTrendChart = null;
+                }
+            }
+
+            function loadItemDetails(url) {
+                if (!url) {
+                    $('#market-seeding-edit-target-error').removeClass('d-none').text('No item detail URL was provided.');
+                    return;
+                }
+
+                $.getJSON(url)
+                    .done(function (response) {
+                        renderItemHeader(response.item || {});
+                        renderItemDetails(response.details || {});
+                        renderSourceDetails(response.source_details || {});
+                        renderTrend(response.trend || {});
+                        renderTransitionRows(response.events || []);
+                        renderTargetChangeRows(response.target_history || []);
+                    })
+                    .fail(function () {
+                        $('#market-seeding-edit-target-error').removeClass('d-none').text('Unable to load item details.');
+                    });
+            }
+
+            function renderItemHeader(item) {
+                var iconUrl = eveTypeIconUrl(item.type_id, 64);
+
+                $('#market-seeding-edit-target-item').text(item.type_name || $('#market-seeding-edit-target-item').text());
+                $('#market-seeding-edit-target-market').text(
+                    item.market_name ? item.market_name + ' - ' + (item.location_name || '') : $('#market-seeding-edit-target-market').text()
+                );
+
+                if (!iconUrl) {
+                    return;
+                }
+
+                $('#market-seeding-edit-target-icon')
+                    .removeClass('d-none')
+                    .attr('src', iconUrl)
+                    .attr('alt', (item.type_name || 'Item') + ' icon');
+            }
+
+            function renderItemDetails(details) {
+                var current = parseInt(details.current_quantity || 0, 10);
+                var desired = parseInt(details.desired_quantity || 0, 10);
+                var missing = Math.max(0, desired - current);
+
+                $('#market-seeding-detail-current').text(numberWithCommas(current));
+                $('#market-seeding-detail-missing').text(numberWithCommas(missing));
+                $('#market-seeding-detail-hero-missing').text(numberWithCommas(missing));
+                $('#market-seeding-detail-local-price').text(formatMoney(details.local_price || details.jita_price));
+                $('#market-seeding-detail-jita-price').text(formatMoney(details.jita_price));
+                $('#market-seeding-detail-seeded-value').text(formatMoney(details.seeded_value));
+                $('#market-seeding-detail-target-value').text(formatMoney(details.desired_value));
+                $('#market-seeding-detail-restock-value').text(formatMoney(details.restock_cost));
+                $('#market-seeding-detail-restock-volume').text(formatDecimal(details.restock_volume, 2) + ' m3');
+                $('#market-seeding-detail-item-volume').text(formatDecimal(details.item_volume, 2) + ' m3 each, packaged');
+
+                if (details.price_delta === null || typeof details.price_delta === 'undefined') {
+                    $('#market-seeding-detail-price-delta').text(details.jita_price ? 'No local market price' : 'No Jita comparison');
+                } else {
+                    var delta = parseFloat(details.price_delta);
+                    $('#market-seeding-detail-price-delta').text((delta > 0 ? '+' : '') + formatDecimal(delta, 1) + '% vs Jita');
+                }
+            }
+
+            function renderSourceDetails(sourceDetails) {
+                var flags = sourceDetails.flags || {};
+                var manualSources = sourceDetails.manual || [];
+                var doctrines = sourceDetails.doctrines || [];
+                var $badges = $('#market-seeding-detail-source-badges').empty();
+                var $list = $('#market-seeding-detail-source-list').empty();
+
+                if (flags.manual) {
+                    $badges.append('<span class="badge badge-primary">Manual</span>');
+                }
+
+                if (flags.doctrine) {
+                    $badges.append('<span class="badge badge-info">Doctrine</span>');
+                }
+
+                if (!flags.manual && !flags.doctrine) {
+                    $badges.append('<span class="badge badge-secondary">Unknown</span>');
+                    $list.html('<div class="text-muted">No source records were found for this item.</div>');
+                    return;
+                }
+
+                $.each(manualSources, function (index, source) {
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="edit-target-source-name">' + escapeHtml(source.label || 'Manual add') + '</div>' +
+                            '<div class="edit-target-source-meta">Target contribution ' + numberWithCommas(source.quantity) +
+                                ', warning ' + numberWithCommas(source.warning_quantity || 0) + '</div>' +
+                        '</div>'
+                    );
+                });
+
+                $.each(doctrines, function (index, doctrine) {
+                    var fitHtml = '';
+
+                    $.each(doctrine.fits || [], function (fitIndex, fit) {
+                        var shipIconUrl = eveTypeRenderUrl(fit.ship_type_id, 64) || eveTypeIconUrl(fit.ship_type_id, 64);
+                        var shipIcon = shipIconUrl
+                            ? '<img src="' + escapeHtml(shipIconUrl) + '" alt="' + escapeHtml((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
+                            : '';
+                        var contributions = (fit.contributions || []).map(function (contribution) {
+                            return '<span class="edit-target-source-contribution">' +
+                                escapeHtml(contribution.kind || 'Item') + ': ' + numberWithCommas(contribution.quantity) +
+                            '</span>';
+                        }).join('');
+
+                        fitHtml +=
+                            '<div class="edit-target-source-fit">' +
+                                shipIcon +
+                                '<div class="edit-target-source-fit-body">' +
+                                    '<div class="edit-target-source-fit-name">' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</div>' +
+                                    '<div class="edit-target-source-fit-meta">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') +
+                                        ' · ship x' + numberWithCommas(fit.ship_multiplier || 0) +
+                                        ' · fit x' + numberWithCommas(fit.fitting_multiplier || 0) + '</div>' +
+                                    '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
+                                '</div>' +
+                            '</div>';
+                    });
+
+                    if (!fitHtml) {
+                        fitHtml = '<div class="edit-target-source-fit-meta mt-1">No matching fit breakdown could be loaded.</div>';
+                    }
+
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="d-flex justify-content-between align-items-start">' +
+                                '<div>' +
+                                    '<div class="edit-target-source-name">' + escapeHtml(doctrine.name || 'Tracked doctrine') + '</div>' +
+                                    '<div class="edit-target-source-meta">Doctrine contribution ' + numberWithCommas(doctrine.quantity) +
+                                        ', warning ' + numberWithCommas(doctrine.warning_quantity || 0) +
+                                        ' · merge ' + escapeHtml(doctrine.merge_mode || '-') +
+                                        ' · fits ' + escapeHtml(doctrine.fit_aggregation_mode || '-') + '</div>' +
+                                '</div>' +
+                                '<span class="badge badge-info">Doctrine</span>' +
+                            '</div>' +
+                            fitHtml +
+                        '</div>'
+                    );
+                });
+            }
+
+            function renderTrend(trend) {
+                var labels = trend.labels || [];
+                var values = trend.values || [];
+
+                $('#market-seeding-detail-trend-summary').text(
+                    numberWithCommas(trend.total || 0) + ' estimated sold over ' + numberWithCommas(trend.days || labels.length || 0) + ' days'
+                );
+
+                if (!window.Chart || !document.getElementById('market-seeding-detail-trend-chart')) {
+                    return;
+                }
+
+                targetTrendChart = new Chart(document.getElementById('market-seeding-detail-trend-chart'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Estimated Sold',
+                            data: values,
+                            backgroundColor: 'rgba(23, 162, 184, .18)',
+                            borderColor: 'rgba(23, 162, 184, .95)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: .28
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { precision: 0 } }
+                        }
+                    }
+                });
+            }
+
+            function renderTransitionRows(events) {
+                var $body = $('#market-seeding-edit-target-history').empty();
+
+                if (!events.length) {
+                    $body.html('<tr><td colspan="5" class="text-muted">No stock transitions found for this item.</td></tr>');
+                    return;
+                }
+
+                $.each(events, function (index, event) {
+                    $body.append(
+                        '<tr>' +
+                            '<td>' + escapeHtml(event.created_at || '-') + '</td>' +
+                            '<td>' + statusHtml(event.previous_status, event.current_status) + '</td>' +
+                            '<td class="text-right">' + numberWithCommas(event.current_quantity) + '</td>' +
+                            '<td class="text-right">' + numberWithCommas(event.warning_quantity) + '</td>' +
+                            '<td class="text-right">' + numberWithCommas(event.desired_quantity) + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            function statusHtml(previousStatus, currentStatus) {
+                var badgeClass = {
+                    stocked: 'badge-success',
+                    low: 'badge-warning',
+                    empty: 'badge-danger'
+                }[currentStatus] || 'badge-secondary';
+
+                return '<span class="badge ' + badgeClass + '">' + escapeHtml(capitalize(currentStatus || 'unknown')) + '</span>' +
+                    (previousStatus ? ' <span class="text-muted small">' + escapeHtml(previousStatus) + ' &rarr; ' + escapeHtml(currentStatus) + '</span>' : '');
+            }
+
+            function capitalize(value) {
+                value = String(value || '');
+
+                return value.charAt(0).toUpperCase() + value.slice(1);
+            }
+
+            function renderTargetChangeRows(rows) {
+                var $body = $('#market-seeding-edit-target-change-history').empty();
+
+                if (!rows.length) {
+                    $body.html('<tr><td colspan="5" class="text-muted">No target changes found for this item.</td></tr>');
+                    return;
+                }
+
+                $.each(rows, function (index, row) {
+                    $body.append(
+                        '<tr>' +
+                            '<td>' + escapeHtml(row.created_at || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.change_type_label || row.change_type || '-') + '</td>' +
+                            '<td>' + escapeHtml(row.user_name || 'System') + '</td>' +
+                            '<td class="text-right">' + numberWithCommas(row.old_target_quantity) + ' -> ' + numberWithCommas(row.new_target_quantity) + '</td>' +
+                            '<td class="text-right">' + numberWithCommas(row.old_warning_quantity) + ' -> ' + numberWithCommas(row.new_warning_quantity) + '</td>' +
+                        '</tr>'
+                    );
                 });
             }
         });
