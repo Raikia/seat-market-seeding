@@ -223,7 +223,7 @@
             background: #f8f9fa;
             padding: .55rem .7rem;
         }
-        .market-seeding-metric span {
+        .market-seeding-metric > span {
             color: #6c757d;
             display: block;
             font-size: .8rem;
@@ -502,12 +502,12 @@
                                 $healthScore = $marketReport['totals']['health_score'] ?? 100;
                                 $healthBadge = $healthScore >= 90 ? 'badge-success' : ($healthScore >= 60 ? 'badge-warning' : 'badge-danger');
                             @endphp
-                            <span class="badge {{ $healthBadge }} market-seeding-health-badge">Health {{ $percent($healthScore) }}</span>
+                            <span class="badge {{ $healthBadge }} market-seeding-health-badge">Health <span data-market-metric="header-health">{{ $percent($healthScore) }}</span></span>
                         </h3>
                         <small class="text-muted card-subtitle">
-                            Missing {{ $whole($marketReport['totals']['missing_lines']) }} line(s) &middot;
-                            Restock {{ $isk($marketReport['totals']['restock_cost']) }} &middot;
-                            {{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;
+                            Missing <span data-market-metric="header-missing">{{ $whole($marketReport['totals']['missing_lines']) }}</span> line(s) &middot;
+                            Restock <span data-market-metric="header-restock">{{ $isk($marketReport['totals']['restock_cost']) }}</span> &middot;
+                            <span data-market-metric="header-restock-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                         </small>
                         <small class="text-muted market-seeding-refresh-status">
                             @if($market->last_refreshed_at)
@@ -546,27 +546,27 @@
                         <div class="market-seeding-metrics">
                             <div class="market-seeding-metric">
                                 <span>Health</span>
-                                <strong>{{ $percent($marketReport['totals']['health_score'] ?? 100) }}</strong>
+                                <strong data-market-metric="health">{{ $percent($marketReport['totals']['health_score'] ?? 100) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
                                 <span>Seeded</span>
-                                <strong>{{ $isk($marketReport['totals']['seeded_value']) }}</strong>
+                                <strong data-market-metric="seeded">{{ $isk($marketReport['totals']['seeded_value']) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
                                 <span>Target</span>
-                                <strong>{{ $isk($marketReport['totals']['desired_value']) }}</strong>
+                                <strong data-market-metric="target">{{ $isk($marketReport['totals']['desired_value']) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
                                 <span>Restock</span>
-                                <strong>{{ $isk($marketReport['totals']['restock_cost']) }}</strong>
+                                <strong data-market-metric="restock">{{ $isk($marketReport['totals']['restock_cost']) }}</strong>
                             </div>
                             <div class="market-seeding-metric">
                                 <span>Restock Volume</span>
-                                <strong>{{ $volume($marketReport['totals']['restock_volume']) }} m&sup3;</strong>
+                                <strong><span data-market-metric="restock-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;</strong>
                             </div>
                             <div class="market-seeding-metric">
                                 <span>Missing</span>
-                                <strong>{{ $whole($marketReport['totals']['missing_lines']) }} lines</strong>
+                                <strong><span data-market-metric="missing">{{ $whole($marketReport['totals']['missing_lines']) }}</span> lines</strong>
                             </div>
                         </div>
 
@@ -590,7 +590,17 @@
                                 </thead>
                                 <tbody>
                                     @foreach($marketReport['rows'] as $row)
-                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}" data-category="{{ $row['type_category'] }}" data-group="{{ $row['type_group'] ?? 'Unknown' }}">
+                                        <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}"
+                                            data-category="{{ $row['type_category'] }}"
+                                            data-group="{{ $row['type_group'] ?? 'Unknown' }}"
+                                            data-current-quantity="{{ $row['current_quantity'] }}"
+                                            data-desired-quantity="{{ $row['item']->desired_quantity }}"
+                                            data-covered-quantity="{{ min($row['current_quantity'], $row['item']->desired_quantity) }}"
+                                            data-missing-quantity="{{ $row['missing_quantity'] }}"
+                                            data-seeded-value="{{ $row['seeded_value'] }}"
+                                            data-desired-value="{{ $row['desired_value'] }}"
+                                            data-restock-cost="{{ $row['restock_cost'] }}"
+                                            data-restock-volume="{{ $row['restock_volume'] }}">
                                             <td>
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $row['source_flags']])
                                                 {{ $row['item']->type_name }}
@@ -828,6 +838,7 @@
                         .draw();
                 });
 
+                updateMarketMetricCards();
                 updateAllRestockExports();
             }
 
@@ -860,6 +871,64 @@
                 $('.market-seeding-modal').each(function () {
                     updateRestockExport($(this));
                 });
+            }
+
+            function updateMarketMetricCards() {
+                $('.market-seeding-card[data-market-id]').each(function () {
+                    var $card = $(this);
+                    var $table = $card.find('.market-seeding-dashboard-table');
+                    var rows = filteredMarketRows($table);
+                    var totals = {
+                        desiredQuantity: 0,
+                        coveredQuantity: 0,
+                        seededValue: 0,
+                        desiredValue: 0,
+                        restockCost: 0,
+                        restockVolume: 0,
+                        missingLines: 0
+                    };
+
+                    rows.each(function () {
+                        var $row = $(this);
+                        var desiredQuantity = Number($row.data('desired-quantity') || 0);
+                        var missingQuantity = Number($row.data('missing-quantity') || 0);
+
+                        totals.desiredQuantity += desiredQuantity;
+                        totals.coveredQuantity += Number($row.data('covered-quantity') || 0);
+                        totals.seededValue += Number($row.data('seeded-value') || 0);
+                        totals.desiredValue += Number($row.data('desired-value') || 0);
+                        totals.restockCost += Number($row.data('restock-cost') || 0);
+                        totals.restockVolume += Number($row.data('restock-volume') || 0);
+                        totals.missingLines += missingQuantity > 0 ? 1 : 0;
+                    });
+
+                    var health = totals.desiredQuantity > 0
+                        ? (totals.coveredQuantity / totals.desiredQuantity) * 100
+                        : 100;
+
+                    $card.find('[data-market-metric="health"], [data-market-metric="header-health"]').text(formatPercent(health));
+                    $card.find('[data-market-metric="seeded"]').text(formatMetricMoney(totals.seededValue));
+                    $card.find('[data-market-metric="target"]').text(formatMetricMoney(totals.desiredValue));
+                    $card.find('[data-market-metric="restock"]').text(formatMetricMoney(totals.restockCost));
+                    $card.find('[data-market-metric="restock-volume"], [data-market-metric="header-restock-volume"]').text(formatDecimal(totals.restockVolume));
+                    $card.find('[data-market-metric="missing"], [data-market-metric="header-missing"]').text(numberWithCommas(totals.missingLines));
+                    $card.find('[data-market-metric="header-restock"]').text(formatMetricMoney(totals.restockCost));
+                    updateMarketHealthBadge($card.find('.market-seeding-health-badge'), health);
+                });
+            }
+
+            function filteredMarketRows($table) {
+                if ($table.length && $.fn.DataTable && $.fn.DataTable.isDataTable($table[0])) {
+                    return $($table.DataTable().rows({ search: 'applied' }).nodes());
+                }
+
+                return $table.find('tbody tr:visible');
+            }
+
+            function updateMarketHealthBadge($badge, health) {
+                $badge
+                    .removeClass('badge-success badge-warning badge-danger')
+                    .addClass(health >= 90 ? 'badge-success' : (health >= 60 ? 'badge-warning' : 'badge-danger'));
             }
 
             function updateRestockExport(modal) {
@@ -910,6 +979,20 @@
                     minimumFractionDigits: decimals,
                     maximumFractionDigits: decimals
                 });
+            }
+
+            function formatPercent(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                }) + '%';
+            }
+
+            function formatMetricMoney(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ISK';
             }
 
             function numberWithCommas(value) {
