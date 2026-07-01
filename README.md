@@ -26,6 +26,7 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Show estimated Jita restock cost and packaged restock volume.
 - Show seeded value, target value, missing lines, restock cost, and per-market health.
 - Compare local market prices against Jita prices.
+- Filter the dashboard by market, category, group, and stock status.
 - Track source of each item target, including manual adds, doctrine tracking, or both.
 - Auto-track Seat-Fitting doctrines with separate ship and fitting multipliers per fit.
 - Choose whether doctrine fits are summed together or use the maximum requirement per item.
@@ -34,8 +35,8 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Review high-usage items, estimated sales, restock pace, and market/category heatmaps.
 - Get target stock recommendations based on recent estimated sales pace.
 - Apply recommended target changes in bulk after reviewing the expected cost and volume increase.
-- Send SeAT notifications when an item moves from stocked to low, or from low/stocked to empty.
-- Send grouped restocked notifications when items recover during the same refresh.
+- Send grouped SeAT notifications when items move to low stock, empty stock, or get restocked.
+- Use the Listing Helper to turn EVE market transaction logs into multi-sell pricing lines.
 - Refresh market data manually or on a SeAT schedule.
 - Cache dashboard calculations briefly and add helpful indexes for larger market lists.
 
@@ -66,6 +67,8 @@ The settings page also includes reusable market profiles, recommendation tuning,
 
 The dashboard is meant for day-to-day restocking. It shows each market’s health, local quantity, target quantity, missing quantity, local price, Jita price, restock cost, and restock volume. Restock lists can be copied directly into EVE multi-buy.
 
+The dashboard also includes a Listing Helper for sellers. Paste a character or corporation market transaction log, choose markup and fee settings, and it will generate copy/paste friendly EVE multi-sell lines. It can optionally compare against cached local sell orders, show rows that would not be the lowest listing, flag below break-even items, and remember your helper preferences in the browser.
+
 The history page is meant for planning. It keeps a record of stock state changes, estimated sold quantities, restocks, and daily market movement. It includes filters, charts, most-sold item tables, restock frequency tables, and a needs-attention view for items whose target stock probably needs to change.
 
 From the history page you can open an item detail modal to review recent stock transitions, target-change history, current market stock, values, restock volume, and a sales trend chart. Target stock can be edited directly from that modal.
@@ -84,6 +87,8 @@ Market data depends on what SeAT can retrieve from ESI and what orders are avail
 
 Jita pricing is based on sell orders from Jita 4-4 when available, with SeAT price data used as a fallback.
 
+Listing Helper competitive pricing uses market orders already cached in SeAT. It does not trigger a live ESI refresh from the modal.
+
 ## Tests
 
 The plugin includes a package-level PHPUnit suite for the core business logic:
@@ -93,4 +98,4 @@ cd /var/www/seat
 ./vendor/bin/phpunit -c packages/seat-market-seeding/phpunit.xml
 ```
 
-The suite covers imports, target projection, doctrine/manual target interaction, recommendations support logic, market report math, settings, and history clearing behavior.
+The suite covers imports, target projection, doctrine/manual target interaction, recommendations support logic, market report math, settings, listing helper pricing, and history clearing behavior.
