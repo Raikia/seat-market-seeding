@@ -92,8 +92,6 @@ class MarketStockReport
             'restock_cost' => 0,
             'restock_volume' => 0,
             'missing_lines' => 0,
-            'desired_quantity' => 0,
-            'covered_quantity' => 0,
             'tracked_lines' => 0,
             'low_lines' => 0,
             'empty_lines' => 0,
@@ -107,8 +105,6 @@ class MarketStockReport
                 'restock_cost' => 0,
                 'restock_volume' => 0,
                 'missing_lines' => 0,
-                'desired_quantity' => 0,
-                'covered_quantity' => 0,
                 'tracked_lines' => 0,
                 'low_lines' => 0,
                 'empty_lines' => 0,
@@ -136,15 +132,12 @@ class MarketStockReport
                 $restockVolume = $missingQuantity * $itemVolume;
                 $desiredValue = $item->desired_quantity * (float) $jitaPrice;
                 $seededValue = $currentQuantity * (float) ($localPrice ?: $jitaPrice);
-                $coveredQuantity = min($currentQuantity, (int) $item->desired_quantity);
 
                 $marketTotals['desired_value'] += $desiredValue;
                 $marketTotals['seeded_value'] += $seededValue;
                 $marketTotals['restock_cost'] += $restockCost;
                 $marketTotals['restock_volume'] += $restockVolume;
                 $marketTotals['missing_lines'] += $missingQuantity > 0 ? 1 : 0;
-                $marketTotals['desired_quantity'] += (int) $item->desired_quantity;
-                $marketTotals['covered_quantity'] += $coveredQuantity;
                 $marketTotals['tracked_lines']++;
                 $marketTotals['low_lines'] += $stockStatus === 'low' ? 1 : 0;
                 $marketTotals['empty_lines'] += $stockStatus === 'empty' ? 1 : 0;

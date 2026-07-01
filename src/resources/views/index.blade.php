@@ -654,8 +654,13 @@
                             'category' => $row['type_category'],
                             'group' => $row['type_group'] ?? 'Unknown',
                             'status' => $row['stock_status'],
+                            'name' => $row['item']->type_name,
+                            'quantity' => $row['missing_quantity'],
                             'line' => $row['export_line'],
                             'volume' => $row['restock_volume'],
+                            'unit_volume' => $row['missing_quantity'] > 0
+                                ? $row['restock_volume'] / $row['missing_quantity']
+                                : 0,
                         ];
                     })
                     ->values();
@@ -765,7 +770,6 @@
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
                                             data-stock-status="{{ $row['stock_status'] }}"
                                             data-desired-quantity="{{ $row['item']->desired_quantity }}"
-                                            data-covered-quantity="{{ min($row['current_quantity'], $row['item']->desired_quantity) }}"
                                             data-missing-quantity="{{ $row['missing_quantity'] }}"
                                             data-seeded-value="{{ $row['seeded_value'] }}"
                                             data-desired-value="{{ $row['desired_value'] }}"
@@ -832,8 +836,19 @@
                         <div class="modal-body">
                             <p class="text-muted mb-2">
                                 This list follows the dashboard category and group filters.
-                                Estimated restock volume: <span class="market-seeding-export-volume" data-default-volume="{{ $marketReport['totals']['restock_volume'] }}">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
+                                Estimated restock volume: <span class="market-seeding-export-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
+                            <div class="form-group">
+                                <label for="{{ $exportId }}-freight-limit">Remaining Freight Space</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control market-seeding-freight-limit" id="{{ $exportId }}-freight-limit" min="0" step="0.01" placeholder="Optional, e.g. 40000">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">m&sup3;</span>
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">When set, the list is trimmed to fit as close as possible inside this remaining cargo space.</small>
+                                <small class="form-text text-muted market-seeding-freight-result d-none"></small>
+                            </div>
                             <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
                         </div>
                         <div class="modal-footer">
@@ -1067,6 +1082,10 @@
                 document.execCommand('copy');
             });
 
+            $(document).on('input change', '.market-seeding-freight-limit', function () {
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+            });
+
             $('#market-seeding-market-filter').on('change', function () {
                 var marketId = $(this).val();
                 var cards = $('.market-seeding-card[data-market-id]');
@@ -1235,8 +1254,6 @@
                     var $table = $card.find('.market-seeding-dashboard-table');
                     var rows = filteredMarketRows($table);
                     var totals = {
-                        desiredQuantity: 0,
-                        coveredQuantity: 0,
                         trackedLines: 0,
                         lowLines: 0,
                         emptyLines: 0,
@@ -1249,12 +1266,9 @@
 
                     rows.each(function () {
                         var $row = $(this);
-                        var desiredQuantity = Number($row.data('desired-quantity') || 0);
                         var missingQuantity = Number($row.data('missing-quantity') || 0);
                         var stockStatus = String($row.data('stock-status') || '');
 
-                        totals.desiredQuantity += desiredQuantity;
-                        totals.coveredQuantity += Number($row.data('covered-quantity') || 0);
                         totals.trackedLines++;
                         totals.lowLines += stockStatus === 'low' ? 1 : 0;
                         totals.emptyLines += stockStatus === 'empty' ? 1 : 0;
@@ -1316,15 +1330,131 @@
                 var filtered = $.grep(lines, function (line) {
                     return matchesDashboardFilters(line.category, line.group, line.status, typeCategory, typeGroup, stockStatus);
                 });
-                var volume = filtered.reduce(function (total, line) {
+                var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
+                var selected = applyFreightLimit(filtered, freightLimit);
+                var volume = selected.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
                 }, 0);
 
-                textarea.value = $.map(filtered, function (line) {
+                textarea.value = $.map(selected, function (line) {
                     return line.line;
                 }).join('\n');
 
                 modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
+                updateFreightResult(modal, freightLimit, volume);
+            }
+
+            function updateFreightResult(modal, freightLimit, selectedVolume) {
+                var result = modal.find('.market-seeding-freight-result');
+
+                if (!freightLimit || freightLimit <= 0) {
+                    result.addClass('d-none').empty();
+                    return;
+                }
+
+                result
+                    .removeClass('d-none')
+                    .html(
+                        'Filtered list volume: <strong>' + formatDecimal(selectedVolume) + '</strong> m&sup3; of ' +
+                        '<strong>' + formatDecimal(freightLimit) + '</strong> m&sup3; available. ' +
+                        'Remaining: <strong>' + formatDecimal(Math.max(0, freightLimit - selectedVolume)) + '</strong> m&sup3;.'
+                    );
+            }
+
+            function applyFreightLimit(lines, freightLimit) {
+                if (!freightLimit || freightLimit <= 0) {
+                    return lines;
+                }
+
+                    var candidates = $.map(lines, function (line, index) {
+                    return $.extend({}, line, {
+                        originalIndex: index,
+                        quantity: Number(line.quantity || 0),
+                        unit_volume: Number(line.unit_volume || 0),
+                        volume: Number(line.volume || 0)
+                    });
+                });
+                var zeroVolumeSelections = {};
+
+                $.each(candidates, function (index, line) {
+                    if (line.unit_volume <= 0 && line.quantity > 0) {
+                        zeroVolumeSelections[line.originalIndex] = $.extend({}, line);
+                    }
+                });
+
+                var volumeCandidates = $.grep(candidates, function (line) {
+                    return line.quantity > 0 && line.unit_volume > 0;
+                });
+                var packingOrders = [
+                    volumeCandidates.slice().sort(function (a, b) {
+                        return a.originalIndex - b.originalIndex;
+                    }),
+                    volumeCandidates.slice().sort(function (a, b) {
+                        return a.unit_volume - b.unit_volume || a.originalIndex - b.originalIndex;
+                    }),
+                    volumeCandidates.slice().sort(function (a, b) {
+                        if (b.unit_volume !== a.unit_volume) {
+                            return b.unit_volume - a.unit_volume;
+                        }
+
+                        return a.originalIndex - b.originalIndex;
+                    }),
+                    volumeCandidates.slice().sort(function (a, b) {
+                        if (b.volume !== a.volume) {
+                            return b.volume - a.volume;
+                        }
+
+                        return a.originalIndex - b.originalIndex;
+                    })
+                ];
+                var bestSelection = {
+                    selectedByIndex: $.extend({}, zeroVolumeSelections),
+                    volume: 0
+                };
+
+                $.each(packingOrders, function (index, orderedCandidates) {
+                    var packed = packFreightCandidates(orderedCandidates, zeroVolumeSelections, freightLimit);
+
+                    if (packed.volume > bestSelection.volume) {
+                        bestSelection = packed;
+                    }
+                });
+
+                return $.map(lines, function (line, index) {
+                    return bestSelection.selectedByIndex[index] || null;
+                });
+            }
+
+            function packFreightCandidates(candidates, zeroVolumeSelections, freightLimit) {
+                var selectedByIndex = $.extend({}, zeroVolumeSelections);
+                var remaining = freightLimit;
+                var selectedVolume = 0;
+
+                $.each(candidates, function (index, line) {
+                    if (remaining <= 0) {
+                        return false;
+                    }
+
+                    var quantity = Math.min(line.quantity, Math.floor((remaining + 0.0000001) / line.unit_volume));
+
+                    if (quantity <= 0) {
+                        return;
+                    }
+
+                    var lineVolume = quantity * line.unit_volume;
+                    remaining -= lineVolume;
+                    selectedVolume += lineVolume;
+                    selectedByIndex[line.originalIndex] = $.extend({}, line, {
+                        quantity: quantity,
+                        volume: lineVolume,
+                        line: line.name + '\t' + quantity
+                    });
+                });
+
+                return {
+                    selectedByIndex: selectedByIndex,
+                    volume: selectedVolume
+                };
             }
 
             function matchesDashboardFilters(category, group, stockStatus, selectedCategory, selectedGroup, selectedStatus) {
@@ -1790,6 +1920,12 @@
 
             function parseMoney(value) {
                 return parseFloat(String(value || '').replace(/ISK/ig, '').replace(/,/g, '').replace(/\s/g, '')) || 0;
+            }
+
+            function parsePositiveDecimal(value) {
+                var parsed = parseFloat(String(value || '').replace(/,/g, '').replace(/\s/g, ''));
+
+                return parsed > 0 ? parsed : null;
             }
 
             function formatEvePrice(value) {
