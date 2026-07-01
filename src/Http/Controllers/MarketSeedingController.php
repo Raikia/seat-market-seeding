@@ -1351,6 +1351,7 @@ class MarketSeedingController extends Controller
         $latestSourceUpdate = $marketIds->isEmpty()
             ? null
             : MarketSeedingItemSource::whereIn('market_id', $marketIds)->max('updated_at');
+        $settings = app(MarketSeedingSettings::class);
         $itemCount = $marketIds->isEmpty()
             ? 0
             : SeededMarketItem::whereIn('market_id', $marketIds)->count();
@@ -1359,10 +1360,11 @@ class MarketSeedingController extends Controller
             : MarketSeedingItemSource::whereIn('market_id', $marketIds)->count();
 
         return 'seat-market-seeding:dashboard:' . md5(json_encode([
-            'version' => 3,
+            'version' => 4,
             'user_id' => $user->id,
             'is_admin' => $user->isAdmin(),
             'roles' => $roleIds,
+            'recommendation_sales_days' => $settings->recommendationSalesDays(),
             'markets' => $marketSnapshot->map(function (SeededMarket $market) {
                 return [
                     'id' => $market->id,
