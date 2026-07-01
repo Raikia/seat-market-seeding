@@ -593,7 +593,6 @@
                                         <tr class="{{ $row['is_low'] ? 'table-warning' : '' }}"
                                             data-category="{{ $row['type_category'] }}"
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
-                                            data-current-quantity="{{ $row['current_quantity'] }}"
                                             data-desired-quantity="{{ $row['item']->desired_quantity }}"
                                             data-covered-quantity="{{ min($row['current_quantity'], $row['item']->desired_quantity) }}"
                                             data-missing-quantity="{{ $row['missing_quantity'] }}"
