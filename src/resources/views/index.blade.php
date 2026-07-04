@@ -280,6 +280,88 @@
             white-space: pre-line;
             z-index: 3000;
         }
+        .market-seeding-local-purchase-badge {
+            margin-left: .35rem;
+        }
+        .market-seeding-locally-purchased {
+            background: rgba(40, 167, 69, .08);
+        }
+        .market-seeding-restock-output-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: flex-end;
+            margin-top: .65rem;
+        }
+        .market-seeding-purchased-tools {
+            background: rgba(248, 249, 250, .92);
+            border: 1px solid rgba(108, 117, 125, .22);
+            border-radius: 8px;
+            margin-top: 1.25rem;
+            padding: 1rem;
+        }
+        .market-seeding-purchased-header {
+            align-items: flex-start;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            justify-content: space-between;
+        }
+        .market-seeding-purchased-import {
+            display: grid;
+            gap: .75rem;
+            grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+        }
+        .market-seeding-purchased-import-actions {
+            align-content: end;
+            display: grid;
+            gap: .5rem;
+        }
+        .market-seeding-purchased-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            margin: .75rem 0;
+        }
+        .market-seeding-purchased-summary span {
+            background: rgba(0, 123, 255, .08);
+            border: 1px solid rgba(0, 123, 255, .16);
+            border-radius: 6px;
+            padding: .35rem .55rem;
+        }
+        .market-seeding-purchased-table input {
+            max-width: 110px;
+        }
+        .market-seeding-purchased-import-result {
+            margin-top: .5rem;
+        }
+        .market-seeding-purchased-item {
+            align-items: center;
+            display: flex;
+            gap: .55rem;
+        }
+        .market-seeding-purchased-item-icon {
+            align-items: center;
+            background: rgba(108, 117, 125, .14);
+            border-radius: 6px;
+            display: inline-flex;
+            flex: 0 0 32px;
+            height: 32px;
+            justify-content: center;
+            overflow: hidden;
+            width: 32px;
+        }
+        .market-seeding-purchased-item-icon img {
+            display: block;
+            height: 32px;
+            width: 32px;
+        }
+        @media (max-width: 767px) {
+            .market-seeding-purchased-import {
+                grid-template-columns: 1fr;
+            }
+        }
         .market-seeding-listing-helper-grid {
             display: grid;
             align-items: start;
@@ -469,6 +551,17 @@
         .market-seeding-dark-skin .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .28);
             color: #9be7ad;
+        }
+        .market-seeding-dark-skin .market-seeding-locally-purchased {
+            background: rgba(40, 167, 69, .14);
+        }
+        .market-seeding-dark-skin .market-seeding-purchased-tools {
+            background: #1f2d33;
+            border-color: rgba(60, 141, 188, .32);
+        }
+        .market-seeding-dark-skin .market-seeding-purchased-summary span {
+            background: rgba(60, 141, 188, .18);
+            border-color: rgba(60, 141, 188, .32);
         }
         .market-seeding-dark-skin .market-seeding-metric span,
         .market-seeding-dark-skin .text-muted {
@@ -711,18 +804,22 @@
                 $startsExpanded = $singleMarket;
                 $restockLines = $marketReport['rows']
                     ->filter(fn ($row) => $row['missing_quantity'] > 0)
-                    ->map(function ($row) {
+                    ->map(function ($row) use ($market) {
                         return [
                             'category' => $row['type_category'],
                             'group' => $row['type_group'] ?? 'Unknown',
                             'status' => $row['stock_status'],
                             'priority' => $row['priority']['level'],
+                            'type_id' => $row['item']->type_id,
                             'name' => $row['item']->type_name,
                             'quantity' => $row['missing_quantity'],
                             'line' => $row['export_line'],
                             'volume' => $row['restock_volume'],
                             'unit_volume' => $row['missing_quantity'] > 0
                                 ? $row['restock_volume'] / $row['missing_quantity']
+                                : 0,
+                            'unit_value' => $row['missing_quantity'] > 0
+                                ? $row['restock_cost'] / $row['missing_quantity']
                                 : 0,
                         ];
                     })
@@ -835,6 +932,9 @@
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
                                             data-stock-status="{{ $row['stock_status'] }}"
                                             data-priority="{{ $row['priority']['level'] }}"
+                                            data-market-id="{{ $market->id }}"
+                                            data-type-id="{{ $row['item']->type_id }}"
+                                            data-item-name="{{ $row['item']->type_name }}"
                                             data-desired-quantity="{{ $row['item']->desired_quantity }}"
                                             data-missing-quantity="{{ $row['missing_quantity'] }}"
                                             data-seeded-value="{{ $row['seeded_value'] }}"
@@ -924,11 +1024,67 @@
                                 <small class="form-text text-muted market-seeding-freight-result d-none"></small>
                             </div>
                             <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
+                            <div class="market-seeding-restock-output-actions">
+                                <button type="button" class="btn btn-sm btn-outline-success market-seeding-mark-visible-purchased">
+                                    <i class="fas fa-check"></i> Mark Current List Purchased
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary copy-market-export" data-target="{{ $exportId }}">
+                                    <i class="fas fa-copy"></i> Copy Multi-Buy
+                                </button>
+                            </div>
+                            <div class="market-seeding-purchased-tools" data-market-id="{{ $market->id }}">
+                                <div class="market-seeding-purchased-header">
+                                    <div>
+                                        <strong>Temporarily Purchased</strong>
+                                        <small class="text-muted d-block">Stored only in this browser. These quantities are subtracted from this restock list, but they do not change real market stock or health.</small>
+                                    </div>
+                                </div>
+                                <div class="market-seeding-purchased-import mt-3">
+                                    <div class="form-group mb-0">
+                                        <label>Paste Purchased Items</label>
+                                        <textarea class="form-control market-seeding-purchased-import-text" rows="4" placeholder="Paste restock list, market transactions, or inventory rows..."></textarea>
+                                        <small class="form-text text-muted">Supports restock list format, market transaction logs, and inventory rows with item name plus quantity.</small>
+                                        <div class="market-seeding-purchased-import-result d-none"></div>
+                                    </div>
+                                    <div class="market-seeding-purchased-import-actions">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input market-seeding-purchased-replace" id="{{ $exportId }}-replace-purchased">
+                                            <label class="custom-control-label" for="{{ $exportId }}-replace-purchased">Replace current list</label>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-primary market-seeding-import-purchased">
+                                            <i class="fas fa-plus"></i> Add Purchased
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="market-seeding-purchased-summary">
+                                    <span>Items: <strong data-purchased-summary="items">0</strong></span>
+                                    <span>Total m&sup3;: <strong data-purchased-summary="volume">0.00</strong></span>
+                                    <span>Total Value: <strong data-purchased-summary="value">0.00 ISK</strong></span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover market-seeding-purchased-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Module</th>
+                                                <th class="text-right">Quantity</th>
+                                                <th class="text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="market-seeding-purchased-empty-row">
+                                                <td colspan="3" class="text-muted">No temporary purchases marked for this market.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-right mt-3">
+                                    <button type="button" class="btn btn-sm btn-outline-danger market-seeding-clear-purchased">
+                                        <i class="fas fa-trash"></i> Clear Temporary Purchases
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-primary copy-market-export" data-target="{{ $exportId }}">
-                                <i class="fas fa-copy"></i> Copy Multi-Buy
-                            </button>
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                         </div>
                     </div>
@@ -1099,6 +1255,7 @@
             var dashboardItemDetails = @json($dashboardItemDetails);
             var listingHelperCsrfToken = '{{ csrf_token() }}';
             var listingHelperPreferenceKey = 'seat-market-seeding.listing-helper.preferences.v1';
+            var temporaryPurchaseKey = 'seat-market-seeding.temporary-purchases.v1';
 
             if ($.fn.DataTable) {
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
@@ -1121,6 +1278,9 @@
                         emptyTable: 'No stock targets have been configured for this market.',
                         zeroRecords: 'No items match this search.'
                     }
+                });
+                $('.market-seeding-dashboard-table').on('draw.dt', function () {
+                    updateDashboardTemporaryPurchaseBadges();
                 });
             }
 
@@ -1158,6 +1318,100 @@
 
             $(document).on('input change', '.market-seeding-freight-limit', function () {
                 updateRestockExport($(this).closest('.market-seeding-modal'));
+            });
+
+            $(document).on('click', '.market-seeding-import-purchased', function () {
+                var $tools = $(this).closest('.market-seeding-purchased-tools');
+                var $modal = $(this).closest('.market-seeding-modal');
+                var textarea = $modal.find('.market-seeding-export-textarea')[0];
+                var lines = $(textarea).data('lines') || [];
+                var importResult = parseTemporaryPurchaseImport($tools.find('.market-seeding-purchased-import-text').val(), lines);
+
+                renderTemporaryPurchaseImportResult($tools, importResult.stats);
+
+                if (!importResult.items.length) {
+                    return;
+                }
+
+                saveTemporaryPurchases(
+                    $tools.data('market-id'),
+                    importResult.items,
+                    $tools.find('.market-seeding-purchased-replace').is(':checked')
+                );
+                $tools.find('.market-seeding-purchased-import-text').val('');
+                updateRestockExport($modal);
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('click', '.market-seeding-mark-visible-purchased', function () {
+                var $modal = $(this).closest('.market-seeding-modal');
+                var $tools = $modal.find('.market-seeding-purchased-tools');
+                var selected = $modal.data('restock-selected-lines') || [];
+
+                if (!selected.length) {
+                    window.alert('No items are currently in the multi-buy list.');
+                    return;
+                }
+
+                saveTemporaryPurchases(
+                    $tools.data('market-id'),
+                    $.map(selected, function (line) {
+                        return {
+                            type_id: line.type_id,
+                            name: line.name,
+                            unit_volume: line.unit_volume,
+                            unit_value: line.unit_value,
+                            quantity: Number(line.quantity || 0)
+                        };
+                    }),
+                    false
+                );
+                updateRestockExport($modal);
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('click', '.market-seeding-clear-purchased', function () {
+                var $tools = $(this).closest('.market-seeding-purchased-tools');
+
+                if (!window.confirm('Clear all temporary purchases for this market in this browser?')) {
+                    return;
+                }
+
+                clearTemporaryPurchasesForMarket($tools.data('market-id'));
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('input change', '.market-seeding-purchased-quantity', function () {
+                var $input = $(this);
+                var $tools = $input.closest('.market-seeding-purchased-tools');
+                var marketId = $tools.data('market-id');
+                var purchaseKey = $input.closest('tr').data('purchase-key');
+                var rawValue = $.trim($input.val());
+                var quantity = parseNumber($input.val());
+
+                if (rawValue === '') {
+                    return;
+                }
+
+                updateTemporaryPurchaseQuantity(marketId, purchaseKey, quantity);
+                updateRestockExport($input.closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('click', '.market-seeding-remove-purchased', function () {
+                var $row = $(this).closest('tr');
+                var $tools = $(this).closest('.market-seeding-purchased-tools');
+
+                deleteTemporaryPurchase($tools.data('market-id'), $row.data('purchase-key'));
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('keydown', '.market-seeding-remove-purchased', function (event) {
+                if (event.key === 'Backspace' || event.key === 'Delete') {
+                    event.preventDefault();
+                }
             });
 
             $('#market-seeding-market-filter').on('change', function () {
@@ -1253,6 +1507,7 @@
             updateGroupFilterOptions();
             applyDashboardFilters();
             updateFilterToggleButton(false);
+            updateDashboardTemporaryPurchaseBadges();
             if ($.fn.tooltip) {
                 $('[data-toggle="tooltip"]').tooltip({
                     container: 'body',
@@ -1362,6 +1617,7 @@
 
                 updateMarketMetricCards();
                 updateAllRestockExports();
+                updateDashboardTemporaryPurchaseBadges();
             }
 
             function updateGroupFilterOptions() {
@@ -1478,18 +1734,22 @@
                 var filtered = $.grep(lines, function (line) {
                     return matchesDashboardFilters(line.category, line.group, line.status, line.priority, typeCategory, typeGroup, stockStatus, priority);
                 });
+                var marketId = modal.find('.market-seeding-purchased-tools').data('market-id');
+                filtered = applyTemporaryPurchases(filtered, marketId);
                 var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
                 var selected = applyFreightLimit(filtered, freightLimit);
                 var volume = selected.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
                 }, 0);
 
+                modal.data('restock-selected-lines', selected);
                 textarea.value = $.map(selected, function (line) {
                     return line.line;
                 }).join('\n');
 
                 modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
                 updateFreightResult(modal, freightLimit, volume);
+                renderTemporaryPurchases(modal, lines);
             }
 
             function updateFreightResult(modal, freightLimit, selectedVolume) {
@@ -1507,6 +1767,385 @@
                         '<strong>' + formatDecimal(freightLimit) + '</strong> m&sup3; available. ' +
                         'Remaining: <strong>' + formatDecimal(Math.max(0, freightLimit - selectedVolume)) + '</strong> m&sup3;.'
                     );
+            }
+
+            function temporaryPurchaseStorage() {
+                try {
+                    return JSON.parse(window.localStorage.getItem(temporaryPurchaseKey) || '{}') || {};
+                } catch (error) {
+                    return {};
+                }
+            }
+
+            function saveTemporaryPurchaseStorage(storage) {
+                try {
+                    window.localStorage.setItem(temporaryPurchaseKey, JSON.stringify(storage || {}));
+                } catch (error) {
+                    window.alert('Unable to save temporary purchases in this browser.');
+                }
+            }
+
+            function temporaryPurchaseKeyFor(marketId, purchaseKey) {
+                return String(marketId) + ':' + String(purchaseKey);
+            }
+
+            function temporaryPurchaseItemKey(purchase) {
+                if (Number(purchase.type_id || 0) > 0) {
+                    return 'type:' + Number(purchase.type_id);
+                }
+
+                return 'name:' + normalizeTemporaryPurchaseName(purchase.name || '');
+            }
+
+            function normalizeTemporaryPurchaseName(name) {
+                return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            }
+
+            function purchasesForMarket(marketId) {
+                var storage = temporaryPurchaseStorage();
+                var prefix = String(marketId) + ':';
+                var purchases = {};
+
+                $.each(storage, function (key, purchase) {
+                    if (key.indexOf(prefix) === 0 && Number(purchase.quantity || 0) >= 0) {
+                        var purchaseKey = purchase.purchase_key;
+
+                        if (!purchaseKey && Number(purchase.type_id || 0) > 0) {
+                            purchaseKey = 'type:' + Number(purchase.type_id);
+                        }
+
+                        purchaseKey = purchaseKey || key.replace(prefix, '');
+                        purchases[String(purchaseKey)] = $.extend({}, purchase, {
+                            purchase_key: purchaseKey
+                        });
+                    }
+                });
+
+                return purchases;
+            }
+
+            function saveTemporaryPurchases(marketId, purchases, replace) {
+                var storage = temporaryPurchaseStorage();
+                var prefix = String(marketId) + ':';
+
+                if (replace) {
+                    $.each(Object.keys(storage), function (index, key) {
+                        if (key.indexOf(prefix) === 0) {
+                            delete storage[key];
+                        }
+                    });
+                }
+
+                $.each(purchases, function (index, purchase) {
+                    var purchaseKey = temporaryPurchaseItemKey(purchase);
+                    var quantity = Number(purchase.quantity || 0);
+
+                    if (!purchaseKey || purchaseKey === 'name:' || quantity <= 0) {
+                        return;
+                    }
+
+                    var key = temporaryPurchaseKeyFor(marketId, purchaseKey);
+                    var existing = storage[key] || {};
+                    storage[key] = {
+                        market_id: Number(marketId),
+                        purchase_key: purchaseKey,
+                        type_id: Number(purchase.type_id || existing.type_id || 0),
+                        name: purchase.name || existing.name || '',
+                        unit_volume: Number(purchase.unit_volume || existing.unit_volume || 0),
+                        unit_value: Number(purchase.unit_value || existing.unit_value || 0),
+                        quantity: replace ? quantity : quantity + Number(existing.quantity || 0),
+                        updated_at: new Date().toISOString()
+                    };
+                });
+
+                saveTemporaryPurchaseStorage(storage);
+            }
+
+            function updateTemporaryPurchaseQuantity(marketId, purchaseKey, quantity) {
+                var storage = temporaryPurchaseStorage();
+                var key = temporaryPurchaseKeyFor(marketId, purchaseKey);
+
+                storage[key] = $.extend({}, storage[key] || {}, {
+                    market_id: Number(marketId),
+                    purchase_key: purchaseKey,
+                    quantity: Math.max(0, quantity),
+                    updated_at: new Date().toISOString()
+                });
+                saveTemporaryPurchaseStorage(storage);
+            }
+
+            function deleteTemporaryPurchase(marketId, purchaseKey) {
+                var storage = temporaryPurchaseStorage();
+                var key = temporaryPurchaseKeyFor(marketId, purchaseKey);
+
+                delete storage[key];
+                saveTemporaryPurchaseStorage(storage);
+            }
+
+            function clearTemporaryPurchasesForMarket(marketId) {
+                var storage = temporaryPurchaseStorage();
+                var prefix = String(marketId) + ':';
+
+                $.each(Object.keys(storage), function (index, key) {
+                    if (key.indexOf(prefix) === 0) {
+                        delete storage[key];
+                    }
+                });
+
+                saveTemporaryPurchaseStorage(storage);
+            }
+
+            function applyTemporaryPurchases(lines, marketId) {
+                var purchases = purchasesForMarket(marketId);
+                var purchasesByName = {};
+
+                $.each(purchases, function (key, purchase) {
+                    if (purchase.name) {
+                        purchasesByName[normalizeTemporaryPurchaseName(purchase.name)] = purchase;
+                    }
+                });
+
+                return $.map(lines, function (line) {
+                    var purchase = purchases['type:' + String(line.type_id)] || purchasesByName[normalizeTemporaryPurchaseName(line.name)];
+                    var purchasedQuantity = Number(purchase ? purchase.quantity : 0);
+                    var remainingQuantity = Math.max(0, Number(line.quantity || 0) - purchasedQuantity);
+
+                    if (remainingQuantity <= 0) {
+                        return null;
+                    }
+
+                    return $.extend({}, line, {
+                        quantity: remainingQuantity,
+                        volume: remainingQuantity * Number(line.unit_volume || 0),
+                        value: remainingQuantity * Number(line.unit_value || 0),
+                        line: line.name + '\t' + remainingQuantity
+                    });
+                });
+            }
+
+            function renderTemporaryPurchases(modal, lines) {
+                var $tools = modal.find('.market-seeding-purchased-tools');
+                var marketId = $tools.data('market-id');
+                var purchases = purchasesForMarket(marketId);
+                var byTypeId = {};
+                var byName = {};
+                var rows = [];
+                var totalQuantity = 0;
+                var totalVolume = 0;
+                var totalValue = 0;
+
+                $.each(lines, function (index, line) {
+                    byTypeId[String(line.type_id)] = line;
+                    byName[normalizeTemporaryPurchaseName(line.name)] = line;
+                });
+
+                $.each(purchases, function (purchaseKey, purchase) {
+                    var line = byTypeId[String(purchase.type_id)] || byName[normalizeTemporaryPurchaseName(purchase.name)];
+                    var quantity = Number(purchase.quantity || 0);
+
+                    if (quantity < 0) {
+                        return;
+                    }
+
+                    var unitVolume = line ? Number(line.unit_volume || 0) : Number(purchase.unit_volume || 0);
+                    var unitValue = line ? Number(line.unit_value || 0) : Number(purchase.unit_value || 0);
+                    totalQuantity += quantity;
+                    totalVolume += quantity * unitVolume;
+                    totalValue += quantity * unitValue;
+                    rows.push({
+                        purchase_key: purchase.purchase_key || purchaseKey,
+                        type_id: Number(purchase.type_id || (line ? line.type_id : 0) || 0),
+                        name: purchase.name || (line ? line.name : 'Unknown item'),
+                        quantity: quantity
+                    });
+                });
+
+                var $body = $tools.find('.market-seeding-purchased-table tbody');
+                $body.empty();
+
+                if (!rows.length) {
+                    $body.append('<tr class="market-seeding-purchased-empty-row"><td colspan="3" class="text-muted">No temporary purchases marked for this market.</td></tr>');
+                } else {
+                    rows.sort(function (a, b) {
+                        return a.name.localeCompare(b.name);
+                    });
+
+                    $.each(rows, function (index, row) {
+                        var icon = row.type_id > 0
+                            ? '<img src="' + escapeHtml(eveTypeIconUrl(row.type_id, 32)) + '" alt="">'
+                            : '<i class="fas fa-cube text-muted"></i>';
+                        $body.append(
+                            '<tr data-purchase-key="' + escapeHtml(row.purchase_key) + '">' +
+                                '<td><span class="market-seeding-purchased-item"><span class="market-seeding-purchased-item-icon">' + icon + '</span><span>' + escapeHtml(row.name) + '</span></span></td>' +
+                                '<td class="text-right">' +
+                                    '<input type="number" min="0" step="1" class="form-control form-control-sm market-seeding-purchased-quantity ml-auto" value="' + escapeHtml(row.quantity) + '">' +
+                                '</td>' +
+                                '<td class="text-right">' +
+                                    '<button type="button" class="btn btn-xs btn-outline-danger market-seeding-remove-purchased">Remove</button>' +
+                                '</td>' +
+                            '</tr>'
+                        );
+                    });
+                }
+
+                $tools.find('[data-purchased-summary="items"]').text(numberWithCommas(rows.length));
+                $tools.find('[data-purchased-summary="volume"]').text(formatDecimal(totalVolume));
+                $tools.find('[data-purchased-summary="value"]').text(formatMetricMoney(totalValue));
+            }
+
+            function updateDashboardTemporaryPurchaseBadges() {
+                $('.market-seeding-dashboard-table tbody tr').each(function () {
+                    var $row = $(this);
+                    var marketId = $row.data('market-id');
+                    var typeId = $row.data('type-id');
+                    var itemName = $row.data('item-name');
+                    var missingQuantity = Number($row.data('missing-quantity') || 0);
+                    var purchases = purchasesForMarket(marketId);
+                    var purchase = purchases['type:' + String(typeId)] || purchases['name:' + normalizeTemporaryPurchaseName(itemName)];
+                    var purchasedQuantity = Number(purchase ? purchase.quantity : 0);
+                    var $itemCell = $row.find('td:first');
+
+                    $row.toggleClass('market-seeding-locally-purchased', purchasedQuantity > 0);
+                    $itemCell.find('.market-seeding-local-purchase-badge').remove();
+
+                    if (purchasedQuantity <= 0) {
+                        return;
+                    }
+
+                    var label = purchasedQuantity >= missingQuantity && missingQuantity > 0 ? 'Bought locally' : 'Partially bought';
+                    $itemCell.append(
+                        '<span class="badge badge-success market-seeding-local-purchase-badge" title="Stored only in this browser">' +
+                            escapeHtml(label) +
+                        '</span>'
+                    );
+                });
+            }
+
+            function parseTemporaryPurchaseImport(text, lines) {
+                var byName = {};
+                var purchases = {};
+                var stats = {
+                    rows: 0,
+                    importedRows: 0,
+                    ignoredSellRows: 0,
+                    unparsedRows: 0
+                };
+
+                $.each(lines, function (index, line) {
+                    byName[normalizeTemporaryPurchaseName(line.name)] = line;
+                });
+
+                String(text || '').split(/\r?\n/).forEach(function (rawLine) {
+                    var line = $.trim(rawLine);
+
+                    if (!line) {
+                        return;
+                    }
+
+                    stats.rows++;
+                    var parsed = parseTemporaryPurchaseLine(line, byName);
+
+                    if (!parsed) {
+                        stats.unparsedRows++;
+                        return;
+                    }
+
+                    if (parsed.ignored_sell) {
+                        stats.ignoredSellRows++;
+                        return;
+                    }
+
+                    stats.importedRows++;
+                    var key = parsed.purchase_key || temporaryPurchaseItemKey(parsed);
+                    purchases[key] = purchases[key] || {
+                        purchase_key: key,
+                        type_id: parsed.type_id,
+                        name: parsed.name,
+                        unit_volume: parsed.unit_volume || 0,
+                        unit_value: parsed.unit_value || 0,
+                        quantity: 0
+                    };
+                    purchases[key].quantity += parsed.quantity;
+                });
+
+                var items = $.map(purchases, function (purchase) {
+                    return purchase;
+                });
+                stats.uniqueItems = items.length;
+
+                return {
+                    items: items,
+                    stats: stats
+                };
+            }
+
+            function renderTemporaryPurchaseImportResult($tools, stats) {
+                var $result = $tools.find('.market-seeding-purchased-import-result');
+                var importedRows = Number(stats.importedRows || 0);
+                var uniqueItems = Number(stats.uniqueItems || 0);
+                var ignoredSellRows = Number(stats.ignoredSellRows || 0);
+                var unparsedRows = Number(stats.unparsedRows || 0);
+                var alertClass = importedRows > 0 ? 'alert-success' : 'alert-warning';
+                var details = [];
+
+                details.push('<strong>' + numberWithCommas(importedRows) + '</strong> row(s) imported');
+                details.push('<strong>' + numberWithCommas(uniqueItems) + '</strong> unique item(s)');
+
+                if (ignoredSellRows > 0) {
+                    details.push('<strong>' + numberWithCommas(ignoredSellRows) + '</strong> sell transaction(s) ignored');
+                }
+
+                if (unparsedRows > 0) {
+                    details.push('<strong>' + numberWithCommas(unparsedRows) + '</strong> row(s) could not be read');
+                }
+
+                $result
+                    .removeClass('d-none alert-success alert-warning alert-danger')
+                    .addClass('alert ' + alertClass + ' py-2 px-3 mb-0')
+                    .html(details.join(' &middot; '));
+            }
+
+            function parseTemporaryPurchaseLine(line, byName) {
+                var columns = line.split('\t');
+                var itemName = '';
+                var quantity = 0;
+                var looksLikeMarketTransaction = columns.length >= 7 && /^\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}/.test($.trim(columns[0]));
+
+                if (looksLikeMarketTransaction) {
+                    if (parseMoney(columns[4]) >= 0) {
+                        return {
+                            ignored_sell: true
+                        };
+                    }
+
+                    quantity = parseNumber(columns[1]);
+                    itemName = $.trim(columns[2]);
+                } else if (columns.length >= 2) {
+                    itemName = $.trim(columns[0]);
+                    quantity = parseNumber(columns[1]);
+                } else {
+                    var simpleMatch = line.match(/^(.+?)\s+x\s*([\d,]+)$/i) || line.match(/^(.+?)\s+([\d,]+)$/);
+
+                    if (simpleMatch) {
+                        itemName = $.trim(simpleMatch[1]);
+                        quantity = parseNumber(simpleMatch[2]);
+                    }
+                }
+
+                if (!itemName || quantity <= 0) {
+                    return null;
+                }
+
+                var match = byName[normalizeTemporaryPurchaseName(itemName)];
+
+                return {
+                    purchase_key: match ? 'type:' + match.type_id : 'name:' + normalizeTemporaryPurchaseName(itemName),
+                    type_id: match ? match.type_id : 0,
+                    name: match ? match.name : itemName,
+                    unit_volume: match ? Number(match.unit_volume || 0) : 0,
+                    unit_value: match ? Number(match.unit_value || 0) : 0,
+                    quantity: quantity
+                };
             }
 
             function applyFreightLimit(lines, freightLimit) {
