@@ -23,14 +23,14 @@ class StockListParserTest extends TestCase
             'Totally Fake Thing 99',
         ]), 2);
 
-        $this->assertSame(4, $result['validation']['processed_lines']);
-        $this->assertSame(2, $result['validation']['ignored_lines']);
+        $this->assertSame(5, $result['validation']['processed_lines']);
+        $this->assertSame(1, $result['validation']['ignored_lines']);
         $this->assertSame(3, $result['validation']['valid_lines']);
         $this->assertSame(1, $result['validation']['skipped_lines']);
 
         $items = collect($result['items'])->keyBy('type_name');
 
-        $this->assertSame(4, $items['Caracal']['quantity']);
+        $this->assertSame(6, $items['Caracal']['quantity']);
         $this->assertSame(6, $items['Warp Scrambler II']['quantity']);
         $this->assertSame(8, $items['Barrage M']['quantity']);
         $this->assertStringContainsString('Totally Fake Thing', $result['validation']['skipped'][0]['reason']);

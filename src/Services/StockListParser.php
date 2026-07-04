@@ -76,10 +76,6 @@ class StockListParser
 
     private function isIgnoredLine(string $line): bool
     {
-        if (preg_match('/^\[.+,\s*.+\]$/', $line)) {
-            return true;
-        }
-
         return in_array(strtolower($line), [
             '[empty high slot]',
             '[empty med slot]',
@@ -93,6 +89,10 @@ class StockListParser
     private function parseLine(string $line): array
     {
         $line = preg_replace('/\s+/', ' ', $line);
+
+        if (preg_match('/^\[(.+?)(?:,\s*.+)?\]$/', $line, $matches)) {
+            return [trim($matches[1]), 1];
+        }
 
         if (preg_match('/^(.+?)\s+x\s*(\d+)$/i', $line, $matches)) {
             return [trim($matches[1]), (int) $matches[2]];
