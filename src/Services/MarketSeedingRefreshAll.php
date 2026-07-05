@@ -4,6 +4,8 @@ namespace Raikia\SeatMarketSeeding\Services;
 
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
+use Seat\Eseye\Exceptions\EsiScopeAccessDeniedException;
+use Seat\Eseye\Exceptions\InvalidAuthenticationException;
 use Seat\Eveapi\Models\RefreshToken;
 
 class MarketSeedingRefreshAll
@@ -75,8 +77,9 @@ class MarketSeedingRefreshAll
                     'refresh_stats' => $refresh->getLastStats(),
                 ]);
             } catch (\Throwable $e) {
-                $message = sprintf('%s: %s', $market->name, $e->getMessage());
-                $this->recordRefreshStatus($market, 'error', $e->getMessage());
+                $refreshMessage = $this->refreshFailureMessage($market, $e);
+                $message = sprintf('%s: %s', $market->name, $refreshMessage);
+                $this->recordRefreshStatus($market, 'error', $refreshMessage);
                 $results['errors'][] = $message;
 
                 logger()->error('Market seeding market refresh failed.', [
@@ -85,6 +88,7 @@ class MarketSeedingRefreshAll
                     'items' => $market->items->count(),
                     'seconds' => round(microtime(true) - $startedAt, 3),
                     'error' => $e->getMessage(),
+                    'refresh_message' => $refreshMessage,
                     'exception' => get_class($e),
                     'refresh_stats' => $refresh->getLastStats(),
                 ]);
@@ -96,6 +100,45 @@ class MarketSeedingRefreshAll
         }
 
         return $results;
+    }
+
+    private function refreshFailureMessage(SeededMarket $market, \Throwable $e): string
+    {
+        $message = trim($e->getMessage());
+        $code = (int) $e->getCode();
+        $isAuthorizationMessage = str_contains(strtolower($message), 'not authorized')
+            || str_contains(strtolower($message), 'unauthorized')
+            || str_contains(strtolower($message), 'forbidden');
+
+        if ($e instanceof EsiScopeAccessDeniedException) {
+            return sprintf('ESI token is missing the %s scope required for structure market orders.', self::STRUCTURE_MARKET_SCOPE);
+        }
+
+        if ($e instanceof InvalidAuthenticationException || $code === 401) {
+            return 'ESI rejected the refresh token. Re-authenticate a character with structure market access.';
+        }
+
+        if ($code === 403 || $isAuthorizationMessage) {
+            if ($market->is_structure) {
+                return 'ESI denied access to this structure market. The structure may be offline, the market service may be unavailable, or the refresh token character may not have access.';
+            }
+
+            return 'ESI denied access to this market endpoint.';
+        }
+
+        if ($code === 404 && $market->is_structure) {
+            return 'ESI could not find this structure market. The structure may be offline, unanchored, or unavailable to the refresh token character.';
+        }
+
+        if ($code === 420 || $code === 429) {
+            return 'ESI rate limited this refresh. It should succeed on a later scheduled run.';
+        }
+
+        if ($code >= 500) {
+            return 'ESI returned a server error while refreshing this market. It should succeed once ESI recovers.';
+        }
+
+        return $message !== '' ? $message : 'Market refresh failed with an unknown ESI error.';
     }
 
     private function findStructureMarketToken(): ?RefreshToken
