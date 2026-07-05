@@ -79,12 +79,13 @@ class MarketSeedingRefreshAll
                 $this->recordRefreshStatus($market, 'error', $e->getMessage());
                 $results['errors'][] = $message;
 
-                logger()->warning('Market seeding market refresh failed.', [
+                logger()->error('Market seeding market refresh failed.', [
                     'market_id' => $market->id,
                     'market_name' => $market->name,
                     'items' => $market->items->count(),
                     'seconds' => round(microtime(true) - $startedAt, 3),
                     'error' => $e->getMessage(),
+                    'exception' => get_class($e),
                     'refresh_stats' => $refresh->getLastStats(),
                 ]);
             }

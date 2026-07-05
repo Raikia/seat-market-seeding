@@ -46,6 +46,16 @@ class RefreshMarketSeedingMarkets implements ShouldQueue, ShouldBeUnique
         ]);
     }
 
+    public function failed(\Throwable $e): void
+    {
+        logger()->error('Market seeding refresh job failed.', [
+            'preferred_token_character_id' => $this->preferredTokenCharacterId,
+            'attempts' => $this->job && method_exists($this->job, 'attempts') ? $this->job->attempts() : null,
+            'error' => $e->getMessage(),
+            'exception' => get_class($e),
+        ]);
+    }
+
     public function uniqueId(): string
     {
         return self::UNIQUE_ID;
