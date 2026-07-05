@@ -95,6 +95,13 @@
             display: block;
             font-size: 1.05rem;
         }
+        .market-seeding-recommendation-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .45rem;
+            justify-content: flex-end;
+        }
         .market-seeding-recommendations-modal .modal-body {
             max-height: 70vh;
             overflow-y: auto;
@@ -1017,9 +1024,14 @@
                                     <strong class="market-seeding-recommendation-volume">{{ number_format($recommendationVolumeIncrease, 2, '.', ',') }} m3</strong>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-danger btn-sm market-seeding-review-market-recommendations" data-market-id="{{ $market->id }}" data-market-name="{{ $market->name }}">
-                                <i class="fas fa-check-double"></i> Review Recommendations
-                            </button>
+                            <div class="market-seeding-recommendation-actions">
+                                <button type="button" class="btn btn-danger btn-sm market-seeding-review-market-recommendations" data-market-id="{{ $market->id }}" data-market-name="{{ $market->name }}">
+                                    <i class="fas fa-check-double"></i> Review Recommendations
+                                </button>
+                                <button type="button" class="btn btn-default btn-sm market-seeding-clear-hidden-recommendations d-none" data-market-id="{{ $market->id }}">
+                                    <i class="fas fa-eye"></i> Clear Hidden Recommendations
+                                </button>
+                            </div>
                     </div>
 
                     <div class="table-responsive market-seeding-subsection market-seeding-table-shell">
@@ -1168,6 +1180,7 @@
                     <p class="text-muted">
                         Recommendations are based on recent estimated sales, the configured sales window, and the configured buffer. Low and empty stock events are context, but they do not drive these target changes.
                     </p>
+                    <div class="alert alert-info d-none" id="market-seeding-recommendations-hidden-note"></div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover market-seeding-recommendations-table mb-0" id="market-seeding-recommendations-table">
                             <thead>
@@ -1192,6 +1205,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-default mr-auto d-none" id="market-seeding-unhide-recommendations">
+                        <i class="fas fa-eye"></i> Unhide All Hidden
+                    </button>
                     <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-danger" id="market-seeding-apply-recommendations">Apply Recommendations</button>
                 </div>
@@ -1219,6 +1235,8 @@
             var settingsItemHistoryUrlTemplate = @json(route('market-seeding.items.history', ['item' => '__ITEM_ID__']));
             var settingsRecommendationsByItem = {};
             var settingsRecommendationDetailsByItem = {};
+            var ignoredRecommendationStorageKey = 'seat-market-seeding:ignored-recommendations:v1';
+            var ignoredRecommendations = loadIgnoredRecommendations();
             $.each(settingsRecommendationsByMarket, function (marketId, recommendations) {
                 $.each(recommendations || [], function (index, recommendation) {
                     settingsRecommendationsByItem[recommendation.item_id] = recommendation;
@@ -1665,13 +1683,13 @@
             $(document).on('click', '.market-seeding-review-market-recommendations', function () {
                 var marketId = $(this).data('market-id');
                 var marketName = $(this).data('market-name') || 'Market';
-                var recommendations = settingsRecommendationsByMarket[marketId] || [];
+                var recommendations = recommendationRowsForMarket(marketId);
 
-                renderRecommendationReview(marketName, recommendations);
                 $('#market-seeding-recommendations-modal')
                     .data('market-id', marketId)
-                    .data('market-name', marketName)
-                    .modal('show');
+                    .data('market-name', marketName);
+                renderRecommendationReview(marketName, recommendations);
+                $('#market-seeding-recommendations-modal').modal('show');
             });
 
             $('#market-seeding-recommendations-modal').on('shown.bs.modal', function () {
@@ -1683,7 +1701,7 @@
             $('#market-seeding-apply-recommendations').on('click', function () {
                 var $button = $(this);
                 var marketId = $('#market-seeding-recommendations-modal').data('market-id');
-                var recommendations = settingsRecommendationsByMarket[marketId] || [];
+                var recommendations = recommendationRowsForMarket(marketId);
 
                 if (!recommendations.length) {
                     return;
@@ -1721,6 +1739,53 @@
                         .text(errorMessage(xhr));
                     $button.prop('disabled', false).text('Apply Recommendations');
                 });
+            });
+
+            $(document).on('click', '.market-seeding-hide-recommendation', function () {
+                var marketId = $('#market-seeding-recommendations-modal').data('market-id');
+                var marketName = $('#market-seeding-recommendations-modal').data('market-name') || 'Market';
+                var itemId = parseInt($(this).data('item-id') || 0, 10);
+
+                if (!marketId || !itemId) {
+                    return;
+                }
+
+                ignoredRecommendations[recommendationIgnoreKey(marketId, itemId)] = true;
+                saveIgnoredRecommendations();
+                refreshRecommendationPanel(marketId);
+                renderRecommendationReview(marketName, recommendationRowsForMarket(marketId));
+            });
+
+            $('#market-seeding-unhide-recommendations').on('click', function () {
+                var marketId = $('#market-seeding-recommendations-modal').data('market-id');
+                var marketName = $('#market-seeding-recommendations-modal').data('market-name') || 'Market';
+
+                if (!marketId) {
+                    return;
+                }
+
+                $.each(rawRecommendationRowsForMarket(marketId), function (index, recommendation) {
+                    delete ignoredRecommendations[recommendationIgnoreKey(marketId, recommendation.item_id)];
+                });
+
+                saveIgnoredRecommendations();
+                refreshRecommendationPanel(marketId);
+                renderRecommendationReview(marketName, recommendationRowsForMarket(marketId));
+            });
+
+            $(document).on('click', '.market-seeding-clear-hidden-recommendations', function () {
+                var marketId = $(this).data('market-id');
+
+                if (!marketId) {
+                    return;
+                }
+
+                $.each(rawRecommendationRowsForMarket(marketId), function (index, recommendation) {
+                    delete ignoredRecommendations[recommendationIgnoreKey(marketId, recommendation.item_id)];
+                });
+
+                saveIgnoredRecommendations();
+                refreshRecommendationPanel(marketId);
             });
 
             $('.market-seeding-load-profile').on('click', function () {
@@ -2596,8 +2661,58 @@
                 return html ? '<span class="market-seeding-source-icons" aria-label="Target sources">' + html + '</span>' : '';
             }
 
-            function recommendationRowsForMarket(marketId) {
+            function loadIgnoredRecommendations() {
+                try {
+                    return JSON.parse(localStorage.getItem(ignoredRecommendationStorageKey) || '{}') || {};
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            function saveIgnoredRecommendations() {
+                try {
+                    localStorage.setItem(ignoredRecommendationStorageKey, JSON.stringify(ignoredRecommendations));
+                } catch (e) {
+                    // Browser storage can be disabled. In that case the current page state still works.
+                }
+            }
+
+            function recommendationIgnoreKey(marketId, itemId) {
+                return String(marketId || '') + ':' + String(itemId || '');
+            }
+
+            function isRecommendationIgnored(recommendation, marketId) {
+                return !!ignoredRecommendations[recommendationIgnoreKey(marketId || recommendation.market_id, recommendation.item_id)];
+            }
+
+            function rawRecommendationRowsForMarket(marketId) {
                 return settingsRecommendationsByMarket[String(marketId)] || settingsRecommendationsByMarket[marketId] || [];
+            }
+
+            function recommendationRowsForMarket(marketId) {
+                return $.grep(rawRecommendationRowsForMarket(marketId), function (recommendation) {
+                    return !isRecommendationIgnored(recommendation, marketId);
+                });
+            }
+
+            function hiddenRecommendationCountForMarket(marketId) {
+                return rawRecommendationRowsForMarket(marketId).length - recommendationRowsForMarket(marketId).length;
+            }
+
+            function updateHiddenRecommendationNote(marketId) {
+                var hiddenCount = hiddenRecommendationCountForMarket(marketId);
+                var $note = $('#market-seeding-recommendations-hidden-note');
+                var $unhide = $('#market-seeding-unhide-recommendations');
+
+                if (hiddenCount > 0) {
+                    $note
+                        .removeClass('d-none')
+                        .text(formatWhole(hiddenCount) + ' recommendation' + (hiddenCount === 1 ? ' is' : 's are') + ' hidden in this browser. Hidden recommendations are not applied.');
+                    $unhide.removeClass('d-none');
+                } else {
+                    $note.addClass('d-none').text('');
+                    $unhide.addClass('d-none');
+                }
             }
 
             function recommendationDetailRowsForMarket(marketId) {
@@ -2660,7 +2775,11 @@
 
             function refreshRecommendationPanel(marketId) {
                 var recommendations = recommendationRowsForMarket(marketId);
+                var hiddenCount = hiddenRecommendationCountForMarket(marketId);
                 var $panel = $('.market-seeding-recommendation-panel[data-market-id="' + marketId + '"]');
+                var $metrics = $panel.find('.market-seeding-recommendation-metrics');
+                var $reviewButton = $panel.find('.market-seeding-review-market-recommendations');
+                var $clearHiddenButton = $panel.find('.market-seeding-clear-hidden-recommendations');
                 var totalGap = 0;
                 var totalCost = 0;
                 var totalVolume = 0;
@@ -2671,16 +2790,30 @@
                     totalVolume += parseFloat(recommendation.recommendation_delta_volume || 0) || 0;
                 });
 
-                if (!recommendations.length) {
+                if (!recommendations.length && !hiddenCount) {
                     $panel.addClass('d-none');
                     return;
                 }
 
                 $panel.removeClass('d-none');
+                $clearHiddenButton.toggleClass('d-none', hiddenCount < 1);
+
+                if (!recommendations.length) {
+                    $metrics.addClass('d-none');
+                    $reviewButton.addClass('d-none');
+                    $panel.find('.market-seeding-recommendation-title')
+                        .text(formatWhole(hiddenCount) + ' hidden sales-based target recommendation' + (hiddenCount === 1 ? '' : 's'));
+                    $panel.find('.market-seeding-recommendation-copy-count')
+                        .text((hiddenCount === 1 ? 'one hidden recommendation' : formatWhole(hiddenCount) + ' hidden recommendations') + ' in this browser. Clear hidden recommendations to show them again.');
+                    return;
+                }
+
+                $metrics.removeClass('d-none');
+                $reviewButton.removeClass('d-none');
                 $panel.find('.market-seeding-recommendation-title')
                     .text(formatWhole(recommendations.length) + ' sales-based target recommendation' + (recommendations.length === 1 ? '' : 's'));
                 $panel.find('.market-seeding-recommendation-copy-count')
-                    .text(recommendations.length === 1 ? 'one item may need a higher target' : 'some items may need higher targets');
+                    .text((recommendations.length === 1 ? 'one item may need a higher target' : 'some items may need higher targets') + (hiddenCount ? ' Hidden recommendations are not included.' : ''));
                 $panel.find('.market-seeding-recommendation-target').text('+' + formatWhole(totalGap));
                 $panel.find('.market-seeding-recommendation-cost').text(formatMoney(totalCost));
                 $panel.find('.market-seeding-recommendation-volume').text(formatDecimal(totalVolume, 2) + ' m3');
@@ -2730,18 +2863,24 @@
             }
 
             function renderRecommendationReview(marketName, recommendations) {
-                var $body = $('#market-seeding-recommendations-body').empty();
+                var $table = $('#market-seeding-recommendations-table');
+                var $body = $('#market-seeding-recommendations-body');
                 var totalGap = 0;
                 var totalCost = 0;
                 var totalVolume = 0;
 
                 if (recommendationReviewTable) {
+                    recommendationReviewTable.clear();
                     recommendationReviewTable.destroy();
                     recommendationReviewTable = null;
+                } else if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
+                    $table.DataTable().clear().destroy();
                 }
 
+                $body.empty();
                 $('#market-seeding-recommendations-market').text(marketName + ' recommendations');
                 $('#market-seeding-recommendations-error').addClass('d-none').removeClass('alert-success alert-warning alert-danger').text('');
+                updateHiddenRecommendationNote($('#market-seeding-recommendations-modal').data('market-id'));
 
                 if (!recommendations.length) {
                     $('#market-seeding-recommendations-count').text('0');
@@ -2787,7 +2926,8 @@
                             '<td class="text-right" data-order="' + estimatedSold + '">' + formatWhole(estimatedSold) + '</td>' +
                             '<td class="text-right" data-order="' + lowEmptyEvents + '">' + formatWhole(lowEmptyEvents) + '</td>' +
                             '<td class="text-right">' +
-                                (itemId ? '<button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-view-item-details" title="Open target details" data-item-id="' + itemId + '" data-update-url="' + escapeAttr(itemUrl(settingsItemUpdateUrlTemplate, itemId)) + '" data-history-url="' + escapeAttr(itemUrl(settingsItemHistoryUrlTemplate, itemId)) + '" data-item-name="' + escapeAttr(recommendation.type_name || 'Unknown item') + '" data-market-name="' + escapeAttr((recommendation.market_name || marketName || '') + ' - ' + (recommendation.location_name || '')) + '" data-desired-quantity="' + current + '" data-warning-quantity="' + parseInt(recommendation.warning_quantity || 0, 10) + '"><i class="fas fa-search"></i></button>' : '-') +
+                                (itemId ? '<button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-view-item-details" title="Open target details" data-item-id="' + itemId + '" data-update-url="' + escapeAttr(itemUrl(settingsItemUpdateUrlTemplate, itemId)) + '" data-history-url="' + escapeAttr(itemUrl(settingsItemHistoryUrlTemplate, itemId)) + '" data-item-name="' + escapeAttr(recommendation.type_name || 'Unknown item') + '" data-market-name="' + escapeAttr((recommendation.market_name || marketName || '') + ' - ' + (recommendation.location_name || '')) + '" data-desired-quantity="' + current + '" data-warning-quantity="' + parseInt(recommendation.warning_quantity || 0, 10) + '"><i class="fas fa-search"></i></button> ' +
+                                    '<button type="button" class="btn btn-link btn-xs p-0 text-muted history-item-action market-seeding-hide-recommendation" title="Hide this recommendation in this browser" data-item-id="' + itemId + '"><i class="fas fa-eye-slash"></i></button>' : '-') +
                             '</td>' +
                         '</tr>'
                     );
@@ -2800,7 +2940,7 @@
                 $('#market-seeding-apply-recommendations').prop('disabled', false).text('Apply Recommendations');
 
                 if ($.fn.DataTable) {
-                    recommendationReviewTable = $('#market-seeding-recommendations-table').DataTable({
+                    recommendationReviewTable = $table.DataTable({
                         order: [[4, 'desc']],
                         paging: true,
                         pageLength: 10,
@@ -2817,6 +2957,10 @@
                     });
                 }
             }
+
+            $.each(settingsRecommendationsByMarket, function (marketId) {
+                refreshRecommendationPanel(marketId);
+            });
 
             @include('seat-market-seeding::partials.item-detail-modal-readonly-scripts')
 
