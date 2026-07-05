@@ -2753,7 +2753,7 @@
             function setVisibleRecommendation(recommendation) {
                 var marketId = recommendation.market_id;
                 var itemId = parseInt(recommendation.item_id || 0, 10);
-                var recommendations = recommendationRowsForMarket(marketId);
+                var recommendations = rawRecommendationRowsForMarket(marketId).slice();
 
                 recommendations = $.grep(recommendations, function (row) {
                     return parseInt(row.item_id || 0, 10) !== itemId;
