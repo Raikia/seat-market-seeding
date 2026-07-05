@@ -32,27 +32,6 @@
                 'empty' => 'badge-danger',
             ][$status] ?? 'badge-secondary';
         };
-        $attentionRecommendationPayload = $attentionItems->map(function ($item) {
-            return [
-                'item_id' => (int) $item->item_id,
-                'type_name' => $item->type_name,
-                'type_category' => $item->type_category,
-                'market_name' => $item->market_name,
-                'location_name' => $item->location_name,
-                'current_target_quantity' => (int) $item->current_target_quantity,
-                'recommended_quantity' => (int) $item->recommended_quantity,
-                'recommendation_reason' => $item->recommendation_reason,
-                'recommendation_estimated_sold' => (int) ($item->recommendation_estimated_sold ?? 0),
-                'recommendation_sales_days_with_data' => (int) ($item->recommendation_sales_days_with_data ?? 0),
-                'recommendation_daily_sold' => (float) ($item->recommendation_daily_sold ?? 0),
-                'recommendation_sales_window' => (int) ($item->recommendation_sales_window ?? 0),
-                'recommendation_buffer_multiplier' => (float) ($item->recommendation_buffer_multiplier ?? 1),
-                'recommendation_sales_target' => (int) ($item->recommendation_sales_target ?? $item->recommended_quantity),
-                'recommendation_existing_target_covers' => (bool) ($item->recommendation_existing_target_covers ?? false),
-                'recommendation_delta_cost' => (float) ($item->recommendation_delta_cost ?? 0),
-                'recommendation_delta_volume' => (float) ($item->recommendation_delta_volume ?? 0),
-            ];
-        })->values();
         $recommendationDataAttributes = function ($item) {
             return [
                 'data-recommended-quantity' => (int) $item->recommended_quantity,
@@ -67,8 +46,6 @@
             ];
         };
         $historyCsrfToken = csrf_token();
-        $recommendationApplyUrl = route('market-seeding.history.recommendations.apply');
-        $recommendationFilters = request()->only('market_id', 'status', 'type_category', 'days');
     @endphp
 
     <style>
@@ -193,58 +170,8 @@
             display: block;
             margin-left: 1.85rem;
         }
-        .market-seeding-history-shell .history-recommendation-pill {
-            background: rgba(220, 53, 69, .08);
-            border: 1px solid rgba(220, 53, 69, .35);
-            border-radius: 999px;
-            color: #b21f2d;
-            display: inline-block;
-            font-size: .72rem;
-            font-weight: 600;
-            margin-top: .25rem;
-            padding: .05rem .45rem;
-        }
-        .market-seeding-history-shell .history-recommendation-reason {
-            color: inherit;
-            cursor: help;
-            margin-left: .25rem;
-            opacity: .8;
-        }
-        .market-seeding-history-shell .history-recommendation-reason:hover {
-            opacity: 1;
-        }
-        .market-seeding-recommendation-tooltip {
-            background: #1f2d33;
-            border: 1px solid rgba(255, 255, 255, .16);
-            border-radius: 6px;
-            box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
-            color: #f4f7f9;
-            display: none;
-            font-size: .78rem;
-            line-height: 1.35;
-            max-width: 420px;
-            padding: .65rem .75rem;
-            pointer-events: none;
-            position: fixed;
-            text-align: left;
-            white-space: pre-line;
-            z-index: 3000;
-        }
         .market-seeding-history-shell .history-recommendation-config {
             color: #31505c;
-        }
-        .market-seeding-history-shell .history-attention-card {
-            border-left: 4px solid #dc3545;
-        }
-        .market-seeding-history-shell .history-attention-actions {
-            display: flex;
-            gap: .5rem;
-            justify-content: flex-end;
-            margin-left: auto;
-            white-space: nowrap;
-        }
-        .market-seeding-history-shell .history-attention-card .card-header > div:first-child {
-            flex: 1;
         }
         .market-seeding-edit-target-modal .history-sparkline {
             display: block;
@@ -311,131 +238,6 @@
             display: block;
             font-size: .72rem;
             opacity: .8;
-        }
-        .market-seeding-recommendations-modal .modal-dialog {
-            max-width: 960px;
-        }
-        .market-seeding-recommendations-modal .recommendation-summary {
-            background: linear-gradient(135deg, #fff5f5 0%, #f8f9fa 100%);
-            border: 1px solid rgba(220, 53, 69, .18);
-            border-radius: 8px;
-            display: grid;
-            gap: .75rem;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            margin-bottom: 1rem;
-            padding: .85rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-summary-item {
-            border-right: 1px solid rgba(220, 53, 69, .16);
-            padding-right: .75rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-summary-item:last-child {
-            border-right: 0;
-            padding-right: 0;
-        }
-        .market-seeding-recommendations-modal .recommendation-summary-label {
-            color: #6c757d;
-            display: block;
-            font-size: .72rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-transform: uppercase;
-        }
-        .market-seeding-recommendations-modal .recommendation-summary-value {
-            display: block;
-            font-size: 1.35rem;
-            font-weight: 800;
-            line-height: 1.2;
-        }
-        .market-seeding-recommendations-modal .recommendation-list {
-            max-height: 460px;
-            overflow-y: auto;
-        }
-        .market-seeding-recommendations-modal .recommendation-card {
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            display: block;
-            margin-bottom: .65rem;
-            padding: .8rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-card:last-child {
-            margin-bottom: 0;
-        }
-        .market-seeding-recommendations-modal .recommendation-card-main {
-            align-items: center;
-            display: grid;
-            gap: .85rem;
-            grid-template-columns: minmax(0, 1fr) auto;
-            margin-bottom: .75rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-item-name {
-            display: block;
-            font-weight: 800;
-            line-height: 1.25;
-        }
-        .market-seeding-recommendations-modal .recommendation-meta {
-            color: #6c757d;
-            display: block;
-            font-size: .8rem;
-            margin-top: .15rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-target-change {
-            align-items: center;
-            display: flex;
-            gap: .45rem;
-            justify-content: flex-end;
-            white-space: nowrap;
-        }
-        .market-seeding-recommendations-modal .recommendation-current {
-            color: #6c757d;
-            font-size: .9rem;
-            font-weight: 700;
-        }
-        .market-seeding-recommendations-modal .recommendation-arrow {
-            color: #6c757d;
-            font-weight: 800;
-        }
-        .market-seeding-recommendations-modal .recommendation-new {
-            background: rgba(220, 53, 69, .1);
-            border: 1px solid rgba(220, 53, 69, .32);
-            border-radius: 999px;
-            color: #b21f2d;
-            font-weight: 800;
-            padding: .15rem .55rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-reason {
-            color: #495057;
-            font-size: .86rem;
-            line-height: 1.35;
-        }
-        .market-seeding-recommendations-modal .recommendation-delta-grid {
-            display: grid;
-            gap: .55rem;
-            grid-template-columns: minmax(110px, .75fr) minmax(240px, 1.6fr) minmax(150px, 1fr);
-        }
-        .market-seeding-recommendations-modal .recommendation-delta {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 7px;
-            min-width: 0;
-            padding: .5rem .65rem;
-        }
-        .market-seeding-recommendations-modal .recommendation-delta-label {
-            color: #6c757d;
-            display: block;
-            font-size: .65rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-transform: uppercase;
-        }
-        .market-seeding-recommendations-modal .recommendation-delta-value {
-            display: block;
-            font-size: .98rem;
-            font-weight: 800;
-            line-height: 1.2;
-            margin-top: .08rem;
-            overflow-wrap: anywhere;
-            word-break: normal;
         }
         .market-seeding-edit-target-modal .edit-target-delta {
             color: #6c757d;
@@ -743,11 +545,6 @@
         .market-seeding-dark-skin .history-stat-help {
             color: #b8c7ce;
         }
-        .market-seeding-dark-skin .history-recommendation-pill {
-            background: rgba(220, 53, 69, .16);
-            border-color: rgba(220, 53, 69, .55);
-            color: #ffb3bc;
-        }
         .market-seeding-dark-skin .market-seeding-source-manual {
             background: rgba(60, 141, 188, .28);
             color: #9fd3f2;
@@ -778,9 +575,6 @@
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-recommendation-result {
             color: #d7eef8;
         }
-        .market-seeding-dark-skin .history-attention-card {
-            border-left-color: #ff9aa7;
-        }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .history-sparkline polyline {
             stroke: #7bdff2;
         }
@@ -803,51 +597,6 @@
         }
         .market-seeding-dark-skin .history-heatmap-cell {
             color: #f4e7be;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .modal-content {
-            background: #2f2927;
-            color: #f4e7be;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .modal-header,
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .modal-footer {
-            border-color: rgba(244, 231, 190, .24);
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .close {
-            color: #f4e7be;
-            opacity: .75;
-            text-shadow: none;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-summary {
-            background: linear-gradient(135deg, #3b3330 0%, #292523 100%);
-            border-color: rgba(244, 231, 190, .22);
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-summary-item {
-            border-right-color: rgba(244, 231, 190, .16);
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-summary-label,
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-meta,
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-current,
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-arrow {
-            color: #b9a998;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-card {
-            background: #1f292e;
-            border-color: #3c4b54;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-delta {
-            background: #25343a;
-            border-color: #3c4b54;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-delta-label {
-            color: #b8c7ce;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-new {
-            background: rgba(220, 53, 69, .24);
-            border-color: rgba(255, 154, 167, .42);
-            color: #ffb3bc;
-        }
-        .market-seeding-recommendations-modal.market-seeding-dark-skin .recommendation-reason {
-            color: #d7eef8;
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-delta {
             color: #b8c7ce;
@@ -926,16 +675,6 @@
             .market-seeding-edit-target-modal .edit-target-workspace {
                 grid-template-columns: 1fr;
             }
-            .market-seeding-recommendations-modal .recommendation-card {
-                grid-template-columns: 1fr;
-            }
-            .market-seeding-recommendations-modal .recommendation-card-main,
-            .market-seeding-recommendations-modal .recommendation-delta-grid {
-                grid-template-columns: 1fr;
-            }
-            .market-seeding-recommendations-modal .recommendation-target-change {
-                justify-content: flex-start;
-            }
             .market-seeding-history-shell .history-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -946,8 +685,7 @@
         @media (max-width: 575.98px) {
             .market-seeding-edit-target-modal .edit-target-hero,
             .market-seeding-edit-target-modal .edit-target-detail-grid,
-            .market-seeding-edit-target-modal .edit-target-form-grid,
-            .market-seeding-recommendations-modal .recommendation-summary {
+            .market-seeding-edit-target-modal .edit-target-form-grid {
                 grid-template-columns: 1fr;
             }
             .market-seeding-edit-target-modal .edit-target-restock-callout {
@@ -1029,10 +767,10 @@
                         <div class="history-stat-help">Net quantity decreases during refreshes.</div>
                     </div>
                     <div class="history-stat">
-                        <div class="history-stat-label">Average Daily Sold</div>
-                        <div class="history-stat-value">{{ number_format($salesSummary['average_daily_sold'], 1, '.', ',') }}</div>
+                        <div class="history-stat-label">Average Daily Sold Value</div>
+                        <div class="history-stat-value">{{ $isk($globalMetrics['average_daily_sold_value']) }}</div>
                         <div class="history-stat-help">
-                            Across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data
+                            Estimated ISK purchased from the market per day across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data
                             @if($historyCoverageDays < $days)
                                 in the selected {{ $days }} day window
                             @endif
@@ -1077,92 +815,6 @@
                 <div class="alert alert-info">
                     Sold quantities are estimated from changes in available sell-order quantity between ESI refreshes. They are great for seeding trends, but can include delisted or expired orders.
                 </div>
-
-                @if($attentionItems->isNotEmpty())
-                <div class="card history-attention-card">
-                    <div class="card-header">
-                        <div>
-                            <h3 class="card-title mb-0">Needs Attention</h3>
-                            <small class="text-muted">Items where recent estimated sales suggest a higher target stock amount.</small>
-                            <small class="text-muted d-block">Low/Empty Events shows how many times the item became low or empty in the selected history window.</small>
-                        </div>
-                        @can('seat-market-seeding.manager')
-                            <div class="history-attention-actions">
-                                <button type="button"
-                                        class="btn btn-danger btn-sm"
-                                        id="market-seeding-review-recommendations">
-                                    <i class="fas fa-check-double"></i> Review Recommendations
-                                </button>
-                            </div>
-                        @endcan
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover market-seeding-attention-table mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>Market</th>
-                                        <th class="text-right">Current Target</th>
-                                        <th class="text-right">Recommended Target</th>
-                                        <th class="text-right">Target Increase</th>
-                                        <th class="text-right">Estimated Sold</th>
-                                        <th class="text-right" title="Number of times this item became low or empty in the selected history window.">Low/Empty Events</th>
-                                        <th class="text-right history-actions-column">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-	                                    @foreach($attentionItems as $item)
-	                                        <tr>
-                                            <td>
-                                                @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->source_flags ?? []])
-                                                {{ $item->type_name }}
-                                                <span class="text-muted small market-seeding-item-type">{{ $item->type_category }}</span>
-                                            </td>
-                                            <td>
-                                                {{ $item->market_name }}
-                                                <div class="text-muted small">{{ $item->location_name }}</div>
-                                            </td>
-                                            <td class="text-right" data-order="{{ $item->current_target_quantity }}">{{ $whole($item->current_target_quantity) }}</td>
-                                            <td class="text-right" data-order="{{ $item->recommended_quantity }}">
-                                                <span class="history-recommendation-pill">
-                                                    {{ $whole($item->recommended_quantity) }}
-                                                    <i class="fas fa-question-circle history-recommendation-reason"
-                                                       data-recommendation-reason="{{ $item->recommendation_reason }}"
-                                                       aria-label="{{ $item->recommendation_reason }}"></i>
-                                                </span>
-                                            </td>
-                                            <td class="text-right" data-order="{{ $item->recommended_quantity - $item->current_target_quantity }}">{{ $whole($item->recommended_quantity - $item->current_target_quantity) }}</td>
-                                            <td class="text-right" data-order="{{ $item->estimated_sold }}">{{ $whole($item->estimated_sold) }}</td>
-                                            <td class="text-right" data-order="{{ $item->low_empty_events ?? 0 }}" title="Low or empty events across {{ $historyCoverageDays }} day{{ $historyCoverageDays === 1 ? '' : 's' }} with data in the selected history window.">
-                                                {{ $whole($item->low_empty_events ?? 0) }}
-	                                            </td>
-                                            <td class="text-right">
-                                                @if($item->item_id)
-                                                    <button type="button"
-                                                            class="btn btn-link btn-xs p-0 history-item-action market-seeding-edit-target"
-                                                            title="{{ $canManageMarketSeeding ? 'Open target details' : 'View item details' }}"
-                                                            @if($canManageMarketSeeding) data-update-url="{{ route('market-seeding.items.update', $item->item_id) }}" @endif
-                                                            data-item-name="{{ $item->type_name }}"
-                                                            data-market-name="{{ $item->market_name }}"
-                                                            data-history-url="{{ route('market-seeding.items.history', ['item' => $item->item_id, 'days' => $days]) }}"
-                                                            data-desired-quantity="{{ (int) $item->desired_quantity }}"
-                                                            data-warning-quantity="{{ (int) $item->warning_quantity }}"
-                                                            @foreach($recommendationDataAttributes($item) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>
-                                                        <i class="fas fa-search"></i>
-                                                    </button>
-                                                @else
-                                                    -
-                                                @endif
-                                            </td>
-	                                        </tr>
-	                                    @endforeach
-	                                </tbody>
-	                            </table>
-	                        </div>
-	                    </div>
-	                </div>
-                @endif
 
                 <div class="history-chart-grid">
                     <div class="card mb-0">
@@ -1269,14 +921,6 @@
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $item->source_flags ?? []])
                                                 {{ $item->type_name }}
                                                 <span class="text-muted small market-seeding-item-type">{{ $item->type_category }}</span>
-                                                @if($item->recommendation_differs)
-                                                    <div class="history-recommendation-pill">
-                                                        Target {{ $whole($item->current_target_quantity) }} &rarr; Recommended {{ $whole($item->recommended_quantity) }}
-                                                        <i class="fas fa-question-circle history-recommendation-reason"
-                                                           data-recommendation-reason="{{ $item->recommendation_reason }}"
-                                                           aria-label="{{ $item->recommendation_reason }}"></i>
-                                                    </div>
-                                                @endif
                                             </td>
                                             <td>
                                                 {{ $item->market_name }}
@@ -1373,14 +1017,6 @@
                                                 @include('seat-market-seeding::partials.source-icons', ['sourceFlags' => $leader->source_flags ?? []])
                                                 {{ $leader->type_name }}
                                                 <span class="text-muted small market-seeding-item-type">{{ $leader->type_category }}</span>
-                                                @if($leader->recommendation_differs)
-                                                    <div class="history-recommendation-pill">
-                                                        Target {{ $whole($leader->current_target_quantity) }} &rarr; Recommended {{ $whole($leader->recommended_quantity) }}
-                                                        <i class="fas fa-question-circle history-recommendation-reason"
-                                                           data-recommendation-reason="{{ $leader->recommendation_reason }}"
-                                                           aria-label="{{ $leader->recommendation_reason }}"></i>
-                                                    </div>
-                                                @endif
                                             </td>
                                             <td>
                                                 {{ $leader->market_name }}
@@ -1460,54 +1096,6 @@
         </div>
     </div>
 
-    @can('seat-market-seeding.manager')
-        <div class="modal fade market-seeding-recommendations-modal {{ $marketSeedingThemeClass }}" id="market-seeding-recommendations-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-recommendations-title" aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="market-seeding-recommendations-title">Apply Recommended Targets</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-danger d-none" id="market-seeding-recommendations-error"></div>
-                        <div class="recommendation-summary">
-                            <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">Items</span>
-                                <span class="recommendation-summary-value" id="market-seeding-recommendations-count">0</span>
-                            </div>
-                            <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">Total Target Increase</span>
-                                <span class="recommendation-summary-value" id="market-seeding-recommendations-gap">0</span>
-                            </div>
-                            <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">&Delta; Cost</span>
-                                <span class="recommendation-summary-value" id="market-seeding-recommendations-cost">$0.00</span>
-                            </div>
-                            <div class="recommendation-summary-item">
-                                <span class="recommendation-summary-label">&Delta; Volume</span>
-                                <span class="recommendation-summary-value" id="market-seeding-recommendations-volume">0.00 m3</span>
-                            </div>
-                        </div>
-                        <p class="text-muted">
-                            Review these target changes before applying them. Cost and volume are the additional seed requirements from raising the targets, not the total market value.
-                        </p>
-                        <div class="recommendation-list" id="market-seeding-recommendations-body">
-                            <div class="text-muted">No recommendations selected.</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" id="market-seeding-apply-recommendations">
-                            Apply Recommendations
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endcan
-
     @include('seat-market-seeding::partials.item-detail-modal', [
         'marketSeedingThemeClass' => $marketSeedingThemeClass,
         'canManageMarketSeeding' => $canManageMarketSeeding,
@@ -1526,9 +1114,6 @@
             var canManageMarketSeeding = @json($canManageMarketSeeding);
             var currentTargetDetails = {};
             var targetTrendChart = null;
-            var recommendationApplyUrl = @json($recommendationApplyUrl);
-            var recommendationFilters = @json($recommendationFilters);
-            var attentionRecommendations = @json($attentionRecommendationPayload);
             var categoryColors = [
                 'rgba(0, 123, 255, .8)',
                 'rgba(40, 167, 69, .8)',
@@ -1539,64 +1124,6 @@
                 'rgba(253, 126, 20, .8)',
                 'rgba(108, 117, 125, .8)'
             ];
-
-            function initializeRecommendationTooltips() {
-                if ($(document.body).data('market-seeding-recommendation-tooltips')) {
-                    return;
-                }
-
-                $(document.body).data('market-seeding-recommendation-tooltips', true);
-
-                var $tooltip = $('<div class="market-seeding-recommendation-tooltip" role="tooltip"></div>').appendTo(document.body);
-
-                function positionTooltip(event) {
-                    var margin = 14;
-                    var left = event.clientX + margin;
-                    var top = event.clientY + margin;
-
-                    $tooltip.css({
-                        left: 0,
-                        top: 0,
-                        display: 'block'
-                    });
-
-                    var width = $tooltip.outerWidth();
-                    var height = $tooltip.outerHeight();
-
-                    if (left + width + margin > window.innerWidth) {
-                        left = Math.max(margin, event.clientX - width - margin);
-                    }
-
-                    if (top + height + margin > window.innerHeight) {
-                        top = Math.max(margin, event.clientY - height - margin);
-                    }
-
-                    $tooltip.css({
-                        left: left + 'px',
-                        top: top + 'px'
-                    });
-                }
-
-                $(document)
-                    .on('mouseenter focusin', '.history-recommendation-reason', function (event) {
-                        var reason = $(this).data('recommendation-reason');
-
-                        if (!reason) {
-                            return;
-                        }
-
-                        $tooltip.text(reason);
-                        positionTooltip(event);
-                    })
-                    .on('mousemove', '.history-recommendation-reason', function (event) {
-                        if ($tooltip.is(':visible')) {
-                            positionTooltip(event);
-                        }
-                    })
-                    .on('mouseleave focusout', '.history-recommendation-reason', function () {
-                        $tooltip.hide().text('');
-                    });
-            }
 
             if (window.Chart && document.getElementById('market-seeding-sales-chart')) {
                 new Chart(document.getElementById('market-seeding-sales-chart'), {
@@ -1773,122 +1300,6 @@
                     }
                 });
             }
-
-            initializeRecommendationTooltips();
-
-            $('#market-seeding-review-recommendations').on('click', function () {
-                var $body = $('#market-seeding-recommendations-body');
-                var totalGap = 0;
-                var totalCost = 0;
-                var totalVolume = 0;
-
-                $('#market-seeding-recommendations-error').addClass('d-none').text('');
-                $body.empty();
-
-                if (!attentionRecommendations.length) {
-                    $('#market-seeding-recommendations-count').text('0');
-                    $('#market-seeding-recommendations-gap').text('0');
-                    $('#market-seeding-recommendations-cost').text(formatCurrency(0));
-                    $('#market-seeding-recommendations-volume').text('0.00 m3');
-                    $body.html('<div class="text-muted">No recommendations need attention for the current filters.</div>');
-                    $('#market-seeding-apply-recommendations').prop('disabled', true);
-                } else {
-                    $.each(attentionRecommendations, function (index, item) {
-                        var gap = Math.max(0, parseInt(item.recommended_quantity || 0, 10) - parseInt(item.current_target_quantity || 0, 10));
-                        var deltaCost = parseFloat(item.recommendation_delta_cost || 0);
-                        var deltaVolume = parseFloat(item.recommendation_delta_volume || 0);
-                        totalGap += gap;
-                        totalCost += isFinite(deltaCost) ? deltaCost : 0;
-                        totalVolume += isFinite(deltaVolume) ? deltaVolume : 0;
-                        $body.append(
-                            '<div class="recommendation-card">' +
-                                '<div class="recommendation-card-main">' +
-                                    '<div>' +
-                                        '<span class="recommendation-item-name">' + escapeHtml(item.type_name) + '</span>' +
-                                        '<span class="recommendation-meta">' + escapeHtml(item.type_category || '-') + '</span>' +
-                                        '<span class="recommendation-meta">' + escapeHtml(item.market_name || '-') + ' - ' + escapeHtml(item.location_name || '-') + '</span>' +
-                                    '</div>' +
-                                    '<div class="recommendation-target-change">' +
-                                        '<span class="recommendation-current">' + numberWithCommas(item.current_target_quantity) + '</span>' +
-                                        '<span class="recommendation-arrow">&rarr;</span>' +
-                                        '<span class="recommendation-new">' + numberWithCommas(item.recommended_quantity) + '</span>' +
-                                    '</div>' +
-                                '</div>' +
-                                '<div class="recommendation-delta-grid">' +
-                                    '<div class="recommendation-delta">' +
-                                        '<span class="recommendation-delta-label">Target</span>' +
-                                        '<span class="recommendation-delta-value">+' + numberWithCommas(gap) + '</span>' +
-                                    '</div>' +
-                                    '<div class="recommendation-delta">' +
-                                        '<span class="recommendation-delta-label">&Delta; Cost</span>' +
-                                        '<span class="recommendation-delta-value">' + escapeHtml(formatCurrency(deltaCost)) + '</span>' +
-                                    '</div>' +
-                                    '<div class="recommendation-delta">' +
-                                        '<span class="recommendation-delta-label">&Delta; Volume</span>' +
-                                        '<span class="recommendation-delta-value">' + escapeHtml(formatDecimal(deltaVolume, 2)) + ' m3</span>' +
-                                    '</div>' +
-                                '</div>' +
-                            '</div>'
-                        );
-                    });
-                    $('#market-seeding-recommendations-count').text(numberWithCommas(attentionRecommendations.length));
-                    $('#market-seeding-recommendations-gap').text(numberWithCommas(totalGap));
-                    $('#market-seeding-recommendations-cost').text(formatCurrency(totalCost));
-                    $('#market-seeding-recommendations-volume').text(formatDecimal(totalVolume, 2) + ' m3');
-                    $('#market-seeding-apply-recommendations').prop('disabled', false);
-                }
-
-                $('#market-seeding-recommendations-modal').modal('show');
-            });
-
-            $('#market-seeding-apply-recommendations').on('click', function () {
-                var $button = $(this);
-                var payload = $.extend({}, recommendationFilters, {
-                    item_ids: attentionRecommendations.map(function (item) {
-                        return item.item_id;
-                    })
-                });
-
-                $button.prop('disabled', true).text('Applying...');
-                $('#market-seeding-recommendations-error').addClass('d-none').text('');
-
-                $.ajax({
-                    url: recommendationApplyUrl,
-                    method: 'POST',
-                    data: payload,
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken
-                    }
-                }).done(function (response) {
-                    var message = response.message || 'Recommendations applied.';
-
-                    if (response.errors && response.errors.length) {
-                        message += ' ' + response.errors.join(' ');
-                    }
-
-                    $('#market-seeding-recommendations-error')
-                        .removeClass('d-none alert-danger')
-                        .addClass(response.errors && response.errors.length ? 'alert-warning' : 'alert-success')
-                        .text(message);
-
-                    window.setTimeout(function () {
-                        window.location.reload();
-                    }, 900);
-                }).fail(function (xhr) {
-                    var message = 'Unable to apply recommendations.';
-
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        message = xhr.responseJSON.message;
-                    }
-
-                    $('#market-seeding-recommendations-error')
-                        .removeClass('d-none alert-success alert-warning')
-                        .addClass('alert-danger')
-                        .text(message);
-                    $button.prop('disabled', false).text('Apply Recommendations');
-                });
-            });
 
             $(document).on('click', '.market-seeding-edit-target', function () {
                 var $button = $(this);

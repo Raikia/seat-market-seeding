@@ -22,8 +22,7 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
 
         $this->assertSame(90, $view->getData()['days']);
@@ -71,19 +70,27 @@ class MarketSeedingControllerTest extends TestCase
             'latest_desired_quantity' => 100,
             'latest_warning_quantity' => 33,
         ]);
+        DB::table('market_prices')->insert([
+            'type_id' => $item->type_id,
+            'average_price' => 0,
+            'sell_price' => 1000,
+            'adjusted_price' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $request = Request::create('/market-seeding/history', 'GET', ['days' => 365]);
         app()->instance('request', $request);
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
 
         $this->assertSame(365, $view->getData()['days']);
         $this->assertSame(10, $view->getData()['historyCoverageDays']);
         $this->assertSame(10.0, $view->getData()['salesSummary']['average_daily_sold']);
+        $this->assertSame(10000.0, $view->getData()['globalMetrics']['average_daily_sold_value']);
         $this->assertCount(10, $view->getData()['salesChartData']['labels']);
         $this->assertCount(10, $view->getData()['chartData']['labels']);
     }
@@ -134,11 +141,11 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
 
-        $this->assertTrue($view->getData()['attentionItems']->isEmpty());
+        $this->assertArrayNotHasKey('attentionItems', $view->getData());
+        $this->assertTrue($view->getData()['topSoldItems']->isEmpty());
     }
 
     public function test_history_recommendations_are_based_on_estimated_sales_window_and_buffer(): void
@@ -189,10 +196,9 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
-        $recommendation = $view->getData()['attentionItems']->first();
+        $recommendation = $view->getData()['topSoldItems']->first();
 
         $this->assertNotNull($recommendation);
         $this->assertSame(10, $view->getData()['historyCoverageDays']);
@@ -214,10 +220,9 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
-        $recommendation = $view->getData()['attentionItems']->first();
+        $recommendation = $view->getData()['topSoldItems']->first();
 
         $this->assertNotNull($recommendation);
         $this->assertSame(7, $view->getData()['days']);
@@ -295,10 +300,9 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
-        $recommendation = $view->getData()['attentionItems']->first();
+        $recommendation = $view->getData()['topSoldItems']->first();
 
         $this->assertNotNull($recommendation);
         $this->assertSame(14, $view->getData()['historyCoverageDays']);
@@ -358,12 +362,15 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
 
         $this->assertSame(6, $view->getData()['historyCoverageDays']);
-        $this->assertTrue($view->getData()['attentionItems']->isEmpty());
+        $this->assertArrayNotHasKey('attentionItems', $view->getData());
+        $topSoldItem = $view->getData()['topSoldItems']->first();
+        $this->assertNotNull($topSoldItem);
+        $this->assertFalse((bool) $topSoldItem->recommendation_differs);
+        $this->assertSame('insufficient_data', $topSoldItem->recommendation_driver);
     }
 
     public function test_history_recommendation_marks_existing_target_as_covering_sales_target(): void
@@ -414,8 +421,7 @@ class MarketSeedingControllerTest extends TestCase
 
         $view = app(MarketSeedingController::class)->history(
             $request,
-            app(MarketSeedingSettings::class),
-            app(MarketStockReport::class)
+            app(MarketSeedingSettings::class)
         );
         $topSoldItem = $view->getData()['topSoldItems']->first();
 

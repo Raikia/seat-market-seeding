@@ -17,6 +17,8 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
+use Raikia\SeatMarketSeeding\Services\MarketStockReport;
+use Raikia\SeatMarketSeeding\Services\MarketTargetRecommendations;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
@@ -30,7 +32,7 @@ use Seat\Web\Http\Controllers\Controller;
 
 class SettingsController extends Controller
 {
-    public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings)
+    public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings, MarketStockReport $report, MarketTargetRecommendations $recommendations)
     {
         $markets = SeededMarket::with('items.sources', 'items.type.group', 'role', 'trackedDoctrines.fitSettings')
             ->orderBy('sort_order')
@@ -44,8 +46,15 @@ class SettingsController extends Controller
         $jitaPriceRefreshMinutes = $settings->jitaPriceRefreshMinutes();
         $recommendationSalesDays = $settings->recommendationSalesDays();
         $recommendationBufferPercentage = $settings->recommendationBufferPercentage();
+        $allRecommendationsByMarket = $recommendations->forMarkets($markets, $recommendationSalesDays, $recommendationBufferPercentage, $report, false);
+        $recommendationsByMarket = $allRecommendationsByMarket
+            ->map(fn ($rows) => $rows->filter(fn ($row) => $row->recommendation_differs)->values());
+        $recommendationPayloadByMarket = $recommendationsByMarket
+            ->map(fn ($rows) => $rows->map(fn ($row) => $recommendations->payload($row))->values());
+        $recommendationDetailPayloadByMarket = $allRecommendationsByMarket
+            ->map(fn ($rows) => $rows->map(fn ($row) => $recommendations->payload($row))->values());
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'jitaPriceRefreshMinutes', 'recommendationSalesDays', 'recommendationBufferPercentage'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'jitaPriceRefreshMinutes', 'recommendationSalesDays', 'recommendationBufferPercentage', 'recommendationsByMarket', 'recommendationPayloadByMarket', 'recommendationDetailPayloadByMarket'));
     }
 
     public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
@@ -697,6 +706,7 @@ class SettingsController extends Controller
 
         return [
             'id' => $item->id,
+            'market_id' => $item->market_id,
             'type_name' => $item->type_name,
             'type_category' => $item->typeCategoryName(),
             'desired_quantity' => $item->desired_quantity,

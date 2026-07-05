@@ -79,9 +79,9 @@ Route::group([
             'as' => 'market-seeding.markets.refresh-all',
             'uses' => 'SettingsController@refreshMarkets',
         ]);
-        Route::post('/history/recommendations/apply', [
-            'as' => 'market-seeding.history.recommendations.apply',
-            'uses' => 'MarketSeedingController@applyHistoryRecommendations',
+        Route::post('/settings/recommendations/apply', [
+            'as' => 'market-seeding.settings.recommendations.apply',
+            'uses' => 'MarketSeedingController@applyRecommendations',
         ]);
         Route::post('/markets/{market}/items', [
             'as' => 'market-seeding.items.store',

@@ -273,7 +273,7 @@ class MarketSeedingController extends Controller
             ->all();
     }
 
-    public function history(Request $request, MarketSeedingSettings $settings, MarketStockReport $report)
+    public function history(Request $request, MarketSeedingSettings $settings)
     {
         $days = $this->historyDays($request);
         $historyCoverageDays = $this->historyCoverageDays($request, $days);
@@ -294,8 +294,6 @@ class MarketSeedingController extends Controller
         $recommendationBufferPercentage = $settings->recommendationBufferPercentage();
         $recommendationCoverageDays = $this->historyCoverageDays($request, $recommendationSalesDays);
         $recommendationMetrics = $this->recommendationMetrics($request, $recommendationSalesDays);
-        $attentionItems = $this->recommendationRows($request, $recommendationSalesDays, $recommendationCoverageDays, $recommendationMetrics, $recommendationSalesDays, $recommendationBufferPercentage);
-        $this->attachRecommendationEconomics($attentionItems, $report);
         $heatmapData = $this->marketCategoryHeatmap($request, $historyCoverageDays);
         $historyAjaxUrl = route('market-seeding.history.transitions', $request->only('market_id', 'status', 'type_category', 'days'));
 
@@ -316,7 +314,6 @@ class MarketSeedingController extends Controller
             'topSoldItems',
             'categorySales',
             'restockLeaders',
-            'attentionItems',
             'heatmapData',
             'typeCategories',
             'days',
@@ -380,7 +377,7 @@ class MarketSeedingController extends Controller
         ]);
     }
 
-    public function applyHistoryRecommendations(Request $request, MarketSeedingSettings $settings, StockTargetProjector $projector)
+    public function applyRecommendations(Request $request, MarketSeedingSettings $settings, StockTargetProjector $projector)
     {
         $recommendationSalesDays = $settings->recommendationSalesDays();
         $recommendationCoverageDays = $this->historyCoverageDays($request, $recommendationSalesDays);
@@ -835,27 +832,6 @@ class MarketSeedingController extends Controller
         }
     }
 
-    private function attachRecommendationEconomics($rows, MarketStockReport $report): void
-    {
-        $items = SeededMarketItem::query()
-            ->with('market')
-            ->whereIn('id', collect($rows)->pluck('item_id')->filter()->unique()->values())
-            ->get()
-            ->keyBy('id');
-        $detailsByItem = $report->itemDetailsForItems($items->values());
-
-        foreach ($rows as $row) {
-            $details = $detailsByItem->get($row->item_id, []);
-            $deltaQuantity = max(0, (int) $row->recommended_quantity - (int) $row->current_target_quantity);
-            $jitaPrice = (float) ($details['jita_price'] ?? 0);
-            $itemVolume = (float) ($details['item_volume'] ?? 0);
-
-            $row->recommendation_delta_quantity = $deltaQuantity;
-            $row->recommendation_delta_cost = $deltaQuantity * $jitaPrice;
-            $row->recommendation_delta_volume = $deltaQuantity * $itemVolume;
-        }
-    }
-
     private function recommendedWarningQuantity($recommendation): int
     {
         $currentTarget = max(1, (int) $recommendation->current_target_quantity);
@@ -1118,17 +1094,6 @@ class MarketSeedingController extends Controller
             ])->render()
             . e($event->type_name)
             . '<span class="text-muted small market-seeding-item-type">' . e($event->type_category ?: 'Unknown') . '</span>';
-
-        if ($event->recommendation_differs) {
-            $itemHtml .= '<div class="history-recommendation-pill">Target '
-                . number_format((int) $event->current_target_quantity)
-                . ' &rarr; Recommended '
-                . number_format((int) $event->recommended_quantity)
-                . ' <i class="fas fa-question-circle history-recommendation-reason"'
-                . ' data-recommendation-reason="' . e($event->recommendation_reason) . '"'
-                . ' aria-label="' . e($event->recommendation_reason) . '"></i>'
-                . '</div>';
-        }
 
         $row = [
             optional($event->created_at)->format('Y-m-d H:i') ?: '-',
