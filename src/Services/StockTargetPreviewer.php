@@ -2,8 +2,10 @@
 
 namespace Raikia\SeatMarketSeeding\Services;
 
+use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedSavedFitting;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 
 class StockTargetPreviewer
@@ -17,7 +19,7 @@ class StockTargetPreviewer
 
     public function preview(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): array
     {
-        $market->loadMissing('items', 'itemSources.trackedDoctrine');
+        $market->loadMissing($this->marketRelations());
 
         $existing = $market->items->keyBy('type_id');
         $sources = $market->itemSources->groupBy('type_id');
@@ -63,7 +65,7 @@ class StockTargetPreviewer
 
     public function previewDoctrine(SeededMarket $market, int $doctrineId, string $doctrineName, array $items, int $warningPercentage, string $mergeMode): array
     {
-        $market->loadMissing('items', 'itemSources.trackedDoctrine');
+        $market->loadMissing($this->marketRelations());
 
         $existing = $market->items->keyBy('type_id');
         $previousDoctrineSources = $market->itemSources
@@ -151,6 +153,107 @@ class StockTargetPreviewer
         ];
     }
 
+    public function previewSavedFitting(
+        SeededMarket $market,
+        int $characterId,
+        int $fittingId,
+        string $fittingName,
+        array $items,
+        int $warningPercentage,
+        string $mergeMode
+    ): array {
+        $market->loadMissing($this->marketRelations());
+
+        $existing = $market->items->keyBy('type_id');
+        $previousSources = $market->itemSources
+            ->where('source_type', MarketSeedingItemSource::SOURCE_SAVED_FIT)
+            ->filter(function (MarketSeedingItemSource $source) use ($characterId, $fittingId) {
+                return (int) optional($source->trackedSavedFitting)->character_id === $characterId
+                    && (int) optional($source->trackedSavedFitting)->fitting_id === $fittingId;
+            });
+        $remainingSources = $market->itemSources->reject(function (MarketSeedingItemSource $source) use ($characterId, $fittingId) {
+            return $source->source_type === MarketSeedingItemSource::SOURCE_SAVED_FIT
+                && (int) optional($source->trackedSavedFitting)->character_id === $characterId
+                && (int) optional($source->trackedSavedFitting)->fitting_id === $fittingId;
+        });
+        $newSources = collect($items)->map(function (array $item) use ($market, $characterId, $fittingId, $fittingName, $warningPercentage, $mergeMode) {
+            $trackedSavedFitting = new MarketSeedingTrackedSavedFitting([
+                'market_id' => $market->id,
+                'character_id' => $characterId,
+                'fitting_id' => $fittingId,
+                'fitting_name' => $fittingName,
+                'merge_mode' => $mergeMode,
+            ]);
+
+            $source = new MarketSeedingItemSource([
+                'market_id' => $market->id,
+                'source_type' => MarketSeedingItemSource::SOURCE_SAVED_FIT,
+                'source_key' => 'character-fit:' . $characterId . ':' . $fittingId,
+                'type_id' => (int) $item['type_id'],
+                'type_name' => $item['type_name'],
+                'quantity' => (int) $item['quantity'],
+                'warning_quantity' => $this->warningQuantityFromPercentage((int) $item['quantity'], $warningPercentage),
+            ]);
+            $source->setRelation('trackedSavedFitting', $trackedSavedFitting);
+
+            return $source;
+        });
+
+        $projectedSources = collect($remainingSources->values()->all())
+            ->merge($newSources->values())
+            ->groupBy('type_id');
+        $typeIds = $previousSources->pluck('type_id')
+            ->merge($newSources->pluck('type_id'))
+            ->unique()
+            ->values();
+        $newQuantities = $newSources->groupBy('type_id')->map(function ($sources) {
+            return (int) $sources->sum('quantity');
+        });
+
+        $rows = $typeIds->map(function (int $typeId) use ($existing, $projectedSources, $newQuantities) {
+            $current = $existing->get($typeId);
+            $projection = $this->projector->projectSources($projectedSources->get($typeId, collect()));
+            $newQuantity = (int) $projection['quantity'];
+            $currentQuantity = $current ? (int) $current->desired_quantity : 0;
+
+            return [
+                'type_id' => $typeId,
+                'type_name' => $projection['type_name'] ?: optional($current)->type_name,
+                'current_quantity' => $currentQuantity,
+                'import_quantity' => (int) $newQuantities->get($typeId, 0),
+                'new_quantity' => $newQuantity,
+                'warning_quantity' => (int) $projection['warning_quantity'],
+                'action' => $this->action($currentQuantity, $newQuantity, (bool) $current, 'saved_fitting'),
+            ];
+        })->filter(function (array $row) {
+            return $row['type_name'] && ($row['current_quantity'] > 0 || $row['new_quantity'] > 0 || $row['import_quantity'] > 0);
+        })->sortBy('type_name')->values();
+
+        return [
+            'summary' => [
+                'total' => $rows->count(),
+                'new' => $rows->where('action', 'new')->count(),
+                'increase' => $rows->where('action', 'increase')->count(),
+                'reduce' => $rows->where('action', 'reduce')->count(),
+                'replace' => 0,
+                'remove' => $rows->where('action', 'remove')->count(),
+                'unchanged' => $rows->where('action', 'unchanged')->count(),
+            ],
+            'rows' => $rows,
+            'validation' => [
+                'processed_lines' => count($items),
+                'ignored_lines' => 0,
+                'valid_lines' => count($items),
+                'skipped_lines' => count($items) > 0 ? 0 : 1,
+                'skipped' => count($items) > 0 ? [] : [[
+                    'line' => $fittingName,
+                    'line_number' => null,
+                    'reason' => 'No importable items were found in this saved fit.',
+                ]],
+            ],
+        ];
+    }
+
     private function manualQuantity(int $currentManualQuantity, int $importQuantity, string $mode, bool $keepHigherQuantity): int
     {
         if ($mode !== 'add') {
@@ -185,7 +288,7 @@ class StockTargetPreviewer
             return 'remove';
         }
 
-        if ($mode === 'doctrine') {
+        if (in_array($mode, ['doctrine', 'saved_fitting'], true)) {
             return $newQuantity > $currentQuantity ? 'increase' : 'reduce';
         }
 
@@ -194,5 +297,22 @@ class StockTargetPreviewer
         }
 
         return $newQuantity > $currentQuantity ? 'increase' : 'unchanged';
+    }
+
+    private function marketRelations(): array
+    {
+        $relations = ['items', 'itemSources.trackedDoctrine'];
+
+        if ($this->trackedSavedFittingAvailable()) {
+            $relations[] = 'itemSources.trackedSavedFitting';
+        }
+
+        return $relations;
+    }
+
+    private function trackedSavedFittingAvailable(): bool
+    {
+        return Schema::hasTable('seat_market_seeding_tracked_saved_fittings')
+            && Schema::hasColumn('seat_market_seeding_item_sources', 'tracked_saved_fitting_id');
     }
 }

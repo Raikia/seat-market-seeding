@@ -4,12 +4,14 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Helpers\SeatFittingPluginHelper;
 use Raikia\SeatMarketSeeding\Jobs\RefreshMarketSeedingMarkets;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingProfile;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedSavedFitting;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
@@ -20,6 +22,7 @@ use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
 use Raikia\SeatMarketSeeding\Services\MarketTargetRecommendations;
 use Raikia\SeatMarketSeeding\Services\SavedFittingSource;
+use Raikia\SeatMarketSeeding\Services\SavedFittingTrackingSync;
 use Raikia\SeatMarketSeeding\Services\StockListParser;
 use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
@@ -34,7 +37,14 @@ class SettingsController extends Controller
 {
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings, MarketStockReport $report, MarketTargetRecommendations $recommendations)
     {
-        $markets = SeededMarket::with('items.sources', 'items.type.group', 'role', 'trackedDoctrines.fitSettings')
+        $savedFittingTrackingAvailable = $this->savedFittingTrackingAvailable();
+        $marketRelations = ['items.sources', 'items.type.group', 'role', 'trackedDoctrines.fitSettings'];
+
+        if ($savedFittingTrackingAvailable) {
+            $marketRelations[] = 'trackedSavedFittings';
+        }
+
+        $markets = SeededMarket::with($marketRelations)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -54,7 +64,7 @@ class SettingsController extends Controller
         $recommendationDetailPayloadByMarket = $allRecommendationsByMarket
             ->map(fn ($rows) => $rows->map(fn ($row) => $recommendations->payload($row))->values());
 
-        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'jitaPriceRefreshMinutes', 'recommendationSalesDays', 'recommendationBufferPercentage', 'recommendationsByMarket', 'recommendationPayloadByMarket', 'recommendationDetailPayloadByMarket'));
+        return view('seat-market-seeding::settings', compact('markets', 'roles', 'profiles', 'savedFittingsAvailable', 'savedFittingTrackingAvailable', 'seatFittingAvailable', 'historyRetentionDays', 'jitaPriceRefreshMinutes', 'recommendationSalesDays', 'recommendationBufferPercentage', 'recommendationsByMarket', 'recommendationPayloadByMarket', 'recommendationDetailPayloadByMarket'));
     }
 
     public function updateGeneralSettings(Request $request, MarketSeedingSettings $settings)
@@ -348,17 +358,156 @@ class SettingsController extends Controller
         return redirect()->route('market-seeding.settings')->with('success', 'Doctrine tracking removed successfully.');
     }
 
+    public function storeTrackedSavedFitting(Request $request, SeededMarket $market, SavedFittingTrackingSync $sync)
+    {
+        if (!$this->savedFittingTrackingAvailable()) {
+            return response()->json(['message' => 'Saved fit tracking is not available until the market seeding migrations are run.'], 422);
+        }
+
+        $data = $request->validate($this->trackedSavedFittingRules());
+        [$source, $fittingId, $characterId] = $this->parseCharacterSavedFittingReference($data['saved_fitting']);
+
+        if ($source !== 'character-fit' || !$sync->isAvailable()) {
+            return response()->json(['message' => 'Only character saved fits can be actively tracked.'], 422);
+        }
+
+        $fit = app(SavedFittingSource::class)->characterFit($fittingId, $characterId);
+
+        if (!$fit) {
+            return response()->json(['message' => 'The selected saved fit could not be found.'], 422);
+        }
+
+        $trackedSavedFitting = $market->trackedSavedFittings()->updateOrCreate([
+            'character_id' => (int) $fit['character_id'],
+            'fitting_id' => (int) $fit['fitting_id'],
+        ], [
+            'esi_fitting_id' => $fit['esi_fitting_id'] ?: null,
+            'fitting_name' => $fit['fitting_name'],
+            'ship_type_id' => $fit['ship_type_id'] ?: null,
+            'ship_type_name' => $fit['ship_type_name'],
+            'ship_multiplier' => (int) $data['ship_multiplier'],
+            'fitting_multiplier' => (int) $data['fitting_multiplier'],
+            'warning_percentage' => (int) $data['warning_percentage'],
+            'merge_mode' => $data['merge_mode'],
+        ]);
+
+        $sync->syncSavedFitting($trackedSavedFitting);
+
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedSavedFittingPayload($market->fresh('trackedSavedFittings'), 'Saved fit tracking updated successfully.'));
+        }
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Saved fit tracking updated successfully.');
+    }
+
+    public function previewTrackedSavedFitting(Request $request, SeededMarket $market, SavedFittingTrackingSync $sync, StockTargetPreviewer $previewer)
+    {
+        if (!$this->savedFittingTrackingAvailable()) {
+            return response()->json(['message' => 'Saved fit tracking is not available until the market seeding migrations are run.'], 422);
+        }
+
+        $data = $request->validate($this->trackedSavedFittingRules());
+        [$source, $fittingId, $characterId] = $this->parseCharacterSavedFittingReference($data['saved_fitting']);
+
+        if ($source !== 'character-fit' || !$sync->isAvailable()) {
+            return response()->json(['message' => 'Only character saved fits can be actively tracked.'], 422);
+        }
+
+        $trackedPreview = $sync->previewSavedFitting(
+            $fittingId,
+            (int) $data['ship_multiplier'],
+            (int) $data['fitting_multiplier'],
+            $characterId
+        );
+
+        if (!$trackedPreview) {
+            return response()->json(['message' => 'The selected saved fit could not be found.'], 422);
+        }
+
+        $fit = $trackedPreview['fit'];
+        $preview = $previewer->previewSavedFitting(
+            $market,
+            (int) $fit['character_id'],
+            (int) $fit['fitting_id'],
+            $fit['fitting_name'],
+            $trackedPreview['items'],
+            (int) $data['warning_percentage'],
+            $data['merge_mode']
+        );
+        $preview['doctrine'] = [
+            'fits' => [$fit],
+            'fit_aggregation_mode' => MarketSeedingTrackedDoctrine::FIT_AGGREGATION_MAX,
+        ];
+
+        return response()->json($preview);
+    }
+
+    public function updateTrackedSavedFitting(Request $request, MarketSeedingTrackedSavedFitting $trackedSavedFitting, SavedFittingTrackingSync $sync)
+    {
+        if (!$this->savedFittingTrackingAvailable()) {
+            return response()->json(['message' => 'Saved fit tracking is not available until the market seeding migrations are run.'], 422);
+        }
+
+        $data = $request->validate([
+            'ship_multiplier' => 'required|integer|min:0|max:10000',
+            'fitting_multiplier' => 'required|integer|min:0|max:10000',
+            'warning_percentage' => 'required|integer|min:0|max:100',
+            'merge_mode' => 'required|in:max,add',
+        ]);
+
+        $trackedSavedFitting->update([
+            'ship_multiplier' => (int) $data['ship_multiplier'],
+            'fitting_multiplier' => (int) $data['fitting_multiplier'],
+            'warning_percentage' => (int) $data['warning_percentage'],
+            'merge_mode' => $data['merge_mode'],
+        ]);
+
+        $sync->syncSavedFitting($trackedSavedFitting);
+
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedSavedFittingPayload($trackedSavedFitting->market->fresh('trackedSavedFittings'), 'Saved fit tracking updated successfully.'));
+        }
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Saved fit tracking updated successfully.');
+    }
+
+    public function destroyTrackedSavedFitting(Request $request, MarketSeedingTrackedSavedFitting $trackedSavedFitting, StockTargetProjector $projector)
+    {
+        if (!$this->savedFittingTrackingAvailable()) {
+            return response()->json(['message' => 'Saved fit tracking is not available until the market seeding migrations are run.'], 422);
+        }
+
+        $market = $trackedSavedFitting->market;
+
+        DB::transaction(function () use ($trackedSavedFitting, $market, $projector) {
+            $trackedSavedFitting->delete();
+
+            if ($market) {
+                $projector->recalculateMarket($market, MarketSeedingTargetHistory::CHANGE_SAVED_FITTING);
+            }
+        }, 5);
+
+        if ($request->expectsJson()) {
+            return response()->json($this->trackedSavedFittingPayload($market->fresh('trackedSavedFittings'), 'Saved fit tracking removed successfully.'));
+        }
+
+        return redirect()->route('market-seeding.settings')->with('success', 'Saved fit tracking removed successfully.');
+    }
+
     public function importItems(Request $request, SeededMarket $market, StockListParser $parser, StockTargetImporter $importer)
     {
         $data = $request->validate([
             'stock_list' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
+            'ship_multiplier' => 'nullable|integer|min:1|max:10000',
+            'fitting_multiplier' => 'nullable|integer|min:1|max:10000',
             'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
-        $parsed = $parser->parseWithReport($data['stock_list'], (int) ($data['multiplier'] ?? 1));
+        [$shipMultiplier, $fittingMultiplier] = $this->bulkImportMultipliers($data);
+        $parsed = $parser->parseWithReport($data['stock_list'], $fittingMultiplier, $shipMultiplier);
         $count = $importer->import(
             $market,
             $parsed['items'],
@@ -396,6 +545,7 @@ class SettingsController extends Controller
                 ]);
             });
             $market->trackedDoctrines()->delete();
+            $market->trackedSavedFittings()->delete();
             $market->itemSources()->delete();
             $market->items()->delete();
         });
@@ -416,12 +566,15 @@ class SettingsController extends Controller
         $data = $request->validate([
             'stock_list' => 'required|string',
             'multiplier' => 'nullable|integer|min:1|max:10000',
+            'ship_multiplier' => 'nullable|integer|min:1|max:10000',
+            'fitting_multiplier' => 'nullable|integer|min:1|max:10000',
             'warning_percentage' => 'required|integer|min:0|max:100',
             'mode' => 'required|in:add,replace',
             'keep_higher_quantity' => 'nullable|boolean',
         ]);
 
-        $parsed = $parser->parseWithReport($data['stock_list'], (int) ($data['multiplier'] ?? 1));
+        [$shipMultiplier, $fittingMultiplier] = $this->bulkImportMultipliers($data);
+        $parsed = $parser->parseWithReport($data['stock_list'], $fittingMultiplier, $shipMultiplier);
 
         $preview = $previewer->preview(
             $market,
@@ -484,6 +637,7 @@ class SettingsController extends Controller
             (int) $data['warning_percentage']
         );
         $preview['validation'] = $this->savedFittingValidation(count($items));
+        $preview['stock_list'] = $savedFittings->eftText($source, (int) $sourceId);
 
         return response()->json($preview);
     }
@@ -612,8 +766,31 @@ class SettingsController extends Controller
 
     public function searchSavedFittings(Request $request, SavedFittingSource $savedFittings)
     {
+        $results = collect($savedFittings->search((string) $request->input('q', '')));
+
+        if ($request->boolean('character_only')) {
+            $results = $results->where('source', 'character-fit');
+            $marketId = (int) $request->input('market_id');
+
+            if ($marketId > 0 && $this->savedFittingTrackingAvailable()) {
+                $trackedFittingIds = SeededMarket::find($marketId)
+                    ?->trackedSavedFittings()
+                    ->pluck('fitting_id')
+                    ->map(fn ($fittingId) => (int) $fittingId)
+                    ->all() ?: [];
+
+                if ($trackedFittingIds) {
+                    $results = $results->reject(fn ($result) => in_array((int) $result['source_id'], $trackedFittingIds, true));
+                }
+            }
+        }
+
+        if ($request->boolean('fits_only')) {
+            $results = $results->whereIn('source', ['character-fit', 'seat-fitting-fit']);
+        }
+
         return response()->json([
-            'results' => $savedFittings->search((string) $request->input('q', '')),
+            'results' => $results->values(),
         ]);
     }
 
@@ -662,6 +839,16 @@ class SettingsController extends Controller
         ];
     }
 
+    private function bulkImportMultipliers(array $data): array
+    {
+        $legacyMultiplier = (int) ($data['multiplier'] ?? 1);
+
+        return [
+            (int) ($data['ship_multiplier'] ?? $legacyMultiplier ?: 1),
+            (int) ($data['fitting_multiplier'] ?? $legacyMultiplier ?: 1),
+        ];
+    }
+
     private function trackedDoctrineRules(): array
     {
         return [
@@ -671,6 +858,28 @@ class SettingsController extends Controller
             'merge_mode' => 'required|in:max,add',
             'fit_aggregation_mode' => 'required|in:sum,max',
             'doctrine_fit_settings' => 'nullable|string',
+        ];
+    }
+
+    private function trackedSavedFittingRules(): array
+    {
+        return [
+            'saved_fitting' => 'required|string',
+            'ship_multiplier' => 'required|integer|min:0|max:10000',
+            'fitting_multiplier' => 'required|integer|min:0|max:10000',
+            'warning_percentage' => 'required|integer|min:0|max:100',
+            'merge_mode' => 'required|in:max,add',
+        ];
+    }
+
+    private function parseCharacterSavedFittingReference(string $reference): array
+    {
+        [$source, $firstId, $secondId] = array_pad(explode(':', $reference, 3), 3, null);
+
+        return [
+            $source,
+            (int) ($secondId ?: $firstId),
+            $secondId ? (int) $firstId : null,
         ];
     }
 
@@ -746,6 +955,35 @@ class SettingsController extends Controller
             'summary_html' => view('seat-market-seeding::partials.tracked-doctrine-summary', compact('market'))->render(),
             'list_html' => view('seat-market-seeding::partials.tracked-doctrine-list', compact('market'))->render(),
             'tracked_doctrines_count' => $market->trackedDoctrines->count(),
+            'tracked_count' => $market->items->count(),
+            'items' => $market->items->map(function (SeededMarketItem $item) {
+                return $this->itemPayload($item);
+            })->values(),
+        ];
+    }
+
+    private function trackedSavedFittingPayload(SeededMarket $market, string $message): array
+    {
+        if (!$this->savedFittingTrackingAvailable()) {
+            return [
+                'message' => 'Saved fit tracking is not available until the market seeding migrations are run.',
+                'saved_fitting_summary_html' => '',
+                'saved_fitting_list_html' => '',
+                'tracked_saved_fittings_count' => 0,
+                'tracked_count' => $market->items()->count(),
+                'items' => [],
+            ];
+        }
+
+        $market->load(['trackedSavedFittings', 'items' => function ($query) {
+            $query->with('sources', 'type.group')->orderBy('type_name');
+        }]);
+
+        return [
+            'message' => $message,
+            'saved_fitting_summary_html' => view('seat-market-seeding::partials.tracked-saved-fitting-summary', compact('market'))->render(),
+            'saved_fitting_list_html' => view('seat-market-seeding::partials.tracked-saved-fitting-list', compact('market'))->render(),
+            'tracked_saved_fittings_count' => $market->trackedSavedFittings->count(),
             'tracked_count' => $market->items->count(),
             'items' => $market->items->map(function (SeededMarketItem $item) {
                 return $this->itemPayload($item);
@@ -835,6 +1073,12 @@ class SettingsController extends Controller
                 'reason' => 'No importable items were found in this saved source.',
             ]],
         ];
+    }
+
+    private function savedFittingTrackingAvailable(): bool
+    {
+        return Schema::hasTable('seat_market_seeding_tracked_saved_fittings')
+            && Schema::hasColumn('seat_market_seeding_item_sources', 'tracked_saved_fitting_id');
     }
 
     private function escapeLike(string $value): string

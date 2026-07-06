@@ -76,6 +76,7 @@ trait CreatesDatabaseSchema
             $table->unsignedInteger('market_id');
             $table->unsignedInteger('item_id')->nullable();
             $table->unsignedInteger('tracked_doctrine_id')->nullable();
+            $table->unsignedInteger('tracked_saved_fitting_id')->nullable();
             $table->string('source_type');
             $table->string('source_key');
             $table->bigInteger('type_id')->unsigned();
@@ -110,6 +111,25 @@ trait CreatesDatabaseSchema
             $table->string('ship_type_name')->nullable();
             $table->unsignedInteger('ship_multiplier')->default(10);
             $table->unsignedInteger('fitting_multiplier')->default(10);
+            $table->timestamps();
+        });
+
+        Schema::create('seat_market_seeding_tracked_saved_fittings', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('market_id');
+            $table->unsignedBigInteger('character_id');
+            $table->unsignedBigInteger('fitting_id');
+            $table->unsignedBigInteger('esi_fitting_id')->nullable();
+            $table->string('fitting_name');
+            $table->unsignedBigInteger('ship_type_id')->nullable();
+            $table->string('ship_type_name')->nullable();
+            $table->unsignedInteger('ship_multiplier')->default(5);
+            $table->unsignedInteger('fitting_multiplier')->default(10);
+            $table->unsignedInteger('warning_percentage')->default(33);
+            $table->string('merge_mode')->default('max');
+            $table->timestamp('last_synced_at')->nullable();
+            $table->string('last_sync_status')->nullable();
+            $table->text('last_sync_message')->nullable();
             $table->timestamps();
         });
 
@@ -265,6 +285,7 @@ trait CreatesDatabaseSchema
             'seat_market_seeding_settings',
             'seat_market_seeding_profiles',
             'seat_market_seeding_tracked_doctrine_fits',
+            'seat_market_seeding_tracked_saved_fittings',
             'seat_market_seeding_tracked_doctrines',
             'seat_market_seeding_item_sources',
             'seat_market_seeding_items',

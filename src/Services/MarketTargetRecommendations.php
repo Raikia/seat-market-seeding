@@ -100,7 +100,7 @@ class MarketTargetRecommendations
             'recommendation_delta_volume' => (float) $row->recommendation_delta_volume,
             'recommendation_unit_cost' => (float) $row->recommendation_unit_cost,
             'recommendation_unit_volume' => (float) $row->recommendation_unit_volume,
-            'source_flags' => $row->source_flags ?? ['manual' => false, 'doctrine' => false],
+            'source_flags' => $row->source_flags ?? ['manual' => false, 'doctrine' => false, 'fitting' => false],
         ];
     }
 
@@ -119,7 +119,7 @@ class MarketTargetRecommendations
                 $row->target_quantity = 1;
                 $row->desired_quantity = 1;
                 $row->warning_quantity = 0;
-                $row->source_flags = ['manual' => false, 'doctrine' => false];
+                $row->source_flags = ['manual' => false, 'doctrine' => false, 'fitting' => false];
                 continue;
             }
 

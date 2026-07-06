@@ -115,6 +115,14 @@ Route::group([
             'as' => 'market-seeding.tracked-doctrines.preview',
             'uses' => 'SettingsController@previewTrackedDoctrine',
         ]);
+        Route::post('/markets/{market}/tracked-saved-fittings', [
+            'as' => 'market-seeding.tracked-saved-fittings.store',
+            'uses' => 'SettingsController@storeTrackedSavedFitting',
+        ]);
+        Route::post('/markets/{market}/tracked-saved-fittings/preview', [
+            'as' => 'market-seeding.tracked-saved-fittings.preview',
+            'uses' => 'SettingsController@previewTrackedSavedFitting',
+        ]);
         Route::put('/tracked-doctrines/{trackedDoctrine}', [
             'as' => 'market-seeding.tracked-doctrines.update',
             'uses' => 'SettingsController@updateTrackedDoctrine',
@@ -122,6 +130,14 @@ Route::group([
         Route::delete('/tracked-doctrines/{trackedDoctrine}', [
             'as' => 'market-seeding.tracked-doctrines.destroy',
             'uses' => 'SettingsController@destroyTrackedDoctrine',
+        ]);
+        Route::put('/tracked-saved-fittings/{trackedSavedFitting}', [
+            'as' => 'market-seeding.tracked-saved-fittings.update',
+            'uses' => 'SettingsController@updateTrackedSavedFitting',
+        ]);
+        Route::delete('/tracked-saved-fittings/{trackedSavedFitting}', [
+            'as' => 'market-seeding.tracked-saved-fittings.destroy',
+            'uses' => 'SettingsController@destroyTrackedSavedFitting',
         ]);
         Route::put('/items/{item}', [
             'as' => 'market-seeding.items.update',

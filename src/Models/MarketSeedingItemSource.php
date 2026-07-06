@@ -9,6 +9,7 @@ class MarketSeedingItemSource extends Model
     const SOURCE_MANUAL = 'manual';
     const SOURCE_MANUAL_ADJUSTMENT = 'manual_adjustment';
     const SOURCE_DOCTRINE = 'doctrine';
+    const SOURCE_SAVED_FIT = 'saved_fit';
 
     protected $table = 'seat_market_seeding_item_sources';
 
@@ -16,6 +17,7 @@ class MarketSeedingItemSource extends Model
         'market_id',
         'item_id',
         'tracked_doctrine_id',
+        'tracked_saved_fitting_id',
         'source_type',
         'source_key',
         'type_id',
@@ -28,6 +30,7 @@ class MarketSeedingItemSource extends Model
         'market_id' => 'integer',
         'item_id' => 'integer',
         'tracked_doctrine_id' => 'integer',
+        'tracked_saved_fitting_id' => 'integer',
         'type_id' => 'integer',
         'quantity' => 'integer',
         'warning_quantity' => 'integer',
@@ -46,5 +49,10 @@ class MarketSeedingItemSource extends Model
     public function trackedDoctrine()
     {
         return $this->belongsTo(MarketSeedingTrackedDoctrine::class, 'tracked_doctrine_id');
+    }
+
+    public function trackedSavedFitting()
+    {
+        return $this->belongsTo(MarketSeedingTrackedSavedFitting::class, 'tracked_saved_fitting_id');
     }
 }

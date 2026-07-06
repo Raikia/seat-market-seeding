@@ -4,9 +4,11 @@ namespace Raikia\SeatMarketSeeding\Services;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedSavedFitting;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 
@@ -34,12 +36,13 @@ class StockTargetProjector
                 'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
                 'source_key' => 'manual',
                 'type_id' => $typeId,
-            ], [
+            ], $this->sourceValues([
                 'tracked_doctrine_id' => null,
+                'tracked_saved_fitting_id' => null,
                 'type_name' => $typeName,
                 'quantity' => max(1, $quantity),
                 'warning_quantity' => $this->normalizeWarningQuantity($warningQuantity, max(1, $quantity)),
-            ]);
+            ]));
 
             $this->recalculateMarket($market, $changeType);
 
@@ -66,29 +69,30 @@ class StockTargetProjector
         return DB::transaction(function () use ($item, $desiredQuantity, $warningQuantity, $notes, $changeType) {
             $market = $item->market;
             $sources = $market->itemSources()
-                ->with('trackedDoctrine')
+                ->with($this->sourceRelations())
                 ->where('type_id', $item->type_id)
                 ->get();
-            $hasDoctrineSources = $sources
-                ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
+            $hasLinkedSources = $sources
+                ->whereIn('source_type', [MarketSeedingItemSource::SOURCE_DOCTRINE, MarketSeedingItemSource::SOURCE_SAVED_FIT])
                 ->isNotEmpty();
             $desiredQuantity = max(1, $desiredQuantity);
             $baseProjection = $this->projectSources($sources, null, null, false);
             $adjustmentQuantity = max(0, $desiredQuantity - $baseProjection['quantity']);
             $adjustmentWarningQuantity = $this->normalizeWarningQuantity($warningQuantity, $desiredQuantity);
 
-            if (!$hasDoctrineSources) {
+            if (!$hasLinkedSources) {
                 MarketSeedingItemSource::updateOrCreate([
                     'market_id' => $market->id,
                     'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
                     'source_key' => 'manual',
                     'type_id' => $item->type_id,
-                ], [
+                ], $this->sourceValues([
                     'tracked_doctrine_id' => null,
+                    'tracked_saved_fitting_id' => null,
                     'type_name' => $item->type_name,
                     'quantity' => $desiredQuantity,
                     'warning_quantity' => $adjustmentWarningQuantity,
-                ]);
+                ]));
 
                 $market->itemSources()
                     ->where('type_id', $item->type_id)
@@ -123,12 +127,13 @@ class StockTargetProjector
                 'source_type' => MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT,
                 'source_key' => 'inline-adjustment',
                 'type_id' => $item->type_id,
-            ], [
+            ], $this->sourceValues([
                 'tracked_doctrine_id' => null,
+                'tracked_saved_fitting_id' => null,
                 'type_name' => $item->type_name,
                 'quantity' => $adjustmentQuantity,
                 'warning_quantity' => $adjustmentWarningQuantity,
-            ]);
+            ]));
 
             $this->recalculateMarket($market, $changeType);
 
@@ -205,12 +210,13 @@ class StockTargetProjector
                     'source_type' => MarketSeedingItemSource::SOURCE_MANUAL,
                     'source_key' => 'manual',
                     'type_id' => $typeId,
-                ], [
+                ], $this->sourceValues([
                     'tracked_doctrine_id' => null,
+                    'tracked_saved_fitting_id' => null,
                     'type_name' => $item['type_name'],
                     'quantity' => max(1, $quantity),
                     'warning_quantity' => $this->quantities->warningQuantityFromPercentage(max(1, $quantity), $warningPercentage),
-                ]);
+                ]));
             }
 
             $this->recalculateMarket($market, $changeType);
@@ -238,22 +244,59 @@ class StockTargetProjector
                     'source_type' => MarketSeedingItemSource::SOURCE_DOCTRINE,
                     'source_key' => 'seat-fitting-doctrine:' . $trackedDoctrine->doctrine_id,
                     'type_id' => (int) $item['type_id'],
-                ], [
+                ], $this->sourceValues([
                     'tracked_doctrine_id' => $trackedDoctrine->id,
+                    'tracked_saved_fitting_id' => null,
                     'type_name' => $item['type_name'],
                     'quantity' => max(1, (int) $item['quantity']),
                     'warning_quantity' => $this->warningQuantityForDoctrineSource($trackedDoctrine, max(1, (int) $item['quantity'])),
-                ]);
+                ]));
             }
 
             $this->recalculateMarket($trackedDoctrine->market, $changeType);
         }, 5);
     }
 
+    public function replaceSavedFittingTargets(
+        MarketSeedingTrackedSavedFitting $trackedSavedFitting,
+        array $items,
+        string $changeType = MarketSeedingTargetHistory::CHANGE_SAVED_FITTING
+    ): void
+    {
+        if (!$this->trackedSavedFittingAvailable()) {
+            throw new \RuntimeException('Saved fit tracking is not available until the market seeding migrations have run.');
+        }
+
+        DB::transaction(function () use ($trackedSavedFitting, $items, $changeType) {
+            $typeIds = collect($items)->pluck('type_id')->map(fn ($typeId) => (int) $typeId)->all();
+
+            $trackedSavedFitting->sources()
+                ->whereNotIn('type_id', $typeIds ?: [0])
+                ->delete();
+
+            foreach ($items as $item) {
+                MarketSeedingItemSource::updateOrCreate([
+                    'market_id' => $trackedSavedFitting->market_id,
+                    'source_type' => MarketSeedingItemSource::SOURCE_SAVED_FIT,
+                    'source_key' => 'character-fit:' . $trackedSavedFitting->character_id . ':' . $trackedSavedFitting->fitting_id,
+                    'type_id' => (int) $item['type_id'],
+                ], $this->sourceValues([
+                    'tracked_doctrine_id' => null,
+                    'tracked_saved_fitting_id' => $trackedSavedFitting->id,
+                    'type_name' => $item['type_name'],
+                    'quantity' => max(1, (int) $item['quantity']),
+                    'warning_quantity' => $this->warningQuantityForSavedFittingSource($trackedSavedFitting, max(1, (int) $item['quantity'])),
+                ]));
+            }
+
+            $this->recalculateMarket($trackedSavedFitting->market, $changeType);
+        }, 5);
+    }
+
     public function recalculateMarket(SeededMarket $market, string $changeType = MarketSeedingTargetHistory::CHANGE_SYSTEM): void
     {
         $sources = $market->itemSources()
-            ->with('trackedDoctrine')
+            ->with($this->sourceRelations())
             ->get()
             ->groupBy('type_id');
         $existing = $market->items()->get()->keyBy('type_id');
@@ -331,7 +374,7 @@ class StockTargetProjector
         $adjustmentQuantity = (int) $adjustmentSources->sum('quantity');
         $adjustmentWarningQuantity = (int) $adjustmentSources->sum('warning_quantity');
         $typeName = optional($sources->first())->type_name;
-        $doctrineProjection = $this->doctrineProjection($sources);
+        $linkedProjection = $this->linkedProjection($sources);
 
         if ($manualWarningQuantity < 1 && $manualQuantity > 0 && $manualSources->every(fn ($source) => $source->warning_quantity === null)) {
             $manualWarningQuantity = $manualWarningQuantityOverride === null
@@ -339,16 +382,16 @@ class StockTargetProjector
                 : $manualWarningQuantity;
         }
 
-        $baseWarningQuantity = $manualQuantity >= $doctrineProjection['max_quantity']
+        $baseWarningQuantity = $manualQuantity >= $linkedProjection['max_quantity']
             ? $manualWarningQuantity
-            : $doctrineProjection['max_warning_quantity'];
-        $quantity = max($manualQuantity, $doctrineProjection['max_quantity'])
-            + $doctrineProjection['add_quantity']
+            : $linkedProjection['max_warning_quantity'];
+        $quantity = max($manualQuantity, $linkedProjection['max_quantity'])
+            + $linkedProjection['add_quantity']
             + $adjustmentQuantity;
 
         $warningQuantity = $adjustmentSources->isNotEmpty()
             ? $adjustmentWarningQuantity
-            : $baseWarningQuantity + $doctrineProjection['add_warning_quantity'];
+            : $baseWarningQuantity + $linkedProjection['add_warning_quantity'];
 
         return [
             'type_name' => $typeName,
@@ -359,19 +402,26 @@ class StockTargetProjector
 
     public function doctrineProjection(Collection $sources): array
     {
+        return $this->linkedProjection($sources);
+    }
+
+    public function linkedProjection(Collection $sources): array
+    {
         $addQuantity = 0;
         $addWarningQuantity = 0;
         $maxQuantity = 0;
         $maxWarningQuantity = 0;
 
         $sources
-            ->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)
+            ->whereIn('source_type', [MarketSeedingItemSource::SOURCE_DOCTRINE, MarketSeedingItemSource::SOURCE_SAVED_FIT])
             ->each(function (MarketSeedingItemSource $source) use (&$addQuantity, &$addWarningQuantity, &$maxQuantity, &$maxWarningQuantity) {
-                $mergeMode = optional($source->trackedDoctrine)->merge_mode ?: MarketSeedingTrackedDoctrine::MERGE_MAX;
+                $mergeMode = $source->source_type === MarketSeedingItemSource::SOURCE_SAVED_FIT
+                    ? (optional($source->trackedSavedFitting)->merge_mode ?: MarketSeedingTrackedSavedFitting::MERGE_MAX)
+                    : (optional($source->trackedDoctrine)->merge_mode ?: MarketSeedingTrackedDoctrine::MERGE_MAX);
                 $quantity = (int) $source->quantity;
                 $warningQuantity = $source->warning_quantity ?? $this->quantities->defaultWarningQuantity($quantity);
 
-                if ($mergeMode === MarketSeedingTrackedDoctrine::MERGE_ADD) {
+                if (in_array($mergeMode, [MarketSeedingTrackedDoctrine::MERGE_ADD, MarketSeedingTrackedSavedFitting::MERGE_ADD], true)) {
                     $addQuantity += $quantity;
                     $addWarningQuantity += (int) $warningQuantity;
                     return;
@@ -396,6 +446,11 @@ class StockTargetProjector
     private function warningQuantityForDoctrineSource(MarketSeedingTrackedDoctrine $trackedDoctrine, int $quantity): int
     {
         return $this->quantities->warningQuantityFromPercentage($quantity, (int) ($trackedDoctrine->warning_percentage ?? 33));
+    }
+
+    private function warningQuantityForSavedFittingSource(MarketSeedingTrackedSavedFitting $trackedSavedFitting, int $quantity): int
+    {
+        return $this->quantities->warningQuantityFromPercentage($quantity, (int) ($trackedSavedFitting->warning_percentage ?? 33));
     }
 
     private function warningQuantityFromPercentage(int $quantity, int $percentage): int
@@ -454,5 +509,31 @@ class StockTargetProjector
             ?? $user->username
             ?? optional($user->main_character)->name
             ?? ('User #' . $user->id);
+    }
+
+    private function sourceRelations(): array
+    {
+        $relations = ['trackedDoctrine'];
+
+        if ($this->trackedSavedFittingAvailable()) {
+            $relations[] = 'trackedSavedFitting';
+        }
+
+        return $relations;
+    }
+
+    private function sourceValues(array $values): array
+    {
+        if (!$this->trackedSavedFittingAvailable()) {
+            unset($values['tracked_saved_fitting_id']);
+        }
+
+        return $values;
+    }
+
+    private function trackedSavedFittingAvailable(): bool
+    {
+        return Schema::hasTable('seat_market_seeding_tracked_saved_fittings')
+            && Schema::hasColumn('seat_market_seeding_item_sources', 'tracked_saved_fitting_id');
     }
 }

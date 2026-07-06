@@ -10,35 +10,30 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body">
-                <div class="market-seeding-doctrine-preview-settings mb-3" style="display: none;">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+            <div class="modal-body market-seeding-import-preview-body">
+                <div class="market-seeding-doctrine-preview-settings market-seeding-preview-section mb-3" style="display: none;">
+                    <div class="market-seeding-preview-section-header">
                         <div>
-                            <strong>Doctrine fit multipliers</strong>
+                            <strong>Fit Multipliers</strong>
                             <div class="small text-muted">Ship multiplier is only the hull. Fitting multiplier covers modules, rigs, ammo, drones, cargo, and other fit contents.</div>
                         </div>
                         <span class="small text-muted market-seeding-doctrine-preview-refresh-status"></span>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Ship / Fit</th>
-                                    <th class="text-right">Ship Multiplier</th>
-                                    <th class="text-right">Fitting Multiplier</th>
-                                    <th>Fit Contents</th>
-                                </tr>
-                            </thead>
-                            <tbody class="market-seeding-doctrine-fit-rows"></tbody>
-                        </table>
-                    </div>
+                    <div class="market-seeding-doctrine-fit-rows"></div>
                 </div>
-                <div class="alert alert-light border market-seeding-preview-summary mb-3">
+                <div class="market-seeding-preview-summary mb-3">
                     Preview has not been loaded yet.
                 </div>
                 <div class="alert alert-warning market-seeding-preview-validation mb-3" style="display: none;"></div>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                <div class="market-seeding-preview-section">
+                    <div class="market-seeding-preview-section-header">
+                        <div>
+                            <strong>Target Changes</strong>
+                            <div class="small text-muted">What will happen when this import is applied.</div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 market-seeding-preview-table">
                         <thead>
                             <tr>
                                 <th>Item</th>
@@ -55,6 +50,7 @@
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Tests\Unit\Services;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedSavedFitting;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
@@ -94,6 +95,48 @@ class StockTargetProjectorTest extends TestCase
 
         $this->assertSame(5, $item->desired_quantity);
         $this->assertSame(5, $item->warning_quantity);
+        $this->assertTrue(
+            MarketSeedingItemSource::where('market_id', $market->id)
+                ->where('type_id', 621)
+                ->where('source_type', MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT)
+                ->exists()
+        );
+    }
+
+    public function test_manual_adjustment_above_tracked_saved_fit_remains_after_fit_is_removed(): void
+    {
+        $market = $this->createMarket();
+        $projector = app(StockTargetProjector::class);
+        $trackedFit = MarketSeedingTrackedSavedFitting::create([
+            'market_id' => $market->id,
+            'character_id' => 123,
+            'fitting_id' => 456,
+            'fitting_name' => 'Caracal Fleet Fit',
+            'ship_type_id' => 621,
+            'ship_type_name' => 'Caracal',
+            'ship_multiplier' => 5,
+            'fitting_multiplier' => 10,
+            'warning_percentage' => 33,
+            'merge_mode' => MarketSeedingTrackedSavedFitting::MERGE_MAX,
+        ]);
+
+        $projector->replaceSavedFittingTargets($trackedFit, [[
+            'type_id' => 621,
+            'type_name' => 'Caracal',
+            'quantity' => 5,
+        ]]);
+
+        $item = SeededMarketItem::where('market_id', $market->id)->where('type_id', 621)->firstOrFail();
+        $projector->setEffectiveTarget($item, 8, 3);
+
+        $trackedFit->sources()->delete();
+        $trackedFit->delete();
+        $projector->recalculateMarket($market, MarketSeedingTargetHistory::CHANGE_SAVED_FITTING);
+
+        $item = SeededMarketItem::where('market_id', $market->id)->where('type_id', 621)->firstOrFail();
+
+        $this->assertSame(3, $item->desired_quantity);
+        $this->assertSame(3, $item->warning_quantity);
         $this->assertTrue(
             MarketSeedingItemSource::where('market_id', $market->id)
                 ->where('type_id', 621)

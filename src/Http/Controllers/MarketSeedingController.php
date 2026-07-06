@@ -4,6 +4,7 @@ namespace Raikia\SeatMarketSeeding\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTargetHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
@@ -171,14 +172,16 @@ class MarketSeedingController extends Controller
     private function itemSourceDetails(SeededMarketItem $item): array
     {
         $sources = $item->sources()
-            ->with('trackedDoctrine.fitSettings')
+            ->with($this->itemSourceRelations())
             ->get();
         $manualSources = $sources->whereIn('source_type', [
             MarketSeedingItemSource::SOURCE_MANUAL,
             MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT,
         ]);
         $doctrineSources = $sources->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE);
+        $savedFittingSources = $sources->where('source_type', MarketSeedingItemSource::SOURCE_SAVED_FIT);
         $doctrines = [];
+        $savedFittings = [];
 
         foreach ($doctrineSources as $source) {
             $trackedDoctrine = $source->trackedDoctrine;
@@ -199,10 +202,33 @@ class MarketSeedingController extends Controller
             ];
         }
 
+        foreach ($savedFittingSources as $source) {
+            $trackedSavedFitting = $source->trackedSavedFitting;
+
+            if (!$trackedSavedFitting) {
+                continue;
+            }
+
+            $savedFittings[] = [
+                'id' => $trackedSavedFitting->id,
+                'fitting_id' => $trackedSavedFitting->fitting_id,
+                'name' => $trackedSavedFitting->fitting_name,
+                'ship_type_id' => (int) $trackedSavedFitting->ship_type_id,
+                'ship_type_name' => $trackedSavedFitting->ship_type_name ?: 'Unknown Ship',
+                'quantity' => (int) $source->quantity,
+                'warning_quantity' => (int) $source->warning_quantity,
+                'merge_mode' => $trackedSavedFitting->merge_mode,
+                'ship_multiplier' => (int) $trackedSavedFitting->ship_multiplier,
+                'fitting_multiplier' => (int) $trackedSavedFitting->fitting_multiplier,
+                'fits' => $this->savedFittingContributions($trackedSavedFitting, $item),
+            ];
+        }
+
         return [
             'flags' => [
                 'manual' => $manualSources->isNotEmpty(),
                 'doctrine' => $doctrineSources->isNotEmpty(),
+                'fitting' => $savedFittingSources->isNotEmpty(),
             ],
             'manual' => $manualSources->map(function (MarketSeedingItemSource $source) {
                 return [
@@ -215,6 +241,7 @@ class MarketSeedingController extends Controller
                 ];
             })->values(),
             'doctrines' => collect($doctrines)->values(),
+            'saved_fittings' => collect($savedFittings)->values(),
         ];
     }
 
@@ -265,12 +292,83 @@ class MarketSeedingController extends Controller
                     'ship_type_name' => $fit['ship_type_name'] ?: 'Unknown Ship',
                     'ship_multiplier' => $shipMultiplier,
                     'fitting_multiplier' => $fittingMultiplier,
+                    'items' => $fit['items'] ?? [],
                     'contributions' => $contributions,
                 ];
             })
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function savedFittingContributions($trackedSavedFitting, SeededMarketItem $item)
+    {
+        try {
+            $fit = app(SavedFittingSource::class)->characterFit(
+                (int) $trackedSavedFitting->fitting_id,
+                (int) $trackedSavedFitting->character_id
+            );
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if (!$fit) {
+            return [];
+        }
+
+        $contributions = [];
+        $shipMultiplier = (int) $trackedSavedFitting->ship_multiplier;
+        $fittingMultiplier = (int) $trackedSavedFitting->fitting_multiplier;
+
+        if ((int) ($fit['ship_type_id'] ?? 0) === (int) $item->type_id && $shipMultiplier > 0) {
+            $contributions[] = [
+                'kind' => 'Ship hull',
+                'quantity' => $shipMultiplier,
+            ];
+        }
+
+        foreach (($fit['items'] ?? []) as $fitItem) {
+            if ((int) ($fitItem['type_id'] ?? 0) !== (int) $item->type_id || $fittingMultiplier < 1) {
+                continue;
+            }
+
+            $contributions[] = [
+                'kind' => $fitItem['slot_group'] ?: 'Fitting item',
+                'quantity' => (int) $fitItem['quantity'] * $fittingMultiplier,
+            ];
+        }
+
+        if (empty($contributions)) {
+            return [];
+        }
+
+        return [[
+            'fitting_id' => (int) $fit['fitting_id'],
+            'fitting_name' => $fit['fitting_name'],
+            'ship_type_id' => (int) ($fit['ship_type_id'] ?? 0),
+            'ship_type_name' => $fit['ship_type_name'] ?: 'Unknown Ship',
+            'ship_multiplier' => $shipMultiplier,
+            'fitting_multiplier' => $fittingMultiplier,
+            'items' => $fit['items'] ?? [],
+            'contributions' => $contributions,
+        ]];
+    }
+
+    private function itemSourceRelations(): array
+    {
+        $relations = ['trackedDoctrine.fitSettings'];
+
+        if ($this->savedFittingTrackingAvailable()) {
+            $relations[] = 'trackedSavedFitting';
+        }
+
+        return $relations;
+    }
+
+    private function savedFittingTrackingAvailable(): bool
+    {
+        return Schema::hasTable('seat_market_seeding_tracked_saved_fittings')
+            && Schema::hasColumn('seat_market_seeding_item_sources', 'tracked_saved_fitting_id');
     }
 
     public function history(Request $request, MarketSeedingSettings $settings)
@@ -714,7 +812,7 @@ class MarketSeedingController extends Controller
                 $row->target_quantity = (int) $summary->latest_desired_quantity;
                 $row->desired_quantity = (int) $summary->latest_desired_quantity;
                 $row->warning_quantity = (int) $summary->latest_warning_quantity;
-                $row->source_flags = ['manual' => false, 'doctrine' => false];
+                $row->source_flags = ['manual' => false, 'doctrine' => false, 'fitting' => false];
             }
         }
     }
@@ -1090,7 +1188,7 @@ class MarketSeedingController extends Controller
     private function historyTransitionRow(MarketStockHistory $event): array
     {
         $itemHtml = view('seat-market-seeding::partials.source-icons', [
-            'sourceFlags' => $event->source_flags ?? ['manual' => false, 'doctrine' => false],
+            'sourceFlags' => $event->source_flags ?? ['manual' => false, 'doctrine' => false, 'fitting' => false],
             ])->render()
             . e($event->type_name)
             . '<span class="text-muted small market-seeding-item-type">' . e($event->type_category ?: 'Unknown') . '</span>';

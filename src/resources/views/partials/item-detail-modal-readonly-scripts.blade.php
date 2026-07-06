@@ -1,4 +1,5 @@
             var marketSeedingItemDetailTrendChart = null;
+            var marketSeedingItemDetailSourceFits = {};
 
             function resetItemDetails() {
                 $('#market-seeding-detail-current').text('Loading...');
@@ -19,6 +20,7 @@
                 $('#market-seeding-edit-target-change-history').html('<tr><td colspan="5" class="text-muted">Loading target changes...</td></tr>');
                 $('#market-seeding-edit-target-icon').addClass('d-none').attr('src', '').attr('alt', '');
                 $('.edit-target-delta').text('').removeClass('is-positive is-negative');
+                marketSeedingItemDetailSourceFits = {};
 
                 if (marketSeedingItemDetailTrendChart) {
                     marketSeedingItemDetailTrendChart.destroy();
@@ -92,6 +94,7 @@
                 var flags = sourceDetails.flags || {};
                 var manualSources = sourceDetails.manual || [];
                 var doctrines = sourceDetails.doctrines || [];
+                var savedFittings = sourceDetails.saved_fittings || [];
                 var $badges = $('#market-seeding-detail-source-badges').empty();
                 var $list = $('#market-seeding-detail-source-list').empty();
 
@@ -103,7 +106,11 @@
                     $badges.append('<span class="badge badge-info">Doctrine</span>');
                 }
 
-                if (!flags.manual && !flags.doctrine) {
+                if (flags.fitting) {
+                    $badges.append('<span class="badge badge-secondary">Saved Fit</span>');
+                }
+
+                if (!flags.manual && !flags.doctrine && !flags.fitting) {
                     $badges.append('<span class="badge badge-secondary">Unknown</span>');
                     $list.html('<div class="text-muted">No source records were found for this item.</div>');
                     return;
@@ -123,6 +130,7 @@
                     var fitHtml = '';
 
                     $.each(doctrine.fits || [], function (fitIndex, fit) {
+                        var fitKey = 'doctrine-' + index + '-' + fitIndex;
                         var shipIconUrl = marketSeedingItemDetailTypeRenderUrl(fit.ship_type_id, 64) || marketSeedingItemDetailTypeIconUrl(fit.ship_type_id, 64);
                         var shipIcon = shipIconUrl
                             ? '<img src="' + marketSeedingItemDetailEscapeAttr(shipIconUrl) + '" alt="' + marketSeedingItemDetailEscapeAttr((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
@@ -132,6 +140,7 @@
                                 marketSeedingItemDetailEscape(contribution.kind || 'Item') + ': ' + marketSeedingItemDetailWhole(contribution.quantity) +
                             '</span>';
                         }).join('');
+                        marketSeedingItemDetailSourceFits[fitKey] = fit;
 
                         fitHtml +=
                             '<div class="edit-target-source-fit">' +
@@ -143,6 +152,8 @@
                                         ' &middot; fit x' + marketSeedingItemDetailWhole(fit.fitting_multiplier || 0) + '</div>' +
                                     '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
                                 '</div>' +
+                                sourceFitReviewButton(fitKey) +
+                                '<div class="edit-target-source-fit-panel d-none"></div>' +
                             '</div>';
                     });
 
@@ -166,7 +177,92 @@
                         '</div>'
                     );
                 });
+
+                $.each(savedFittings, function (index, savedFitting) {
+                    var fitHtml = '';
+
+                    $.each(savedFitting.fits || [], function (fitIndex, fit) {
+                        var fitKey = 'saved-fitting-' + index + '-' + fitIndex;
+                        var shipIconUrl = marketSeedingItemDetailTypeRenderUrl(fit.ship_type_id, 64) || marketSeedingItemDetailTypeIconUrl(fit.ship_type_id, 64);
+                        var shipIcon = shipIconUrl
+                            ? '<img src="' + marketSeedingItemDetailEscapeAttr(shipIconUrl) + '" alt="' + marketSeedingItemDetailEscapeAttr((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
+                            : '';
+                        var contributions = (fit.contributions || []).map(function (contribution) {
+                            return '<span class="edit-target-source-contribution">' +
+                                marketSeedingItemDetailEscape(contribution.kind || 'Item') + ': ' + marketSeedingItemDetailWhole(contribution.quantity) +
+                            '</span>';
+                        }).join('');
+                        marketSeedingItemDetailSourceFits[fitKey] = fit;
+
+                        fitHtml +=
+                            '<div class="edit-target-source-fit">' +
+                                shipIcon +
+                                '<div class="edit-target-source-fit-body">' +
+                                    '<div class="edit-target-source-fit-name">' + marketSeedingItemDetailEscape(fit.ship_type_name || 'Unknown Ship') + '</div>' +
+                                    '<div class="edit-target-source-fit-meta">' + marketSeedingItemDetailEscape(fit.fitting_name || 'Unnamed Fit') +
+                                        ' &middot; ship x' + marketSeedingItemDetailWhole(fit.ship_multiplier || 0) +
+                                        ' &middot; fit x' + marketSeedingItemDetailWhole(fit.fitting_multiplier || 0) + '</div>' +
+                                    '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
+                                '</div>' +
+                                sourceFitReviewButton(fitKey) +
+                                '<div class="edit-target-source-fit-panel d-none"></div>' +
+                            '</div>';
+                    });
+
+                    if (!fitHtml) {
+                        fitHtml = '<div class="edit-target-source-fit-meta mt-1">No matching saved fit breakdown could be loaded.</div>';
+                    }
+
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="d-flex justify-content-between align-items-start">' +
+                                '<div>' +
+                                    '<div class="edit-target-source-name">' + marketSeedingItemDetailEscape(savedFitting.name || 'Tracked saved fit') + '</div>' +
+                                    '<div class="edit-target-source-meta">Saved fit contribution ' + marketSeedingItemDetailWhole(savedFitting.quantity) +
+                                        ', warning ' + marketSeedingItemDetailWhole(savedFitting.warning_quantity || 0) +
+                                        ' &middot; merge ' + marketSeedingItemDetailEscape(savedFitting.merge_mode || '-') + '</div>' +
+                                '</div>' +
+                                '<span class="badge badge-secondary">Saved Fit</span>' +
+                            '</div>' +
+                            fitHtml +
+                        '</div>'
+                    );
+                });
             }
+
+            function sourceFitReviewButton(fitKey) {
+                if (!window.marketSeedingFitPanel) {
+                    return '';
+                }
+
+                return '<div class="edit-target-source-fit-actions">' +
+                    '<button type="button" class="btn btn-default btn-xs market-seeding-source-fit-review" data-fit-key="' + marketSeedingItemDetailEscapeAttr(fitKey) + '" title="View full fit">' +
+                        '<i class="fas fa-search"></i> View Fit' +
+                    '</button>' +
+                '</div>';
+            }
+
+            $(document).on('click', '.market-seeding-source-fit-review', function () {
+                var $button = $(this);
+                var $row = $button.closest('.edit-target-source-fit');
+                var $panel = $row.find('.edit-target-source-fit-panel').first();
+                var fit = marketSeedingItemDetailSourceFits[$button.data('fit-key')];
+
+                if (!fit || !window.marketSeedingFitPanel) {
+                    return;
+                }
+
+                if (!$panel.hasClass('d-none')) {
+                    $panel.addClass('d-none').empty();
+                    $button.html('<i class="fas fa-search"></i> View Fit');
+                    return;
+                }
+
+                $panel
+                    .removeClass('d-none')
+                    .html(window.marketSeedingFitPanel(fit));
+                $button.html('<i class="fas fa-times"></i> Hide Fit');
+            });
 
             function renderTrend(trend) {
                 var labels = trend.labels || [];

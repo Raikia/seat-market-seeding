@@ -71,6 +71,7 @@
     @endphp
 
     @include('seat-market-seeding::partials.item-detail-modal-styles')
+    @include('seat-market-seeding::partials.fit-review-styles')
 
     <style>
         .market-seeding-shell .info-box-number {
@@ -520,6 +521,10 @@
             background: rgba(40, 167, 69, .16);
             color: #1e7e34;
         }
+        .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .16);
+            color: #59359a;
+        }
         .market-seeding-health-badge {
             font-size: .8rem;
             margin-left: .35rem;
@@ -551,6 +556,10 @@
         .market-seeding-dark-skin .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .28);
             color: #9be7ad;
+        }
+        .market-seeding-dark-skin .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .32);
+            color: #d8b4fe;
         }
         .market-seeding-dark-skin .market-seeding-locally-purchased {
             background: rgba(40, 167, 69, .14);
@@ -1248,6 +1257,8 @@
 @endsection
 
 @push('javascript')
+    @include('seat-market-seeding::partials.fit-review-scripts')
+
     <script>
         $(function () {
             var dashboardTables = null;

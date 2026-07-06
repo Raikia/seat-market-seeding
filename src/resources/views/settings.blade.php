@@ -12,6 +12,7 @@
     @endphp
 
     @include('seat-market-seeding::partials.item-detail-modal-styles')
+    @include('seat-market-seeding::partials.fit-review-styles')
 
     <style>
         .market-seeding-card .card-header {
@@ -189,14 +190,77 @@
             gap: .5rem;
             margin-top: .75rem;
         }
+        .market-seeding-saved-fitting-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-top: .75rem;
+        }
         .market-seeding-doctrine-pill {
             border: 1px solid #e9ecef;
             border-radius: .25rem;
             padding: .45rem .6rem;
         }
-        .market-seeding-doctrine-pill strong {
+        .market-seeding-saved-fitting-pill {
+            background: rgba(111, 66, 193, .08);
+            border: 1px solid rgba(111, 66, 193, .25);
+            border-left: 4px solid #6f42c1;
+            border-radius: .25rem;
+            padding: .45rem .6rem;
+        }
+        .market-seeding-saved-fitting-heading {
+            align-items: center;
+            display: flex;
+            gap: .6rem;
+            min-width: 0;
+        }
+        .market-seeding-saved-fitting-ship-icon {
+            background: rgba(0, 0, 0, .2);
+            border: 1px solid rgba(255, 255, 255, .14);
+            border-radius: .25rem;
+            flex: 0 0 auto;
+            height: 42px;
+            object-fit: cover;
+            width: 42px;
+        }
+        .market-seeding-saved-fitting-table-title {
+            align-items: center;
+            display: flex;
+            gap: .65rem;
+            min-width: 220px;
+        }
+        .market-seeding-doctrine-pill strong,
+        .market-seeding-saved-fitting-pill strong {
             display: block;
             line-height: 1.2;
+        }
+        .market-seeding-summary-card-heading {
+            align-items: center;
+            display: flex;
+            gap: .75rem;
+            justify-content: space-between;
+        }
+        .market-seeding-summary-card-heading strong {
+            min-width: 0;
+        }
+        .market-seeding-review-summary-fit,
+        .market-seeding-review-summary-saved-fit {
+            line-height: 1;
+            padding: .2rem .35rem;
+        }
+        .market-seeding-linked-card-label {
+            color: #6f42c1;
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            margin-bottom: .25rem;
+            text-transform: uppercase;
+        }
+        .market-seeding-doctrine-card-label {
+            color: #1e7e34;
+        }
+        .market-seeding-linked-card-label i {
+            margin-right: .25rem;
         }
         .market-seeding-doctrine-fit-summary {
             display: grid;
@@ -215,6 +279,21 @@
             padding: .35rem .45rem;
         }
         .market-seeding-doctrine-fit-summary-name {
+            align-items: center;
+            display: flex;
+            gap: .6rem;
+            min-width: 0;
+        }
+        .market-seeding-linked-fit-ship-icon {
+            background: rgba(0, 0, 0, .2);
+            border: 1px solid rgba(255, 255, 255, .14);
+            border-radius: .25rem;
+            flex: 0 0 auto;
+            height: 42px;
+            object-fit: cover;
+            width: 42px;
+        }
+        .market-seeding-doctrine-fit-summary-copy {
             min-width: 0;
         }
         .market-seeding-doctrine-fit-summary-name strong {
@@ -228,9 +307,12 @@
             white-space: nowrap;
         }
         .market-seeding-doctrine-fit-summary-badges {
+            align-items: center;
             display: inline-flex;
             flex: 0 0 auto;
+            flex-wrap: wrap;
             gap: .25rem;
+            justify-content: flex-end;
         }
         .market-seeding-doctrine-fit-summary-badges .badge {
             font-weight: 600;
@@ -256,6 +338,11 @@
             border-radius: .25rem;
             margin-bottom: .75rem;
             padding: .75rem;
+        }
+        .market-seeding-profile-loader .input-group .select2-container {
+            flex: 1 1 auto;
+            min-width: 0;
+            width: 1% !important;
         }
         .market-seeding-profile-modal .modal-body {
             max-height: 75vh;
@@ -455,6 +542,10 @@
             background: rgba(40, 167, 69, .16);
             color: #1e7e34;
         }
+        .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .16);
+            color: #59359a;
+        }
         .market-seeding-validation-list {
             margin-bottom: 0;
             max-height: 180px;
@@ -465,46 +556,143 @@
             font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
         .market-seeding-fit-contents {
-            max-height: 160px;
+            max-height: 520px;
             overflow-y: auto;
         }
-        .market-seeding-fit-panel {
-            border: 1px solid #e9ecef;
-            border-radius: .25rem;
-            padding: .75rem;
-        }
-        .market-seeding-fit-ship {
-            border-bottom: 1px solid #e9ecef;
-            margin-bottom: .5rem;
-            padding-bottom: .5rem;
-        }
-        .market-seeding-fit-slots {
+        .market-seeding-import-preview-body {
             display: grid;
-            gap: .55rem;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
         }
-        .market-seeding-fit-slot-group {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: .25rem;
-            padding: .5rem;
+        .market-seeding-preview-section {
+            background: rgba(60, 141, 188, .06);
+            border: 1px solid rgba(60, 141, 188, .18);
+            border-radius: .35rem;
+            padding: 1rem;
         }
-        .market-seeding-fit-slot-group-title {
-            font-size: .78rem;
+        .market-seeding-preview-section-header {
+            align-items: flex-start;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+            margin-bottom: .85rem;
+        }
+        .market-seeding-preview-section-header strong {
+            display: block;
+            font-size: 1.05rem;
+            line-height: 1.15;
+        }
+        .market-seeding-preview-summary {
+            display: grid;
+            gap: .65rem;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            margin: 0;
+        }
+        .market-seeding-preview-summary-card {
+            background: rgba(60, 141, 188, .1);
+            border: 1px solid rgba(60, 141, 188, .22);
+            border-radius: .35rem;
+            padding: .75rem .9rem;
+        }
+        .market-seeding-preview-summary-label {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
             font-weight: 700;
-            letter-spacing: .02em;
-            margin-bottom: .35rem;
+            letter-spacing: .04em;
+            line-height: 1.1;
             text-transform: uppercase;
         }
-        .market-seeding-fit-slot-row {
+        .market-seeding-preview-summary-value {
+            display: block;
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-top: .25rem;
+        }
+        .market-seeding-doctrine-fit-rows {
+            display: grid;
+            gap: .75rem;
+        }
+        .market-seeding-preview-fit-card {
+            background: rgba(0, 0, 0, .025);
+            border: 1px solid rgba(60, 141, 188, .2);
+            border-radius: .35rem;
+            overflow: hidden;
+        }
+        .market-seeding-preview-fit-card-main {
+            align-items: center;
+            display: grid;
+            gap: .75rem;
+            grid-template-columns: minmax(220px, 1fr) minmax(130px, 160px) minmax(130px, 170px) auto;
+            padding: .85rem;
+        }
+        .market-seeding-preview-fit-card-title {
             align-items: center;
             display: flex;
-            justify-content: space-between;
-            gap: .75rem;
-            line-height: 1.35;
+            gap: .65rem;
+            min-width: 0;
         }
-        .market-seeding-fit-slot-row + .market-seeding-fit-slot-row {
-            margin-top: .25rem;
+        .market-seeding-preview-fit-card-copy {
+            min-width: 0;
+        }
+        .market-seeding-preview-fit-ship-icon,
+        .market-seeding-preview-item-icon {
+            background: rgba(0, 0, 0, .2);
+            border: 1px solid rgba(255, 255, 255, .14);
+            border-radius: .25rem;
+            flex: 0 0 auto;
+            object-fit: cover;
+        }
+        .market-seeding-preview-fit-ship-icon {
+            height: 42px;
+            width: 42px;
+        }
+        .market-seeding-preview-item-title {
+            align-items: center;
+            display: flex;
+            gap: .5rem;
+            min-width: 0;
+        }
+        .market-seeding-preview-item-icon {
+            height: 28px;
+            width: 28px;
+        }
+        .market-seeding-preview-item-title span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .market-seeding-preview-fit-card-title strong {
+            display: block;
+            line-height: 1.15;
+        }
+        .market-seeding-preview-fit-card-title span {
+            display: block;
+            margin-top: .2rem;
+        }
+        .market-seeding-preview-fit-field label {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            margin-bottom: .2rem;
+            text-transform: uppercase;
+        }
+        .market-seeding-preview-fit-collapse {
+            border-top: 1px solid rgba(60, 141, 188, .2);
+            padding: 1rem;
+        }
+        .market-seeding-preview-table thead th {
+            border-top: 0;
+            color: #6c757d;
+            font-size: .76rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .market-seeding-preview-table tbody td {
+            vertical-align: middle;
         }
         @keyframes market-seeding-row-saved {
             0% {
@@ -523,6 +711,38 @@
         }
         .market-seeding-dark-skin .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .28);
+            color: #9be7ad;
+        }
+        .market-seeding-dark-skin .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .32);
+            color: #d8b4fe;
+        }
+        .market-seeding-dark-skin .market-seeding-preview-section,
+        .market-seeding-dark-skin .market-seeding-preview-summary-card,
+        .market-seeding-dark-skin .market-seeding-preview-fit-card {
+            background: rgba(60, 141, 188, .08);
+            border-color: rgba(114, 188, 212, .22);
+        }
+        .market-seeding-dark-skin .market-seeding-preview-fit-card-main {
+            background: rgba(0, 0, 0, .06);
+        }
+        .market-seeding-dark-skin .market-seeding-preview-fit-collapse {
+            border-color: rgba(114, 188, 212, .22);
+        }
+        .market-seeding-dark-skin .market-seeding-preview-summary-label,
+        .market-seeding-dark-skin .market-seeding-preview-fit-field label,
+        .market-seeding-dark-skin .market-seeding-preview-table thead th {
+            color: #b8c7ce;
+        }
+        .market-seeding-dark-skin .market-seeding-saved-fitting-pill {
+            background: rgba(111, 66, 193, .18);
+            border-color: rgba(216, 180, 254, .34);
+            border-left-color: #b794f4;
+        }
+        .market-seeding-dark-skin .market-seeding-linked-card-label {
+            color: #d8b4fe;
+        }
+        .market-seeding-dark-skin .market-seeding-doctrine-card-label {
             color: #9be7ad;
         }
         .market-seeding-dark-skin .market-seeding-recommendations-table .history-recommendation-pill {
@@ -564,13 +784,14 @@
             border-color: #3c4b54;
             color: #e9ecef;
         }
-        .market-seeding-dark-skin .market-seeding-fit-panel,
-        .market-seeding-dark-skin .market-seeding-fit-ship,
-        .market-seeding-dark-skin .market-seeding-fit-slot-group {
-            border-color: #3c4b54;
-        }
-        .market-seeding-dark-skin .market-seeding-fit-slot-group {
-            background: #1f2d3d;
+        @media (max-width: 991.98px) {
+            .market-seeding-preview-fit-card-main {
+                grid-template-columns: 1fr 1fr;
+            }
+            .market-seeding-preview-fit-card-title,
+            .market-seeding-preview-fit-actions {
+                grid-column: 1 / -1;
+            }
         }
     </style>
 
@@ -845,6 +1066,7 @@
     </div>
 
     @include('seat-market-seeding::partials.import-preview-modal')
+    @include('seat-market-seeding::partials.fit-review-modal')
 
     @foreach($markets as $market)
         @php
@@ -970,11 +1192,11 @@
 
                     <div class="market-seeding-subsection market-seeding-add-toolbar">
                         <div class="text-muted">
-                            Manage manual targets, bulk imports, saved fits, and tracked doctrines from one place.
+                            Manage manual targets, bulk imports, saved fits, tracked fittings, and tracked doctrines from one place.
                         </div>
                         <div class="btn-group">
                             <button type="button" class="btn btn-success" data-toggle="modal" data-target="#market-add-modal-{{ $market->id }}">
-                                <i class="fas fa-plus"></i> Add or Import
+                                <i class="fas fa-sliders-h"></i> Manage Targets
                             </button>
                             <form action="{{ route('market-seeding.items.clear-market', $market->id) }}" method="POST" onsubmit="return confirm({{ json_encode('Clear all tracked items for ' . $market->name . '? This also removes tracked doctrines for this market and cannot be undone.') }});">
                                 {{ csrf_field() }}
@@ -989,6 +1211,11 @@
                     @if($seatFittingAvailable)
                         <div class="market-seeding-doctrine-summary-shell" data-market-id="{{ $market->id }}">
                             @include('seat-market-seeding::partials.tracked-doctrine-summary', ['market' => $market])
+                        </div>
+                    @endif
+                    @if($savedFittingsAvailable && $savedFittingTrackingAvailable)
+                        <div class="market-seeding-saved-fitting-summary-shell" data-market-id="{{ $market->id }}">
+                            @include('seat-market-seeding::partials.tracked-saved-fitting-summary', ['market' => $market])
                         </div>
                     @endif
 
@@ -1064,7 +1291,7 @@
                             </thead>
                             <tbody>
                                 @foreach($market->items->sortBy('type_name') as $item)
-                                    <tr data-item-id="{{ $item->id }}" data-category="{{ $item->typeCategoryName() }}">
+                                    <tr data-item-id="{{ $item->id }}" data-type-id="{{ $item->type_id }}" data-category="{{ $item->typeCategoryName() }}">
                                         <td>{{ $item->type_name }}</td>
                                         <td>{{ $item->typeCategoryName() }}</td>
                                         <td class="market-seeding-source-column">
@@ -1081,7 +1308,7 @@
                                             <input form="item-update-{{ $item->id }}" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="{{ $item->warning_quantity }}" min="0">
                                         </td>
                                         <td class="text-right" style="width: 200px;">
-                                            <button type="button" class="btn btn-default btn-xs market-seeding-view-item-details" data-item-id="{{ $item->id }}" data-update-url="{{ route('market-seeding.items.update', $item->id) }}" data-history-url="{{ route('market-seeding.items.history', $item->id) }}" data-item-name="{{ $item->type_name }}" data-market-name="{{ $market->name }} - {{ $market->location_name }}" data-desired-quantity="{{ $item->desired_quantity }}" data-warning-quantity="{{ $item->warning_quantity }}" title="Edit item details">
+                                            <button type="button" class="btn btn-default btn-xs market-seeding-view-item-details" data-item-id="{{ $item->id }}" data-type-id="{{ $item->type_id }}" data-update-url="{{ route('market-seeding.items.update', $item->id) }}" data-history-url="{{ route('market-seeding.items.history', $item->id) }}" data-item-name="{{ $item->type_name }}" data-market-name="{{ $market->name }} - {{ $market->location_name }}" data-desired-quantity="{{ $item->desired_quantity }}" data-warning-quantity="{{ $item->warning_quantity }}" title="Edit item details">
                                                 <i class="fas fa-search"></i>
                                             </button>
                                             <button type="button" class="btn btn-default btn-xs market-seeding-show-target-history" data-history-url="{{ route('market-seeding.items.history', $item->id) }}" data-item-name="{{ $item->type_name }}" title="Target history">
@@ -1222,6 +1449,8 @@
 @endsection
 
 @push('javascript')
+    @include('seat-market-seeding::partials.fit-review-scripts')
+
     <script>
         $(function () {
             var csrfToken = @json(csrf_token());
@@ -1253,6 +1482,7 @@
             var previewSourceModal = null;
             var previewApplying = false;
             var doctrinePreviewTimer = null;
+            var summaryFitReviewMarketId = null;
 
             function initializeRecommendationTooltips() {
                 if ($(document.body).data('market-seeding-settings-recommendation-tooltips')) {
@@ -1457,6 +1687,56 @@
                 fetchDoctrinePreview($form, $button, $feedback, $sourceModal, true);
             });
 
+            $('.market-seeding-preview-saved-fitting-link').on('click', function () {
+                var $form = $(this).closest('.market-seeding-tracked-saved-fitting-form');
+                var $button = $(this);
+                var $feedback = savedFittingFeedbackForForm($form);
+                var $sourceModal = $form.closest('.modal');
+
+                fetchDoctrinePreview($form, $button, $feedback, $sourceModal, true);
+            });
+
+            $(document).on('click', '.market-seeding-review-summary-fit', function () {
+                var $button = $(this);
+                var $card = $button.closest('.market-seeding-doctrine-pill');
+                var fittingId = Number($button.data('fitting-id') || 0);
+                var fitSettings = normalizeSummaryFitSettings($card.data('fit-settings') || []);
+
+                fetchSummaryFitReview($button, {
+                    url: $card.data('preview-url'),
+                    marketId: $card.data('market-id'),
+                    fittingId: fittingId,
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        doctrine_id: $card.data('doctrine-id'),
+                        multiplier: $card.data('multiplier'),
+                        warning_percentage: $card.data('warning-percentage'),
+                        merge_mode: $card.data('merge-mode'),
+                        fit_aggregation_mode: $card.data('fit-aggregation-mode'),
+                        doctrine_fit_settings: JSON.stringify(fitSettings)
+                    }
+                });
+            });
+
+            $(document).on('click', '.market-seeding-review-summary-saved-fit', function () {
+                var $button = $(this);
+                var $card = $button.closest('.market-seeding-saved-fitting-pill');
+
+                fetchSummaryFitReview($button, {
+                    url: $card.data('preview-url'),
+                    marketId: $card.data('market-id'),
+                    fittingId: null,
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        saved_fitting: $card.data('saved-fitting'),
+                        ship_multiplier: $card.data('ship-multiplier'),
+                        fitting_multiplier: $card.data('fitting-multiplier'),
+                        warning_percentage: $card.data('warning-percentage'),
+                        merge_mode: $card.data('merge-mode')
+                    }
+                });
+            });
+
             $(document).on('click', '.market-seeding-edit-tracked-doctrine', function () {
                 var formId = $(this).attr('form');
                 var $form = $('#' + formId);
@@ -1466,17 +1746,26 @@
                 fetchDoctrinePreview($form, $(this), $feedback, $sourceModal, true);
             });
 
+            $(document).on('click', '.market-seeding-edit-tracked-saved-fitting', function () {
+                var formId = $(this).attr('form');
+                var $form = $('#' + formId);
+                var $feedback = savedFittingFeedbackForForm($form);
+                var $sourceModal = $form.closest('.modal');
+
+                fetchDoctrinePreview($form, $(this), $feedback, $sourceModal, true);
+            });
+
             $(document).on('input change', '.market-seeding-fit-ship-multiplier, .market-seeding-fit-fitting-multiplier', function () {
-                if (!previewImportForm || !previewImportForm.hasClass('market-seeding-tracked-doctrine-form')) {
+                if (!previewImportForm || (!previewImportForm.hasClass('market-seeding-tracked-doctrine-form') && !previewImportForm.hasClass('market-seeding-tracked-saved-fitting-form'))) {
                     return;
                 }
 
-                writeDoctrineFitSettingsToForm(previewImportForm);
+                writePreviewFitSettingsToForm(previewImportForm);
                 $('.market-seeding-doctrine-preview-refresh-status').text('Updating preview...');
 
                 window.clearTimeout(doctrinePreviewTimer);
                 doctrinePreviewTimer = window.setTimeout(function () {
-                    fetchDoctrinePreview(previewImportForm, $(), doctrineFeedbackForForm(previewImportForm), $(), false, false);
+                    fetchDoctrinePreview(previewImportForm, $(), feedbackForPreviewForm(previewImportForm), $(), false, false);
                 }, 450);
             });
 
@@ -1485,14 +1774,79 @@
                     return;
                 }
 
-                if (previewImportForm.hasClass('market-seeding-tracked-doctrine-form')) {
-                    writeDoctrineFitSettingsToForm(previewImportForm);
+                if (previewImportForm.hasClass('market-seeding-tracked-doctrine-form') || previewImportForm.hasClass('market-seeding-tracked-saved-fitting-form')) {
+                    writePreviewFitSettingsToForm(previewImportForm);
                 }
 
                 previewApplying = true;
                 previewSourceModal = null;
                 $('#market-seeding-import-preview-modal').modal('hide');
                 previewImportForm.trigger('submit');
+            });
+
+            $(document).on('submit', '.market-seeding-tracked-saved-fitting-form', function (event) {
+                event.preventDefault();
+
+                var $form = $(this);
+                var $button = trackedSavedFittingSubmitButton($form);
+                var $feedback = savedFittingFeedbackForForm($form);
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving');
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: serializeInlineItemForm($form),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    updateSavedFittingUi($form.data('market-id'), response);
+                    replaceItemRows('#market-seeding-settings-table-' + $form.data('market-id'), response.items || []);
+                    updateTrackedCount($('#market-seeding-card-' + $form.data('market-id')), response.tracked_count);
+                    $form.find('.saved-fitting-selector').val(null).trigger('change');
+                    $form.find('input[name="ship_multiplier"]').val('5');
+                    $form.find('input[name="fitting_multiplier"]').val('10');
+                    $form.find('input[name="warning_percentage"]').val('33');
+                    $form.find('select[name="merge_mode"]').val('max');
+                    $feedback.addClass('text-success').text(response.message || 'Saved fit tracking updated successfully.').show();
+                }).fail(function (xhr) {
+                    $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
+                }).always(function () {
+                    $button.prop('disabled', false).html(originalButtonHtml || 'Save');
+                });
+            });
+
+            $(document).on('submit', '.market-seeding-delete-tracked-saved-fitting-form', function (event) {
+                event.preventDefault();
+
+                if (!confirm('Stop tracking this saved fit for this market?')) {
+                    return;
+                }
+
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var originalButtonHtml = $button.html();
+
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: serializeInlineItemForm($form),
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    updateSavedFittingUi($form.data('market-id'), response);
+                    replaceItemRows('#market-seeding-settings-table-' + $form.data('market-id'), response.items || []);
+                    updateTrackedCount($('#market-seeding-card-' + $form.data('market-id')), response.tracked_count);
+                }).fail(function (xhr) {
+                    alert(errorMessage(xhr));
+                    $button.prop('disabled', false).html(originalButtonHtml);
+                });
             });
 
             $('#market-seeding-import-preview-modal').on('hidden.bs.modal', function () {
@@ -1680,6 +2034,12 @@
                 openSettingsItemDetails($(this));
             });
 
+            $(document).on('click', '.market-seeding-fit-item-info', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                openFitItemDetails($(this));
+            });
+
             $(document).on('click', '.market-seeding-review-market-recommendations', function () {
                 var marketId = $(this).data('market-id');
                 var marketName = $(this).data('market-name') || 'Market';
@@ -1788,9 +2148,10 @@
                 refreshRecommendationPanel(marketId);
             });
 
-            $('.market-seeding-load-profile').on('click', function () {
-                var $form = $(this).closest('.market-seeding-import-form');
-                var profileId = $form.find('.market-seeding-profile-selector').val();
+            $('.market-seeding-profile-selector').on('change', function () {
+                var $selector = $(this);
+                var $form = $selector.closest('.market-seeding-import-form');
+                var profileId = $selector.val();
                 var profileText = marketProfiles[profileId] || '';
                 var $textarea = $form.find('.market-seeding-stock-list');
 
@@ -1799,10 +2160,80 @@
                 }
 
                 if ($.trim($textarea.val()) !== '' && !confirm('Replace the current bulk import text with this profile?')) {
+                    $selector.val('');
                     return;
                 }
 
                 $textarea.val(profileText).trigger('focus');
+                $selector.val('');
+                $form.find('.market-seeding-import-feedback')
+                    .removeClass('text-danger')
+                    .addClass('text-success')
+                    .text('Market profile loaded into the bulk import box.')
+                    .show();
+            });
+
+            $('.market-seeding-bulk-saved-fitting-selector').on('change', function () {
+                var $selector = $(this);
+                var $form = $selector.closest('.market-seeding-import-form');
+                var savedFitting = $selector.val();
+                var $textarea = $form.find('.market-seeding-stock-list');
+
+                if (!savedFitting) {
+                    return;
+                }
+
+                if ($.trim($textarea.val()) !== '' && !confirm('Replace the current bulk import text with this saved fit?')) {
+                    $selector.val(null).trigger('change.select2');
+                    return;
+                }
+
+                $selector.prop('disabled', true);
+                $form.find('.market-seeding-import-feedback')
+                    .removeClass('text-success text-danger')
+                    .text('Loading saved fit...')
+                    .show();
+
+                $.ajax({
+                    url: $form.data('preview-saved-fitting-url'),
+                    method: 'POST',
+                    data: {
+                        _token: csrfToken,
+                        saved_fitting: savedFitting,
+                        multiplier: 1,
+                        warning_percentage: Number($form.find('[name="warning_percentage"]').val() || 33),
+                        mode: 'add',
+                        keep_higher_quantity: 0
+                    },
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    var stockList = $.trim(response.stock_list || '');
+
+                    if (!stockList) {
+                        alert('No importable items were found in this saved fit.');
+                        return;
+                    }
+
+                    $textarea.val(stockList).trigger('focus');
+                    $form.find('input[name="ship_multiplier"]').val('1');
+                    $form.find('input[name="fitting_multiplier"]').val('1');
+                    $form.find('.market-seeding-import-feedback')
+                        .removeClass('text-danger')
+                        .addClass('text-success')
+                        .text('Saved fit loaded into the bulk import box. Adjust the ship or other multiplier below if needed, then preview the import.')
+                        .show();
+                    $selector.val(null).trigger('change.select2');
+                }).fail(function (xhr) {
+                    $form.find('.market-seeding-import-feedback')
+                        .removeClass('text-success')
+                        .addClass('text-danger')
+                        .text(errorMessage(xhr))
+                        .show();
+                }).always(function () {
+                    $selector.prop('disabled', false);
+                });
             });
 
             $('.item-selector').each(function () {
@@ -1825,21 +2256,32 @@
             });
 
             $('.saved-fitting-selector').each(function () {
-                $(this).select2({
-                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                var $selector = $(this);
+                var $trackedForm = $selector.closest('.market-seeding-tracked-saved-fitting-form');
+                var $bulkForm = $selector.closest('.market-seeding-import-form');
+
+                $selector.select2({
+                    dropdownParent: $selector.closest('.modal').length ? $selector.closest('.modal') : $(document.body),
                     ajax: {
                         url: '{{ route('market-seeding.search.saved-fittings') }}',
                         dataType: 'json',
                         delay: 250,
                         data: function (params) {
-                            return { q: params.term };
+                            return {
+                                q: params.term,
+                                character_only: $trackedForm.length ? 1 : 0,
+                                fits_only: $bulkForm.length ? 1 : 0,
+                                market_id: $trackedForm.length ? ($trackedForm.data('market-id') || '') : ''
+                            };
                         },
                         processResults: function (data) {
                             return data;
                         }
                     },
                     minimumInputLength: 2,
-                    placeholder: 'Search saved fit or doctrine'
+                    placeholder: $trackedForm.length
+                        ? 'Search your character saved fits'
+                        : ($bulkForm.length ? 'Search saved fit to load' : 'Search saved fit or doctrine')
                 });
             });
 
@@ -2157,6 +2599,22 @@
                 return $form.closest('.market-seeding-tracked-doctrine-list, .tab-pane').find('.market-seeding-doctrine-feedback').first();
             }
 
+            function savedFittingFeedbackForForm($form) {
+                var $feedback = $form.find('.market-seeding-saved-fitting-feedback');
+
+                if ($feedback.length) {
+                    return $feedback;
+                }
+
+                return $form.closest('.market-seeding-tracked-saved-fitting-list, .tab-pane').find('.market-seeding-saved-fitting-feedback').first();
+            }
+
+            function feedbackForPreviewForm($form) {
+                return $form.hasClass('market-seeding-tracked-saved-fitting-form')
+                    ? savedFittingFeedbackForForm($form)
+                    : doctrineFeedbackForForm($form);
+            }
+
             function trackedDoctrineSubmitButton($form) {
                 var formId = $form.attr('id');
 
@@ -2167,9 +2625,24 @@
                 return $form.find('button[type="submit"], .market-seeding-preview-doctrine').first();
             }
 
+            function trackedSavedFittingSubmitButton($form) {
+                var formId = $form.attr('id');
+
+                if (formId) {
+                    return $('[form="' + formId + '"][type="submit"]').first();
+                }
+
+                return $form.find('button[type="submit"], .market-seeding-preview-saved-fitting-link').first();
+            }
+
             function updateDoctrineUi(marketId, response) {
                 $('.market-seeding-doctrine-summary-shell[data-market-id="' + marketId + '"]').html(response.summary_html || '');
                 $('.market-seeding-tracked-doctrine-list[data-market-id="' + marketId + '"]').html(response.list_html || '');
+            }
+
+            function updateSavedFittingUi(marketId, response) {
+                $('.market-seeding-saved-fitting-summary-shell[data-market-id="' + marketId + '"]').html(response.saved_fitting_summary_html || '');
+                $('.market-seeding-tracked-saved-fitting-list[data-market-id="' + marketId + '"]').html(response.saved_fitting_list_html || '');
             }
 
             function showImportPreviewModal($sourceModal) {
@@ -2241,6 +2714,8 @@
                 $form.find('.market-seeding-profile-selector').val('');
                 $form.find('.saved-fitting-selector').val(null).trigger('change');
                 $form.find('input[name="multiplier"]').val('1');
+                $form.find('input[name="ship_multiplier"]').val('1');
+                $form.find('input[name="fitting_multiplier"]').val('1');
                 $form.find('input[name="warning_percentage"]').val('33');
                 $form.find('select[name="mode"]').val('add');
                 $form.find('input[name="keep_higher_quantity"]').prop('checked', true);
@@ -2270,18 +2745,23 @@
                 var summary = response.summary || {};
                 var rows = response.rows || [];
                 var validation = response.validation || {};
-                var summaryText = [
-                    (summary.total || 0) + ' item(s)',
-                    (summary.new || 0) + ' new',
-                    (summary.increase || 0) + ' increased',
-                    (summary.replace || 0) + ' replaced',
-                    (summary.reduce || 0) + ' reduced',
-                    (summary.remove || 0) + ' removed',
-                    (summary.unchanged || 0) + ' unchanged'
+                var summaryCards = [
+                    ['Items', summary.total || 0],
+                    ['New', summary.new || 0],
+                    ['Increased', summary.increase || 0],
+                    ['Replaced', summary.replace || 0],
+                    ['Reduced', summary.reduce || 0],
+                    ['Removed', summary.remove || 0],
+                    ['Unchanged', summary.unchanged || 0]
                 ];
                 renderDoctrineFits = renderDoctrineFits !== false;
 
-                $('.market-seeding-preview-summary').text(summaryText.join(' · '));
+                $('.market-seeding-preview-summary').html($.map(summaryCards, function (card) {
+                    return '<div class="market-seeding-preview-summary-card">' +
+                        '<span class="market-seeding-preview-summary-label">' + escapeHtml(card[0]) + '</span>' +
+                        '<span class="market-seeding-preview-summary-value">' + formatWhole(card[1]) + '</span>' +
+                    '</div>';
+                }).join(''));
                 if (renderDoctrineFits) {
                     renderDoctrinePreviewSettings(response.doctrine || null);
                 }
@@ -2295,7 +2775,7 @@
                 $('.market-seeding-preview-rows').html($.map(rows, function (row) {
                     return '' +
                         '<tr>' +
-                            '<td>' + escapeHtml(row.type_name) + '</td>' +
+                            '<td>' + previewItemTitle(row) + '</td>' +
                             '<td>' + previewActionBadge(row.action) + '</td>' +
                             '<td class="text-right">' + formatWhole(row.current_quantity) + '</td>' +
                             '<td class="text-right">' + formatWhole(row.import_quantity) + '</td>' +
@@ -2320,85 +2800,191 @@
                     previewImportForm.find('.market-seeding-doctrine-fit-settings').val(JSON.stringify($.map(fits, doctrineFitSettingPayload)));
                 }
 
+                if (previewImportForm && previewImportForm.hasClass('market-seeding-tracked-saved-fitting-form') && fits.length) {
+                    previewImportForm.find('input[name="ship_multiplier"]').val(fits[0].ship_multiplier || 0);
+                    previewImportForm.find('input[name="fitting_multiplier"]').val(fits[0].fitting_multiplier || 0);
+                }
+
                 $('.market-seeding-doctrine-fit-rows').html($.map(fits, function (fit) {
                     var contentsId = 'market-seeding-fit-contents-' + fit.fitting_id;
-                    var fitPanel = doctrineFitPanel(fit);
+                    var fitPanel = settingsFitPanel(fit, previewImportForm ? previewImportForm.data('market-id') : null);
+                    var shipIconUrl = marketSeedingTypeRenderUrl(fit.ship_type_id, 64) || marketSeedingTypeIconUrl(fit.ship_type_id, 64);
+                    var shipIcon = shipIconUrl
+                        ? '<img src="' + escapeAttr(shipIconUrl) + '" alt="' + escapeAttr((fit.ship_type_name || 'Ship') + ' image') + '" class="market-seeding-preview-fit-ship-icon">'
+                        : '';
 
                     return '' +
-                        '<tr data-fitting-id="' + escapeAttr(fit.fitting_id) + '">' +
-                            '<td>' +
-                                '<strong>' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</strong>' +
-                                '<div class="small text-muted">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') + '</div>' +
-                            '</td>' +
-                            '<td class="text-right" style="width: 150px;">' +
-                                '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-ship-multiplier" value="' + escapeAttr(fit.ship_multiplier) + '" min="0" max="10000">' +
-                            '</td>' +
-                            '<td class="text-right" style="width: 165px;">' +
-                                '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-fitting-multiplier" value="' + escapeAttr(fit.fitting_multiplier) + '" min="0" max="10000">' +
-                            '</td>' +
-                            '<td>' +
-                                '<button type="button" class="btn btn-default btn-xs" data-toggle="collapse" data-target="#' + contentsId + '">View Fit</button>' +
-                                '<div class="collapse market-seeding-fit-contents mt-2" id="' + contentsId + '">' +
-                                    fitPanel +
+                        '<div class="market-seeding-preview-fit-card" data-fitting-id="' + escapeAttr(fit.fitting_id) + '">' +
+                            '<div class="market-seeding-preview-fit-card-main">' +
+                                '<div class="market-seeding-preview-fit-card-title">' +
+                                    shipIcon +
+                                    '<div class="market-seeding-preview-fit-card-copy">' +
+                                        '<strong>' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</strong>' +
+                                        '<span class="small text-muted">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') + '</span>' +
+                                    '</div>' +
                                 '</div>' +
-                            '</td>' +
-                        '</tr>';
+                                '<div class="market-seeding-preview-fit-field">' +
+                                    '<label>Ship Multiplier</label>' +
+                                    '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-ship-multiplier" value="' + escapeAttr(fit.ship_multiplier) + '" min="0" max="10000">' +
+                                '</div>' +
+                                '<div class="market-seeding-preview-fit-field">' +
+                                    '<label>Fitting Multiplier</label>' +
+                                    '<input type="number" class="form-control form-control-sm text-right market-seeding-fit-fitting-multiplier" value="' + escapeAttr(fit.fitting_multiplier) + '" min="0" max="10000">' +
+                                '</div>' +
+                                '<div class="market-seeding-preview-fit-actions text-right">' +
+                                    '<button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#' + contentsId + '"><i class="fas fa-eye"></i> View Fit</button>' +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="collapse market-seeding-fit-contents market-seeding-preview-fit-collapse" id="' + contentsId + '">' +
+                                fitPanel +
+                            '</div>' +
+                        '</div>';
                 }).join(''));
                 $panel.show();
             }
 
-            function doctrineFitPanel(fit) {
-                var groups = groupFitItems(fit.items || []);
-                var order = ['High Slots', 'Medium Slots', 'Low Slots', 'Rigs', 'Drone Bay', 'Cargo', 'Service Slots', 'Other'];
-                var slotGroups = '';
+            function previewItemTitle(row) {
+                var iconUrl = marketSeedingTypeIconUrl(row.type_id, 32);
+                var icon = iconUrl
+                    ? '<img src="' + escapeAttr(iconUrl) + '" alt="' + escapeAttr((row.type_name || 'Item') + ' icon') + '" class="market-seeding-preview-item-icon">'
+                    : '';
 
-                $.each(order, function (index, groupName) {
-                    var items = groups[groupName] || [];
-
-                    if (!items.length) {
-                        return;
-                    }
-
-                    slotGroups += '<div class="market-seeding-fit-slot-group">' +
-                        '<div class="market-seeding-fit-slot-group-title">' + escapeHtml(groupName) + '</div>' +
-                        $.map(items, function (item) {
-                            return '<div class="market-seeding-fit-slot-row">' +
-                                '<span>' + escapeHtml(item.type_name) + '</span>' +
-                                '<span class="text-muted">x' + formatWhole(item.quantity) + '</span>' +
-                            '</div>';
-                        }).join('') +
-                    '</div>';
-                });
-
-                if (!slotGroups) {
-                    slotGroups = '<div class="text-muted">No fitting items found.</div>';
-                }
-
-                return '<div class="market-seeding-fit-panel">' +
-                    '<div class="market-seeding-fit-ship">' +
-                        '<strong>' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</strong>' +
-                        '<div class="small text-muted">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') + '</div>' +
-                    '</div>' +
-                    '<div class="market-seeding-fit-slots">' + slotGroups + '</div>' +
+                return '<div class="market-seeding-preview-item-title">' +
+                    icon +
+                    '<span>' + escapeHtml(row.type_name || 'Unknown Item') + '</span>' +
                 '</div>';
             }
 
-            function groupFitItems(items) {
-                var groups = {};
+            function fetchSummaryFitReview($button, options) {
+                var originalHtml = $button.html();
+                summaryFitReviewMarketId = options.marketId || null;
 
-                $.each(items, function (index, item) {
-                    var group = item.slot_group || 'Other';
-                    groups[group] = groups[group] || [];
-                    groups[group].push(item);
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+                showSummaryFitReviewLoading();
+
+                $.ajax({
+                    url: options.url,
+                    method: 'POST',
+                    data: options.data,
+                    headers: {
+                        Accept: 'application/json'
+                    }
+                }).done(function (response) {
+                    var fits = response.doctrine && response.doctrine.fits ? response.doctrine.fits : [];
+                    var fit = null;
+
+                    if (options.fittingId) {
+                        fit = $.grep(fits, function (candidate) {
+                            return Number(candidate.fitting_id || 0) === Number(options.fittingId || 0);
+                        })[0] || null;
+                    } else {
+                        fit = fits[0] || null;
+                    }
+
+                    renderSummaryFitReview(fit);
+                }).fail(function (xhr) {
+                    renderSummaryFitReviewError(errorMessage(xhr));
+                }).always(function () {
+                    $button.prop('disabled', false).html(originalHtml);
                 });
+            }
 
-                return groups;
+            function normalizeSummaryFitSettings(fitSettings) {
+                if ($.isArray(fitSettings)) {
+                    return fitSettings;
+                }
+
+                if (typeof fitSettings === 'string' && fitSettings.length) {
+                    try {
+                        return JSON.parse(fitSettings);
+                    } catch (error) {
+                        return [];
+                    }
+                }
+
+                return [];
+            }
+
+            function showSummaryFitReviewLoading() {
+                $('#market-seeding-fit-review-modal-label').text('Fit Review');
+                $('.market-seeding-fit-review-subtitle').text('Loading fit contents...');
+                $('.market-seeding-fit-review-body').html('<div class="text-muted"><i class="fas fa-spinner fa-spin"></i> Loading fit...</div>');
+                $('.market-seeding-fit-review-error').hide().text('');
+                $('#market-seeding-fit-review-modal').modal('show');
+            }
+
+            function renderSummaryFitReview(fit) {
+                if (!fit) {
+                    renderSummaryFitReviewError('The fit contents could not be loaded.');
+                    return;
+                }
+
+                $('#market-seeding-fit-review-modal-label').text(fit.ship_type_name || 'Fit Review');
+                $('.market-seeding-fit-review-subtitle').text(fit.fitting_name || 'Unnamed Fit');
+                $('.market-seeding-fit-review-body').html(settingsFitPanel(fit, summaryFitReviewMarketId));
+                $('.market-seeding-fit-review-error').hide().text('');
+                $('#market-seeding-fit-review-modal').modal('show');
+            }
+
+            function renderSummaryFitReviewError(message) {
+                $('.market-seeding-fit-review-body').html('<div class="text-muted">No fit loaded.</div>');
+                $('.market-seeding-fit-review-error').text(message || 'The fit contents could not be loaded.').show();
+                $('#market-seeding-fit-review-modal').modal('show');
+            }
+
+            function openFitItemDetails($button) {
+                var marketId = $button.data('market-id');
+                var typeId = Number($button.data('type-id') || 0);
+                var typeName = $button.data('type-name') || 'This item';
+
+                if (!marketId || !typeId) {
+                    $('.market-seeding-fit-review-error')
+                        .text('Item details are not available for this fitting row.')
+                        .show();
+                    return;
+                }
+
+                var $detailsButton = $('#market-seeding-settings-table-' + marketId)
+                    .find('.market-seeding-view-item-details[data-type-id="' + typeId + '"]')
+                    .first();
+
+                if (!$detailsButton.length && $.fn.DataTable && $.fn.DataTable.isDataTable('#market-seeding-settings-table-' + marketId)) {
+                    $detailsButton = $($('#market-seeding-settings-table-' + marketId).DataTable().rows().nodes())
+                        .find('.market-seeding-view-item-details[data-type-id="' + typeId + '"]')
+                        .first();
+                }
+
+                if (!$detailsButton.length) {
+                    $('.market-seeding-fit-review-error')
+                        .text(typeName + ' is part of this fit, but it is not currently tracked in this market.')
+                        .show();
+                    return;
+                }
+
+                $('.market-seeding-fit-review-error').hide().text('');
+                $('#market-seeding-fit-review-modal').modal('hide');
+                openSettingsItemDetails($detailsButton);
+            }
+
+            function fitItemInfoButton(marketId, typeId, typeName) {
+                if (!marketId || !typeId) {
+                    return '';
+                }
+
+                return '<button type="button" class="market-seeding-fit-info-button market-seeding-fit-item-info" data-market-id="' + escapeAttr(marketId) + '" data-type-id="' + escapeAttr(typeId) + '" data-type-name="' + escapeAttr(typeName || 'Item') + '" title="Open item details"><i class="fas fa-info-circle"></i></button>';
+            }
+
+            function settingsFitPanel(fit, marketId) {
+                return marketSeedingFitPanel(fit, {
+                    marketId: marketId,
+                    infoButton: fitItemInfoButton
+                });
             }
 
             function writeDoctrineFitSettingsToForm($form) {
                 var settings = [];
 
-                $('.market-seeding-doctrine-fit-rows tr[data-fitting-id]').each(function () {
+                $('.market-seeding-doctrine-fit-rows .market-seeding-preview-fit-card[data-fitting-id]').each(function () {
                     var $row = $(this);
 
                     settings.push({
@@ -2409,6 +2995,26 @@
                 });
 
                 $form.find('.market-seeding-doctrine-fit-settings').val(JSON.stringify(settings));
+            }
+
+            function writeSavedFittingSettingsToForm($form) {
+                var $row = $('.market-seeding-doctrine-fit-rows .market-seeding-preview-fit-card[data-fitting-id]').first();
+
+                if (!$row.length) {
+                    return;
+                }
+
+                $form.find('input[name="ship_multiplier"]').val(Number($row.find('.market-seeding-fit-ship-multiplier').val() || 0));
+                $form.find('input[name="fitting_multiplier"]').val(Number($row.find('.market-seeding-fit-fitting-multiplier').val() || 0));
+            }
+
+            function writePreviewFitSettingsToForm($form) {
+                if ($form.hasClass('market-seeding-tracked-saved-fitting-form')) {
+                    writeSavedFittingSettingsToForm($form);
+                    return;
+                }
+
+                writeDoctrineFitSettingsToForm($form);
             }
 
             function doctrineFitSettingPayload(fit) {
@@ -2482,7 +3088,7 @@
                 var updateFormId = 'item-update-' + item.id;
 
                 return '' +
-                    '<tr data-item-id="' + item.id + '">' +
+                    '<tr data-item-id="' + item.id + '" data-type-id="' + item.type_id + '">' +
                         '<td>' + escapeHtml(item.type_name) + '</td>' +
                         '<td>' + escapeHtml(item.type_category || 'Unknown') + '</td>' +
                         '<td class="market-seeding-source-column">' + (item.source_icons_html || '') + '</td>' +
@@ -2497,7 +3103,7 @@
                             '<input form="' + updateFormId + '" type="number" class="form-control form-control-sm text-right" name="warning_quantity" value="' + item.warning_quantity + '" min="0">' +
                         '</td>' +
                         '<td class="text-right" style="width: 200px;">' +
-                            '<button type="button" class="btn btn-default btn-xs market-seeding-view-item-details" data-item-id="' + item.id + '" data-update-url="' + escapeAttr(item.update_url) + '" data-history-url="' + escapeAttr(item.history_url) + '" data-item-name="' + escapeAttr(item.type_name) + '" data-desired-quantity="' + item.desired_quantity + '" data-warning-quantity="' + item.warning_quantity + '" title="Edit item details"><i class="fas fa-search"></i></button> ' +
+                            '<button type="button" class="btn btn-default btn-xs market-seeding-view-item-details" data-item-id="' + item.id + '" data-type-id="' + item.type_id + '" data-update-url="' + escapeAttr(item.update_url) + '" data-history-url="' + escapeAttr(item.history_url) + '" data-item-name="' + escapeAttr(item.type_name) + '" data-desired-quantity="' + item.desired_quantity + '" data-warning-quantity="' + item.warning_quantity + '" title="Edit item details"><i class="fas fa-search"></i></button> ' +
                             '<button type="button" class="btn btn-default btn-xs market-seeding-show-target-history" data-history-url="' + escapeAttr(item.history_url) + '" data-item-name="' + escapeAttr(item.type_name) + '" title="Target history"><i class="fas fa-history"></i></button> ' +
                             '<button type="submit" class="btn btn-primary btn-xs market-seeding-save-item" form="' + updateFormId + '">Save</button> ' +
                             '<form action="' + escapeAttr(item.destroy_url) + '" method="POST" class="market-seeding-delete-item-form" data-table="' + escapeAttr(tableSelector) + '" style="display: inline-block;">' +
@@ -2656,6 +3262,10 @@
 
                 if (sourceFlags.doctrine) {
                     html += '<span class="market-seeding-source-icon market-seeding-source-doctrine" title="Doctrine target"><i class="fas fa-sitemap"></i></span>';
+                }
+
+                if (sourceFlags.fitting) {
+                    html += '<span class="market-seeding-source-icon market-seeding-source-fitting" title="Saved fitting target"><i class="fas fa-paper-plane"></i></span>';
                 }
 
                 return html ? '<span class="market-seeding-source-icons" aria-label="Target sources">' + html + '</span>' : '';

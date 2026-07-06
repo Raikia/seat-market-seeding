@@ -74,6 +74,7 @@ class SeededMarketItem extends Model
                 MarketSeedingItemSource::SOURCE_MANUAL_ADJUSTMENT,
             ])->isNotEmpty(),
             'doctrine' => $sources->where('source_type', MarketSeedingItemSource::SOURCE_DOCTRINE)->isNotEmpty(),
+            'fitting' => $sources->where('source_type', MarketSeedingItemSource::SOURCE_SAVED_FIT)->isNotEmpty(),
         ];
     }
 

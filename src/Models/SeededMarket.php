@@ -49,6 +49,11 @@ class SeededMarket extends Model
         return $this->hasMany(MarketSeedingTrackedDoctrine::class, 'market_id');
     }
 
+    public function trackedSavedFittings()
+    {
+        return $this->hasMany(MarketSeedingTrackedSavedFitting::class, 'market_id');
+    }
+
     public function role()
     {
         return $this->belongsTo(\Seat\Web\Models\Acl\Role::class, 'role_id');

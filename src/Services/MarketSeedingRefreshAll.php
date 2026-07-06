@@ -2,6 +2,7 @@
 
 namespace Raikia\SeatMarketSeeding\Services;
 
+use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Seat\Eseye\Exceptions\EsiScopeAccessDeniedException;
@@ -22,7 +23,13 @@ class MarketSeedingRefreshAll
             'skipped' => [],
         ];
 
-        $markets = SeededMarket::with('items', 'trackedDoctrines')
+        $marketRelations = ['items', 'trackedDoctrines'];
+
+        if ($this->savedFittingTrackingAvailable()) {
+            $marketRelations[] = 'trackedSavedFittings';
+        }
+
+        $markets = SeededMarket::with($marketRelations)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -38,6 +45,7 @@ class MarketSeedingRefreshAll
         $refresh = app(EsiMarketOrderRefresh::class);
         $notifier = app(MarketStockTransitionNotifier::class);
         $doctrineSync = app(DoctrineTrackingSync::class);
+        $savedFittingSync = app(SavedFittingTrackingSync::class);
 
         foreach ($markets as $market) {
             $startedAt = microtime(true);
@@ -53,6 +61,11 @@ class MarketSeedingRefreshAll
                 $doctrineStartedAt = microtime(true);
                 $doctrineSync->syncMarket($market);
                 $doctrineSeconds = round(microtime(true) - $doctrineStartedAt, 3);
+                $savedFittingStartedAt = microtime(true);
+                if ($this->savedFittingTrackingAvailable()) {
+                    $savedFittingSync->syncMarket($market);
+                }
+                $savedFittingSeconds = round(microtime(true) - $savedFittingStartedAt, 3);
                 $market->load('items');
 
                 $esiStartedAt = microtime(true);
@@ -72,6 +85,7 @@ class MarketSeedingRefreshAll
                     'orders' => $orders,
                     'seconds' => round(microtime(true) - $startedAt, 3),
                     'doctrine_seconds' => $doctrineSeconds,
+                    'saved_fitting_seconds' => $savedFittingSeconds,
                     'esi_seconds' => $esiSeconds,
                     'notification_seconds' => $notificationSeconds,
                     'refresh_stats' => $refresh->getLastStats(),
@@ -178,5 +192,11 @@ class MarketSeedingRefreshAll
             'last_refresh_message' => $message,
             'last_refresh_orders' => $orders,
         ]);
+    }
+
+    private function savedFittingTrackingAvailable(): bool
+    {
+        return Schema::hasTable('seat_market_seeding_tracked_saved_fittings')
+            && Schema::hasColumn('seat_market_seeding_item_sources', 'tracked_saved_fitting_id');
     }
 }

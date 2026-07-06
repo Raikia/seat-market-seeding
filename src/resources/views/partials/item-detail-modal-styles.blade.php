@@ -207,15 +207,25 @@
         align-items: flex-start;
         border-top: 1px solid #dee2e6;
         display: flex;
+        flex-wrap: wrap;
         gap: .65rem;
         margin-top: .5rem;
         padding-top: .5rem;
     }
     .market-seeding-edit-target-modal .edit-target-source-fit-body {
+        flex: 1 1 auto;
         min-width: 0;
     }
     .market-seeding-edit-target-modal .edit-target-source-fit-name {
         font-weight: 700;
+    }
+    .market-seeding-edit-target-modal .edit-target-source-fit-actions {
+        flex: 0 0 auto;
+    }
+    .market-seeding-edit-target-modal .edit-target-source-fit-panel {
+        flex-basis: 100%;
+        margin-top: .65rem;
+        width: 100%;
     }
     .market-seeding-edit-target-modal .edit-target-source-contribution {
         display: inline-block;

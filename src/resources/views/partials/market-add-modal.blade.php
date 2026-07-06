@@ -2,7 +2,7 @@
     $modalId = 'market-add-modal-' . $market->id;
     $addTabId = 'market-add-one-' . $market->id;
     $bulkTabId = 'market-add-bulk-' . $market->id;
-    $savedTabId = 'market-add-saved-' . $market->id;
+    $savedTabId = 'market-add-tracked-saved-' . $market->id;
     $doctrineTabId = 'market-add-doctrine-' . $market->id;
     $tableSelector = '#market-seeding-settings-table-' . $market->id;
     $cardSelector = '#market-seeding-card-' . $market->id;
@@ -12,7 +12,7 @@
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="{{ $modalId }}-label">Add Stock Targets: {{ $market->name }}</h5>
+                <h5 class="modal-title" id="{{ $modalId }}-label">Manage Targets: {{ $market->name }}</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -25,9 +25,9 @@
                     <li class="nav-item">
                         <a class="nav-link" id="{{ $bulkTabId }}-tab" data-toggle="tab" href="#{{ $bulkTabId }}" role="tab" aria-controls="{{ $bulkTabId }}" aria-selected="false">Bulk Import</a>
                     </li>
-                    @if($savedFittingsAvailable)
+                    @if($savedFittingsAvailable && ($savedFittingTrackingAvailable ?? false))
                         <li class="nav-item">
-                            <a class="nav-link" id="{{ $savedTabId }}-tab" data-toggle="tab" href="#{{ $savedTabId }}" role="tab" aria-controls="{{ $savedTabId }}" aria-selected="false">Saved Fit</a>
+                            <a class="nav-link" id="{{ $savedTabId }}-tab" data-toggle="tab" href="#{{ $savedTabId }}" role="tab" aria-controls="{{ $savedTabId }}" aria-selected="false">Tracked Fits</a>
                         </li>
                     @endif
                     @if($seatFittingAvailable)
@@ -70,24 +70,33 @@
                     </div>
 
                     <div class="tab-pane fade" id="{{ $bulkTabId }}" role="tabpanel" aria-labelledby="{{ $bulkTabId }}-tab">
-                        <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview', $market->id) }}" data-table="{{ $tableSelector }}" data-card="{{ $cardSelector }}">
+                        <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview', $market->id) }}" data-preview-saved-fitting-url="{{ route('market-seeding.items.preview-saved-fitting', $market->id) }}" data-table="{{ $tableSelector }}" data-card="{{ $cardSelector }}">
                             {{ csrf_field() }}
-                            @if($profiles->isNotEmpty())
-                                <div class="market-seeding-profile-loader">
-                                    <label>Load Market Profile</label>
-                                    <div class="input-group">
-                                        <select class="form-control market-seeding-profile-selector">
-                                            <option value="">Choose a saved profile</option>
-                                            @foreach($profiles as $profile)
-                                                <option value="{{ $profile->id }}">{{ $profile->name }}</option>
-                                            @endforeach
-                                        </select>
-                                        <div class="input-group-append">
-                                            <button type="button" class="btn btn-default market-seeding-load-profile">
-                                                <i class="fas fa-layer-group"></i> Load
-                                            </button>
+                            @if($profiles->isNotEmpty() || $savedFittingsAvailable)
+                                <div class="form-row">
+                                    @if($profiles->isNotEmpty())
+                                        <div class="form-group col-lg-6">
+                                            <div class="market-seeding-profile-loader mb-0">
+                                                <label>Load Market Profile</label>
+                                                <select class="form-control market-seeding-profile-selector">
+                                                    <option value="">Choose a saved profile</option>
+                                                    @foreach($profiles as $profile)
+                                                        <option value="{{ $profile->id }}">{{ $profile->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <small class="form-text text-muted">Selecting a profile replaces the bulk import text.</small>
+                                            </div>
                                         </div>
-                                    </div>
+                                    @endif
+                                    @if($savedFittingsAvailable)
+                                        <div class="form-group col-lg-6">
+                                            <div class="market-seeding-profile-loader mb-0">
+                                                <label>Load Saved Fit</label>
+                                                <select class="form-control market-seeding-bulk-saved-fitting-selector saved-fitting-selector" style="width: 100%;"></select>
+                                                <small class="form-text text-muted">Selecting a fit replaces the bulk import text. Use the multipliers below if you want more ships or fit contents.</small>
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                             <div class="form-group">
@@ -97,11 +106,17 @@ Scourge Fury Heavy Missile x5000
 Caracal 10" required></textarea>
                             </div>
                             <div class="form-row">
-                                <div class="form-group col-md-3">
-                                    <label>Multiplier</label>
-                                    <input type="number" class="form-control" name="multiplier" value="1" min="1">
+                                <div class="form-group col-md-2">
+                                    <label>Ship Multiplier</label>
+                                    <input type="number" class="form-control" name="ship_multiplier" value="1" min="1" max="10000">
+                                    <small class="form-text text-muted">EFT header ship only.</small>
                                 </div>
-                                <div class="form-group col-md-3">
+                                <div class="form-group col-md-2">
+                                    <label>Other Multiplier</label>
+                                    <input type="number" class="form-control" name="fitting_multiplier" value="1" min="1" max="10000">
+                                    <small class="form-text text-muted">Modules, rigs, ammo, drones, cargo.</small>
+                                </div>
+                                <div class="form-group col-md-2">
                                     <label>Low Warning %</label>
                                     <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
                                 </div>
@@ -127,43 +142,50 @@ Caracal 10" required></textarea>
                         </form>
                     </div>
 
-                    @if($savedFittingsAvailable)
+                    @if($savedFittingsAvailable && ($savedFittingTrackingAvailable ?? false))
                         <div class="tab-pane fade" id="{{ $savedTabId }}" role="tabpanel" aria-labelledby="{{ $savedTabId }}-tab">
-                            <form action="{{ route('market-seeding.items.import-saved-fitting', $market->id) }}" method="POST" class="market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview-saved-fitting', $market->id) }}" data-table="{{ $tableSelector }}" data-card="{{ $cardSelector }}">
+                            <form action="{{ route('market-seeding.tracked-saved-fittings.store', $market->id) }}" method="POST" class="market-seeding-tracked-saved-fitting-form" data-market-id="{{ $market->id }}" data-preview-url="{{ route('market-seeding.tracked-saved-fittings.preview', $market->id) }}">
                                 {{ csrf_field() }}
-                                <div class="form-group">
-                                    <label>Saved Source</label>
-                                    <select name="saved_fitting" class="form-control saved-fitting-selector" style="width: 100%;" required></select>
-                                </div>
+                                <h5>Auto-track a character saved fit</h5>
+                                <p class="text-muted small">
+                                    Keeps this market synced to a saved fit from one of your characters. If the fit changes or disappears, the linked target contribution updates on the next refresh.
+                                </p>
                                 <div class="form-row">
-                                    <div class="form-group col-md-3">
-                                        <label>Multiplier</label>
-                                        <input type="number" class="form-control" name="multiplier" value="1" min="1">
+                                    <div class="form-group col-lg-4 col-md-12">
+                                        <label>Character Saved Fit</label>
+                                        <select name="saved_fitting" class="form-control saved-fitting-selector" style="width: 100%;" required></select>
                                     </div>
-                                    <div class="form-group col-md-3">
+                                    <div class="form-group col-lg-2 col-md-3">
+                                        <label>Ship Multiplier</label>
+                                        <input type="number" name="ship_multiplier" class="form-control" value="5" min="0" max="10000" required>
+                                        <small class="form-text text-muted">Ship hull only.</small>
+                                    </div>
+                                    <div class="form-group col-lg-2 col-md-3">
+                                        <label>Fit Multiplier</label>
+                                        <input type="number" name="fitting_multiplier" class="form-control" value="10" min="0" max="10000" required>
+                                        <small class="form-text text-muted">Modules, rigs, drones, ammo, and cargo.</small>
+                                    </div>
+                                    <div class="form-group col-lg-2 col-md-3">
                                         <label>Low Warning %</label>
-                                        <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
+                                        <input type="number" name="warning_percentage" class="form-control" value="33" min="0" max="100" required>
                                     </div>
-                                    <div class="form-group col-md-3">
-                                        <label>Import Mode</label>
-                                        <select name="mode" class="form-control">
-                                            <option value="add">Add to targets</option>
-                                            <option value="replace">Replace manual list</option>
+                                    <div class="form-group col-lg-2 col-md-3">
+                                        <label>Manual Handling</label>
+                                        <select name="merge_mode" class="form-control">
+                                            <option value="max">Use higher of manual or fitting</option>
+                                            <option value="add">Add fitting to manual target</option>
                                         </select>
                                     </div>
-                                    <div class="form-group col-md-3">
-                                        <label>&nbsp;</label>
-                                        <button type="button" class="btn btn-success btn-block market-seeding-preview-import">Preview Import</button>
+                                    <div class="form-group col-md-12 text-right">
+                                        <button type="button" class="btn btn-success market-seeding-preview-saved-fitting-link">Preview Tracked Fit</button>
                                     </div>
                                 </div>
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="keep_higher_quantity" value="1" id="keep-higher-saved-{{ $market->id }}" checked>
-                                    <label class="form-check-label" for="keep-higher-saved-{{ $market->id }}">
-                                        Keep higher existing manual targets instead of adding smaller duplicate quantities (add mode only)
-                                    </label>
-                                </div>
-                                <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
+                                <div class="market-seeding-saved-fitting-feedback small mb-2" style="display: none;"></div>
                             </form>
+
+                            <div class="market-seeding-tracked-saved-fitting-list" data-market-id="{{ $market->id }}">
+                                @include('seat-market-seeding::partials.tracked-saved-fitting-list', ['market' => $market])
+                            </div>
                         </div>
                     @endif
 

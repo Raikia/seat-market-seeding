@@ -11,12 +11,14 @@ class StockListParser
         return $this->parseWithReport($input, $multiplier)['items'];
     }
 
-    public function parseWithReport(string $input, int $multiplier = 1): array
+    public function parseWithReport(string $input, int $multiplier = 1, ?int $shipMultiplier = null): array
     {
         $items = [];
         $skipped = [];
         $ignored = 0;
         $processed = 0;
+        $itemMultiplier = max(1, $multiplier);
+        $shipMultiplier = max(1, $shipMultiplier ?? $itemMultiplier);
 
         foreach (preg_split('/\r\n|\r|\n/', $input) as $lineNumber => $line) {
             $line = trim($line);
@@ -59,7 +61,7 @@ class StockListParser
                 ];
             }
 
-            $items[$typeId]['quantity'] += max(1, $quantity) * max(1, $multiplier);
+            $items[$typeId]['quantity'] += max(1, $quantity) * ($this->isShip($type) ? $shipMultiplier : $itemMultiplier);
         }
 
         return [
@@ -120,5 +122,10 @@ class StockListParser
         return InvType::where('typeName', $name)
             ->where('published', true)
             ->first();
+    }
+
+    private function isShip(InvType $type): bool
+    {
+        return (int) optional($type->group)->categoryID === 6;
     }
 }

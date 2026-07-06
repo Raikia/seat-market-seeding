@@ -48,6 +48,8 @@
         $historyCsrfToken = csrf_token();
     @endphp
 
+    @include('seat-market-seeding::partials.fit-review-styles')
+
     <style>
         .market-seeding-history-shell .card-header {
             align-items: center;
@@ -165,6 +167,10 @@
         .market-seeding-history-shell .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .16);
             color: #1e7e34;
+        }
+        .market-seeding-history-shell .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .16);
+            color: #59359a;
         }
         .market-seeding-history-shell .market-seeding-item-type {
             display: block;
@@ -429,15 +435,25 @@
             align-items: flex-start;
             border-top: 1px solid #dee2e6;
             display: flex;
+            flex-wrap: wrap;
             gap: .65rem;
             margin-top: .5rem;
             padding-top: .5rem;
         }
         .market-seeding-edit-target-modal .edit-target-source-fit-body {
+            flex: 1 1 auto;
             min-width: 0;
         }
         .market-seeding-edit-target-modal .edit-target-source-fit-name {
             font-weight: 700;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-fit-actions {
+            flex: 0 0 auto;
+        }
+        .market-seeding-edit-target-modal .edit-target-source-fit-panel {
+            flex-basis: 100%;
+            margin-top: .65rem;
+            width: 100%;
         }
         .market-seeding-edit-target-modal .edit-target-source-contribution {
             display: inline-block;
@@ -552,6 +568,10 @@
         .market-seeding-dark-skin .market-seeding-source-doctrine {
             background: rgba(40, 167, 69, .28);
             color: #9be7ad;
+        }
+        .market-seeding-dark-skin .market-seeding-source-fitting {
+            background: rgba(111, 66, 193, .32);
+            color: #d8b4fe;
         }
         .market-seeding-dark-skin .history-recommendation-config {
             color: #d7eef8;
@@ -1103,6 +1123,8 @@
 @endsection
 
 @push('javascript')
+    @include('seat-market-seeding::partials.fit-review-scripts')
+
     <script>
         $(function () {
             var chartData = @json($chartData);
@@ -1114,6 +1136,7 @@
             var canManageMarketSeeding = @json($canManageMarketSeeding);
             var currentTargetDetails = {};
             var targetTrendChart = null;
+            var historyItemDetailSourceFits = {};
             var categoryColors = [
                 'rgba(0, 123, 255, .8)',
                 'rgba(40, 167, 69, .8)',
@@ -1617,11 +1640,13 @@
                 var flags = sourceDetails.flags || {};
                 var manualSources = sourceDetails.manual || [];
                 var doctrines = sourceDetails.doctrines || [];
+                var savedFittings = sourceDetails.saved_fittings || [];
                 var $badges = $('#market-seeding-detail-source-badges');
                 var $list = $('#market-seeding-detail-source-list');
 
                 $badges.empty();
                 $list.empty();
+                historyItemDetailSourceFits = {};
 
                 if (flags.manual) {
                     $badges.append('<span class="badge badge-primary">Manual</span>');
@@ -1631,7 +1656,11 @@
                     $badges.append('<span class="badge badge-info">Doctrine</span>');
                 }
 
-                if (!flags.manual && !flags.doctrine) {
+                if (flags.fitting) {
+                    $badges.append('<span class="badge badge-secondary">Saved Fit</span>');
+                }
+
+                if (!flags.manual && !flags.doctrine && !flags.fitting) {
                     $badges.append('<span class="badge badge-secondary">Unknown</span>');
                     $list.html('<div class="text-muted">No source records were found for this item.</div>');
                     return;
@@ -1655,6 +1684,7 @@
                         fitHtml = '<div class="edit-target-source-fit-meta mt-1">This item is linked to the doctrine, but no matching fit breakdown could be loaded.</div>';
                     } else {
                         $.each(fits, function (fitIndex, fit) {
+                            var fitKey = 'doctrine-' + index + '-' + fitIndex;
                             var shipIconUrl = eveTypeRenderUrl(fit.ship_type_id, 64) || eveTypeIconUrl(fit.ship_type_id, 64);
                             var shipIcon = shipIconUrl
                                 ? '<img src="' + escapeHtml(shipIconUrl) + '" alt="' + escapeHtml((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
@@ -1664,6 +1694,7 @@
                                     escapeHtml(contribution.kind || 'Item') + ': ' + numberWithCommas(contribution.quantity) +
                                 '</span>';
                             }).join('');
+                            historyItemDetailSourceFits[fitKey] = fit;
 
                             fitHtml +=
                                 '<div class="edit-target-source-fit">' +
@@ -1675,6 +1706,8 @@
                                             ' · fit x' + numberWithCommas(fit.fitting_multiplier || 0) + '</div>' +
                                         '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
                                     '</div>' +
+                                    sourceFitReviewButton(fitKey) +
+                                    '<div class="edit-target-source-fit-panel d-none"></div>' +
                                 '</div>';
                         });
                     }
@@ -1695,7 +1728,93 @@
                         '</div>'
                     );
                 });
+
+                $.each(savedFittings, function (index, savedFitting) {
+                    var fits = savedFitting.fits || [];
+                    var fitHtml = '';
+
+                    if (!fits.length) {
+                        fitHtml = '<div class="edit-target-source-fit-meta mt-1">This item is linked to the saved fit, but no matching fit breakdown could be loaded.</div>';
+                    } else {
+                        $.each(fits, function (fitIndex, fit) {
+                            var fitKey = 'saved-fitting-' + index + '-' + fitIndex;
+                            var shipIconUrl = eveTypeRenderUrl(fit.ship_type_id, 64) || eveTypeIconUrl(fit.ship_type_id, 64);
+                            var shipIcon = shipIconUrl
+                                ? '<img src="' + escapeHtml(shipIconUrl) + '" alt="' + escapeHtml((fit.ship_type_name || 'Ship') + ' image') + '" class="edit-target-ship-icon">'
+                                : '';
+                            var contributions = (fit.contributions || []).map(function (contribution) {
+                                return '<span class="edit-target-source-contribution">' +
+                                    escapeHtml(contribution.kind || 'Item') + ': ' + numberWithCommas(contribution.quantity) +
+                                '</span>';
+                            }).join('');
+                            historyItemDetailSourceFits[fitKey] = fit;
+
+                            fitHtml +=
+                                '<div class="edit-target-source-fit">' +
+                                    shipIcon +
+                                    '<div class="edit-target-source-fit-body">' +
+                                        '<div class="edit-target-source-fit-name">' + escapeHtml(fit.ship_type_name || 'Unknown Ship') + '</div>' +
+                                        '<div class="edit-target-source-fit-meta">' + escapeHtml(fit.fitting_name || 'Unnamed Fit') +
+                                            ' · ship x' + numberWithCommas(fit.ship_multiplier || 0) +
+                                            ' · fit x' + numberWithCommas(fit.fitting_multiplier || 0) + '</div>' +
+                                        '<div class="edit-target-source-fit-meta mt-1">' + contributions + '</div>' +
+                                    '</div>' +
+                                    sourceFitReviewButton(fitKey) +
+                                    '<div class="edit-target-source-fit-panel d-none"></div>' +
+                                '</div>';
+                        });
+                    }
+
+                    $list.append(
+                        '<div class="edit-target-source-card">' +
+                            '<div class="d-flex justify-content-between align-items-start">' +
+                                '<div>' +
+                                    '<div class="edit-target-source-name">' + escapeHtml(savedFitting.name || 'Tracked saved fit') + '</div>' +
+                                    '<div class="edit-target-source-meta">Saved fit contribution ' + numberWithCommas(savedFitting.quantity) +
+                                        ', warning ' + numberWithCommas(savedFitting.warning_quantity || 0) +
+                                        ' · merge ' + escapeHtml(savedFitting.merge_mode || '-') + '</div>' +
+                                '</div>' +
+                                '<span class="badge badge-secondary">Saved Fit</span>' +
+                            '</div>' +
+                            fitHtml +
+                        '</div>'
+                    );
+                });
             }
+
+            function sourceFitReviewButton(fitKey) {
+                if (!window.marketSeedingFitPanel) {
+                    return '';
+                }
+
+                return '<div class="edit-target-source-fit-actions">' +
+                    '<button type="button" class="btn btn-default btn-xs market-seeding-source-fit-review" data-fit-key="' + escapeAttr(fitKey) + '" title="View full fit">' +
+                        '<i class="fas fa-search"></i> View Fit' +
+                    '</button>' +
+                '</div>';
+            }
+
+            $(document).on('click', '.market-seeding-source-fit-review', function () {
+                var $button = $(this);
+                var $row = $button.closest('.edit-target-source-fit');
+                var $panel = $row.find('.edit-target-source-fit-panel').first();
+                var fit = historyItemDetailSourceFits[$button.data('fit-key')];
+
+                if (!fit || !window.marketSeedingFitPanel) {
+                    return;
+                }
+
+                if (!$panel.hasClass('d-none')) {
+                    $panel.addClass('d-none').empty();
+                    $button.html('<i class="fas fa-search"></i> View Fit');
+                    return;
+                }
+
+                $panel
+                    .removeClass('d-none')
+                    .html(window.marketSeedingFitPanel(fit));
+                $button.html('<i class="fas fa-times"></i> Hide Fit');
+            });
 
             function renderTargetTrend(trend) {
                 trend = trend || {};

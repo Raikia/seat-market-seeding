@@ -70,6 +70,89 @@ class SavedFittingSource
         return [];
     }
 
+    public function characterFit(int $id, ?int $characterId = null): ?array
+    {
+        if (!Schema::hasTable('character_fittings')) {
+            return null;
+        }
+
+        $query = CharacterFitting::with('items.type', 'shipType', 'characterName')
+            ->where('id', $id);
+
+        if ($characterId) {
+            $query->where('character_id', $characterId);
+        } else {
+            $characterIds = $this->currentUserCharacterIds();
+
+            if ($characterIds->isEmpty()) {
+                return null;
+            }
+
+            $query->whereIn('character_id', $characterIds);
+        }
+
+        $fit = $query->first();
+
+        return $fit ? $this->characterFitPayload($fit) : null;
+    }
+
+    public function fit(string $source, int $id): ?array
+    {
+        if ($source === 'seat-fitting-fit' && SeatFittingPluginHelper::pluginIsAvailable()) {
+            $fit = SeatFittingPluginHelper::getFittingWithItems($id);
+
+            return $fit ? $this->doctrineFitPayload($fit) : null;
+        }
+
+        if ($source === 'character-fit') {
+            return $this->characterFit($id);
+        }
+
+        return null;
+    }
+
+    public function eftText(string $source, int $id): ?string
+    {
+        $fit = $this->fit($source, $id);
+
+        if (!$fit) {
+            return null;
+        }
+
+        return $this->formatEft($fit);
+    }
+
+    public function itemsFromFitPayload(array $fit, int $shipMultiplier, int $fittingMultiplier): array
+    {
+        $items = [];
+        $shipMultiplier = max(0, $shipMultiplier);
+        $fittingMultiplier = max(0, $fittingMultiplier);
+
+        if ($shipMultiplier > 0 && !empty($fit['ship_type_id'])) {
+            $this->addType($items, (int) $fit['ship_type_id'], $shipMultiplier, null, $fit['ship_type_name']);
+        }
+
+        foreach ($fit['items'] ?? [] as $item) {
+            if ($fittingMultiplier < 1) {
+                continue;
+            }
+
+            $this->addType(
+                $items,
+                (int) $item['type_id'],
+                (int) $item['quantity'] * $fittingMultiplier,
+                null,
+                $item['type_name']
+            );
+        }
+
+        return collect($items)
+            ->filter(fn ($item) => (int) $item['quantity'] > 0)
+            ->sortBy('type_name')
+            ->values()
+            ->all();
+    }
+
     public function doctrineFits(int $doctrineId): Collection
     {
         if (!SeatFittingPluginHelper::pluginIsAvailable()) {
@@ -191,7 +274,7 @@ class SavedFittingSource
         }
 
         return CharacterFitting::query()
-            ->with('characterName')
+            ->with('characterName', 'shipType')
             ->whereIn('character_id', $characterIds)
             ->where('name', 'like', '%' . $this->escapeLike($query) . '%')
             ->orderBy('name')
@@ -199,10 +282,11 @@ class SavedFittingSource
             ->get()
             ->map(function ($fit) {
                 $characterName = optional($fit->characterName)->name ?: 'Unknown Character';
+                $shipName = optional($fit->shipType)->typeName ?: 'Unknown Ship';
 
                 return [
                     'id' => 'character-fit:' . $fit->id,
-                    'text' => 'Character Fit: ' . $fit->name . ' (' . $characterName . ')',
+                    'text' => $shipName . ' - ' . ($fit->name ?: 'Unnamed Fit') . ' (' . $characterName . ')',
                     'source' => 'character-fit',
                     'source_id' => $fit->id,
                 ];
@@ -267,8 +351,44 @@ class SavedFittingSource
                         'type_id' => (int) $item->type_id,
                         'type_name' => $type->typeName,
                         'quantity' => max(1, (int) $item->quantity),
-                        'flag' => (int) ($item->flag ?? 0),
-                        'slot_group' => $this->slotGroup((int) ($item->flag ?? 0)),
+                        'flag' => $item->flag ?? 0,
+                        'slot_group' => $this->slotGroup($item->flag ?? 0),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function characterFitPayload(CharacterFitting $fit): ?array
+    {
+        if (!$fit->id) {
+            return null;
+        }
+
+        return [
+            'fitting_id' => (int) $fit->id,
+            'esi_fitting_id' => (int) ($fit->fitting_id ?? 0),
+            'character_id' => (int) $fit->character_id,
+            'character_name' => optional($fit->characterName)->name ?: ('Character #' . $fit->character_id),
+            'fitting_name' => $fit->name ?: 'Unnamed Fit',
+            'ship_type_id' => (int) $fit->ship_type_id,
+            'ship_type_name' => optional($fit->shipType)->typeName ?: 'Unknown Ship',
+            'items' => $fit->items
+                ->map(function ($item) {
+                    $type = $item->type ?: InvType::where('typeID', (int) $item->type_id)->first();
+
+                    if (!$type) {
+                        return null;
+                    }
+
+                    return [
+                        'type_id' => (int) $item->type_id,
+                        'type_name' => $type->typeName,
+                        'quantity' => max(1, (int) $item->quantity),
+                        'flag' => $item->flag ?? 0,
+                        'slot_group' => $this->slotGroup($item->flag ?? 0),
                     ];
                 })
                 ->filter()
@@ -303,6 +423,62 @@ class SavedFittingSource
         return array_values($items);
     }
 
+    private function formatEft(array $fit): string
+    {
+        $sections = [
+            'Low Slots',
+            'Medium Slots',
+            'High Slots',
+            'Rigs',
+            'Service Slots',
+            'Drone Bay',
+            'Cargo',
+            'Other',
+        ];
+        $repeatableSections = [
+            'High Slots',
+            'Medium Slots',
+            'Low Slots',
+            'Rigs',
+            'Service Slots',
+        ];
+        $lines = [
+            '[' . ($fit['ship_type_name'] ?: 'Unknown Ship') . ', ' . ($fit['fitting_name'] ?: 'Unnamed Fit') . ']',
+        ];
+        $groups = collect($fit['items'] ?? [])->groupBy(fn ($item) => $item['slot_group'] ?? 'Other');
+
+        foreach ($sections as $section) {
+            $items = $groups->get($section, collect());
+
+            if ($items->isEmpty()) {
+                continue;
+            }
+
+            $lines[] = '';
+
+            foreach ($items as $item) {
+                $quantity = max(1, (int) ($item['quantity'] ?? 1));
+                $name = (string) ($item['type_name'] ?? '');
+
+                if ($name === '') {
+                    continue;
+                }
+
+                if (in_array($section, $repeatableSections, true)) {
+                    for ($i = 0; $i < $quantity; $i++) {
+                        $lines[] = $name;
+                    }
+
+                    continue;
+                }
+
+                $lines[] = $quantity > 1 ? $name . ' x' . $quantity : $name;
+            }
+        }
+
+        return trim(implode("\n", $lines));
+    }
+
     private function currentUserCharacterIds(): Collection
     {
         $user = auth()->user();
@@ -330,33 +506,37 @@ class SavedFittingSource
             ->values();
     }
 
-    private function slotGroup(int $flag): string
+    private function slotGroup($flag): string
     {
-        if ($flag >= 27 && $flag <= 34) {
+        $flagName = is_string($flag) ? $flag : '';
+        $flagNumber = is_numeric($flag) ? (int) $flag : null;
+
+        if (preg_match('/^HiSlot\d+$/i', $flagName) || ($flagNumber !== null && $flagNumber >= 27 && $flagNumber <= 34)) {
             return 'High Slots';
         }
 
-        if ($flag >= 19 && $flag <= 26) {
+        if (preg_match('/^MedSlot\d+$/i', $flagName) || ($flagNumber !== null && $flagNumber >= 19 && $flagNumber <= 26)) {
             return 'Medium Slots';
         }
 
-        if ($flag >= 11 && $flag <= 18) {
+        if (preg_match('/^LoSlot\d+$/i', $flagName) || ($flagNumber !== null && $flagNumber >= 11 && $flagNumber <= 18)) {
             return 'Low Slots';
         }
 
-        if ($flag >= 92 && $flag <= 99) {
+        if (preg_match('/^RigSlot\d+$/i', $flagName) || ($flagNumber !== null && $flagNumber >= 92 && $flagNumber <= 99)) {
             return 'Rigs';
         }
 
-        if ($flag === 87) {
+        if (strcasecmp($flagName, 'DroneBay') === 0 || $flagNumber === 87) {
             return 'Drone Bay';
         }
 
-        if (in_array($flag, [5, 133], true)) {
+        if (in_array($flagName, ['Cargo', 'SpecializedAmmoHold', 'SpecializedFuelBay'], true)
+            || ($flagNumber !== null && in_array($flagNumber, [5, 133], true))) {
             return 'Cargo';
         }
 
-        if ($flag >= 164 && $flag <= 171) {
+        if (preg_match('/^ServiceSlot\d+$/i', $flagName) || ($flagNumber !== null && $flagNumber >= 164 && $flagNumber <= 171)) {
             return 'Service Slots';
         }
 
