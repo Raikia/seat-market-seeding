@@ -107,6 +107,10 @@
             max-height: 70vh;
             overflow-y: auto;
         }
+        .market-seeding-recommendations-modal .modal-dialog {
+            max-width: calc(100vw - 40px);
+            width: 1480px;
+        }
         .market-seeding-recommendation-tooltip {
             background: #1f2d33;
             border: 1px solid rgba(255, 255, 255, .16);
@@ -166,6 +170,25 @@
         }
         .market-seeding-recommendations-modal .recommendation-reason:hover {
             opacity: 1;
+        }
+        .market-seeding-recommendations-modal .recommendation-filters {
+            align-items: flex-end;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            margin-bottom: .85rem;
+        }
+        .market-seeding-recommendations-modal .recommendation-filter {
+            min-width: 190px;
+        }
+        .market-seeding-recommendations-modal .recommendation-filter label {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            margin-bottom: .25rem;
+            text-transform: uppercase;
         }
         .market-seeding-add-toolbar {
             align-items: center;
@@ -796,6 +819,8 @@
     </style>
 
     <div class="market-seeding-settings-shell {{ $marketSeedingThemeClass }}">
+        @include('seat-market-seeding::partials.expiring-orders-alert')
+
     <div class="card mb-4 market-seeding-card">
         <div class="card-header">
             <h3 class="card-title mb-0">General Settings</h3>
@@ -1190,35 +1215,6 @@
                         </div>
                     </form>
 
-                    <div class="market-seeding-subsection market-seeding-add-toolbar">
-                        <div class="text-muted">
-                            Manage manual targets, bulk imports, saved fits, tracked fittings, and tracked doctrines from one place.
-                        </div>
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-success" data-toggle="modal" data-target="#market-add-modal-{{ $market->id }}">
-                                <i class="fas fa-sliders-h"></i> Manage Targets
-                            </button>
-                            <form action="{{ route('market-seeding.items.clear-market', $market->id) }}" method="POST" onsubmit="return confirm({{ json_encode('Clear all tracked items for ' . $market->name . '? This also removes tracked doctrines for this market and cannot be undone.') }});">
-                                {{ csrf_field() }}
-                                {{ method_field('DELETE') }}
-                                <button type="submit" class="btn btn-danger">
-                                    <i class="fas fa-broom"></i> Clear Market Items
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-
-                    @if($seatFittingAvailable)
-                        <div class="market-seeding-doctrine-summary-shell" data-market-id="{{ $market->id }}">
-                            @include('seat-market-seeding::partials.tracked-doctrine-summary', ['market' => $market])
-                        </div>
-                    @endif
-                    @if($savedFittingsAvailable && $savedFittingTrackingAvailable)
-                        <div class="market-seeding-saved-fitting-summary-shell" data-market-id="{{ $market->id }}">
-                            @include('seat-market-seeding::partials.tracked-saved-fitting-summary', ['market' => $market])
-                        </div>
-                    @endif
-
                     @php
                         $marketRecommendations = collect($recommendationsByMarket->get($market->id, collect()));
                         $recommendationTargetIncrease = $marketRecommendations->sum('recommendation_delta_quantity');
@@ -1260,6 +1256,35 @@
                                 </button>
                             </div>
                     </div>
+
+                    <div class="market-seeding-subsection market-seeding-add-toolbar">
+                        <div class="text-muted">
+                            Manage manual targets, bulk imports, saved fits, tracked fittings, and tracked doctrines from one place.
+                        </div>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-success" data-toggle="modal" data-target="#market-add-modal-{{ $market->id }}">
+                                <i class="fas fa-sliders-h"></i> Manage Targets
+                            </button>
+                            <form action="{{ route('market-seeding.items.clear-market', $market->id) }}" method="POST" onsubmit="return confirm({{ json_encode('Clear all tracked items for ' . $market->name . '? This also removes tracked doctrines for this market and cannot be undone.') }});">
+                                {{ csrf_field() }}
+                                {{ method_field('DELETE') }}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-broom"></i> Clear Market Items
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    @if($seatFittingAvailable)
+                        <div class="market-seeding-doctrine-summary-shell" data-market-id="{{ $market->id }}">
+                            @include('seat-market-seeding::partials.tracked-doctrine-summary', ['market' => $market])
+                        </div>
+                    @endif
+                    @if($savedFittingsAvailable && $savedFittingTrackingAvailable)
+                        <div class="market-seeding-saved-fitting-summary-shell" data-market-id="{{ $market->id }}">
+                            @include('seat-market-seeding::partials.tracked-saved-fitting-summary', ['market' => $market])
+                        </div>
+                    @endif
 
                     <div class="table-responsive market-seeding-subsection market-seeding-table-shell">
                         @php
@@ -1373,7 +1398,7 @@
     </div>
 
     <div class="modal fade market-seeding-recommendations-modal {{ $marketSeedingThemeClass }}" id="market-seeding-recommendations-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-recommendations-title" aria-hidden="true">
-        <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
@@ -1408,11 +1433,28 @@
                         Recommendations are based on recent estimated sales, the configured sales window, and the configured buffer. Low and empty stock events are context, but they do not drive these target changes.
                     </p>
                     <div class="alert alert-info d-none" id="market-seeding-recommendations-hidden-note"></div>
+                    <div class="recommendation-filters">
+                        <div class="recommendation-filter">
+                            <label for="market-seeding-recommendations-category-filter">Category</label>
+                            <select class="form-control form-control-sm" id="market-seeding-recommendations-category-filter">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="recommendation-filter">
+                            <label for="market-seeding-recommendations-group-filter">Group</label>
+                            <select class="form-control form-control-sm" id="market-seeding-recommendations-group-filter">
+                                <option value="">All Groups</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover market-seeding-recommendations-table mb-0" id="market-seeding-recommendations-table">
                             <thead>
                                 <tr>
                                     <th>Item</th>
+                                    <th>Category</th>
+                                    <th>Group</th>
+                                    <th class="text-right">Current Stock</th>
                                     <th class="text-right">Current Target</th>
                                     <th class="text-right">Recommended Target</th>
                                     <th class="text-right">Target Increase</th>
@@ -1425,7 +1467,7 @@
                             </thead>
                             <tbody id="market-seeding-recommendations-body">
                                 <tr>
-                                    <td colspan="9" class="text-muted">No recommendations selected.</td>
+                                    <td colspan="12" class="text-muted">No recommendations selected.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1445,6 +1487,7 @@
     @include('seat-market-seeding::partials.item-detail-modal', [
         'marketSeedingThemeClass' => $marketSeedingThemeClass,
         'canManageMarketSeeding' => true,
+        'canViewMarketOrderOwners' => auth()->user()->can('seat-market-seeding.seeders'),
     ])
 @endsection
 
@@ -2059,7 +2102,6 @@
             });
 
             $('#market-seeding-apply-recommendations').on('click', function () {
-                var $button = $(this);
                 var marketId = $('#market-seeding-recommendations-modal').data('market-id');
                 var recommendations = recommendationRowsForMarket(marketId);
 
@@ -2067,39 +2109,68 @@
                     return;
                 }
 
-                $button.prop('disabled', true).text('Applying...');
-                $('#market-seeding-recommendations-error').addClass('d-none').text('');
+                applyRecommendationRows(marketId, $.map(recommendations, function (recommendation) {
+                    return recommendation.item_id;
+                }), $(this), 'Applying...', 'Apply Recommendations');
+            });
+
+            $(document).on('click', '.market-seeding-apply-one-recommendation', function () {
+                var marketId = $('#market-seeding-recommendations-modal').data('market-id');
+                var itemId = parseInt($(this).data('item-id') || 0, 10);
+
+                if (!marketId || !itemId) {
+                    return;
+                }
+
+                applyRecommendationRows(marketId, [itemId], $(this), '<i class="fas fa-spinner fa-spin"></i>', '<i class="fas fa-check"></i>');
+            });
+
+            function applyRecommendationRows(marketId, itemIds, $button, applyingHtml, originalHtml) {
+                if (!itemIds.length) {
+                    return;
+                }
+
+                $button.prop('disabled', true).html(applyingHtml);
+                $('#market-seeding-recommendations-error').addClass('d-none').removeClass('alert-success alert-warning alert-danger').text('');
 
                 $.ajax({
                     url: settingsRecommendationApplyUrl,
                     method: 'POST',
                     data: {
                         market_id: marketId,
-                        item_ids: $.map(recommendations, function (recommendation) {
-                            return recommendation.item_id;
-                        })
+                        item_ids: itemIds
                     },
                     headers: {
                         Accept: 'application/json',
                         'X-CSRF-TOKEN': csrfToken
                     }
                 }).done(function (response) {
+                    $.each(response.items || [], function (index, item) {
+                        var tableSelector = '#market-seeding-settings-table-' + item.market_id;
+
+                        upsertItemRow(tableSelector, item);
+                        markItemRowSaved(tableSelector, item.id);
+                        $('.market-seeding-view-item-details[data-item-id="' + item.id + '"]')
+                            .data('desired-quantity', item.desired_quantity)
+                            .data('warning-quantity', item.warning_quantity);
+                        updateRecommendationStateAfterItemSave(item, true);
+                        removeRecommendationReviewRow(item.id);
+                    });
+
+                    refreshRecommendationPanel(marketId);
+                    updateRecommendationReviewSummary(marketId);
                     $('#market-seeding-recommendations-error')
                         .removeClass('d-none alert-danger')
                         .addClass(response.errors && response.errors.length ? 'alert-warning' : 'alert-success')
                         .text((response.message || 'Recommendations applied.') + (response.errors && response.errors.length ? ' ' + response.errors.join(' ') : ''));
-
-                    window.setTimeout(function () {
-                        window.location.reload();
-                    }, 900);
                 }).fail(function (xhr) {
                     $('#market-seeding-recommendations-error')
                         .removeClass('d-none alert-success alert-warning')
                         .addClass('alert-danger')
                         .text(errorMessage(xhr));
-                    $button.prop('disabled', false).text('Apply Recommendations');
+                    $button.prop('disabled', false).html(originalHtml);
                 });
-            });
+            }
 
             $(document).on('click', '.market-seeding-hide-recommendation', function () {
                 var marketId = $('#market-seeding-recommendations-modal').data('market-id');
@@ -2113,7 +2184,8 @@
                 ignoredRecommendations[recommendationIgnoreKey(marketId, itemId)] = true;
                 saveIgnoredRecommendations();
                 refreshRecommendationPanel(marketId);
-                renderRecommendationReview(marketName, recommendationRowsForMarket(marketId));
+                removeRecommendationReviewRow(itemId);
+                updateRecommendationReviewSummary(marketId);
             });
 
             $('#market-seeding-unhide-recommendations').on('click', function () {
@@ -3429,7 +3501,7 @@
                 $panel.find('.market-seeding-recommendation-volume').text(formatDecimal(totalVolume, 2) + ' m3');
             }
 
-            function updateRecommendationStateAfterItemSave(item) {
+            function updateRecommendationStateAfterItemSave(item, skipRecommendationReviewRender) {
                 var itemId = parseInt(item.id || 0, 10);
                 var recommendation = settingsRecommendationDetailsByItem[itemId];
 
@@ -3461,7 +3533,7 @@
                 setVisibleRecommendation(recommendation);
                 refreshRecommendationPanel(marketId);
 
-                if ($('#market-seeding-recommendations-modal').is(':visible') && parseInt($('#market-seeding-recommendations-modal').data('market-id') || 0, 10) === marketId) {
+                if (!skipRecommendationReviewRender && $('#market-seeding-recommendations-modal').is(':visible') && parseInt($('#market-seeding-recommendations-modal').data('market-id') || 0, 10) === marketId) {
                     renderRecommendationReview($('#market-seeding-recommendations-modal').data('market-name') || recommendation.market_name || 'Market', recommendationRowsForMarket(marketId));
                 }
 
@@ -3470,6 +3542,78 @@
                 if ($detailsButton.length) {
                     renderRecommendationCard(recommendation.recommendation_differs ? recommendation : settingsRecommendationDetailsByItem[itemId], $detailsButton);
                 }
+            }
+
+            function updateRecommendationReviewSummary(marketId) {
+                var recommendations = recommendationRowsForMarket(marketId);
+                var totalGap = 0;
+                var totalCost = 0;
+                var totalVolume = 0;
+
+                $.each(recommendations, function (index, recommendation) {
+                    totalGap += parseInt(recommendation.recommendation_delta_quantity || 0, 10);
+                    totalCost += parseFloat(recommendation.recommendation_delta_cost || 0) || 0;
+                    totalVolume += parseFloat(recommendation.recommendation_delta_volume || 0) || 0;
+                });
+
+                $('#market-seeding-recommendations-count').text(formatWhole(recommendations.length));
+                $('#market-seeding-recommendations-gap').text(formatWhole(totalGap));
+                $('#market-seeding-recommendations-cost').text(formatMoney(totalCost));
+                $('#market-seeding-recommendations-volume').text(formatDecimal(totalVolume, 2) + ' m3');
+                $('#market-seeding-apply-recommendations')
+                    .prop('disabled', !recommendations.length)
+                    .text('Apply Recommendations');
+                updateHiddenRecommendationNote(marketId);
+            }
+
+            function populateRecommendationFilters(recommendations) {
+                var categories = {};
+                var groups = {};
+                var $category = $('#market-seeding-recommendations-category-filter');
+                var $group = $('#market-seeding-recommendations-group-filter');
+
+                $.each(recommendations || [], function (index, recommendation) {
+                    categories[recommendation.type_category || 'Unknown'] = true;
+                    groups[recommendation.type_group || 'Unknown'] = true;
+                });
+
+                $category.html('<option value="">All Categories</option>');
+                $.each(Object.keys(categories).sort(), function (index, category) {
+                    $category.append('<option value="' + escapeAttr(category) + '">' + escapeHtml(category) + '</option>');
+                });
+
+                $group.html('<option value="">All Groups</option>');
+                $.each(Object.keys(groups).sort(), function (index, group) {
+                    $group.append('<option value="' + escapeAttr(group) + '">' + escapeHtml(group) + '</option>');
+                });
+            }
+
+            function applyRecommendationFilters() {
+                if (!recommendationReviewTable) {
+                    return;
+                }
+
+                var category = $('#market-seeding-recommendations-category-filter').val();
+                var group = $('#market-seeding-recommendations-group-filter').val();
+
+                recommendationReviewTable
+                    .column(1)
+                    .search(category ? '^' + escapeRegex(category) + '$' : '', true, false)
+                    .column(2)
+                    .search(group ? '^' + escapeRegex(group) + '$' : '', true, false)
+                    .draw(false);
+            }
+
+            function removeRecommendationReviewRow(itemId) {
+                var $table = $('#market-seeding-recommendations-table');
+                var selector = 'tr[data-recommendation-item-id="' + itemId + '"]';
+
+                if (recommendationReviewTable) {
+                    recommendationReviewTable.row(selector).remove().draw(false);
+                    return;
+                }
+
+                $table.find(selector).remove();
             }
 
             function renderRecommendationReview(marketName, recommendations) {
@@ -3491,19 +3635,21 @@
                 $('#market-seeding-recommendations-market').text(marketName + ' recommendations');
                 $('#market-seeding-recommendations-error').addClass('d-none').removeClass('alert-success alert-warning alert-danger').text('');
                 updateHiddenRecommendationNote($('#market-seeding-recommendations-modal').data('market-id'));
+                populateRecommendationFilters(recommendations);
 
                 if (!recommendations.length) {
                     $('#market-seeding-recommendations-count').text('0');
                     $('#market-seeding-recommendations-gap').text('0');
                     $('#market-seeding-recommendations-cost').text('0.00 ISK');
                     $('#market-seeding-recommendations-volume').text('0.00 m3');
-                    $('#market-seeding-apply-recommendations').prop('disabled', true);
-                    $body.html('<tr><td colspan="9" class="text-muted">No recommendations need attention for this market.</td></tr>');
+                    $('#market-seeding-apply-recommendations').prop('disabled', true).text('Apply Recommendations');
+                    $body.html('<tr><td colspan="12" class="text-muted">No recommendations need attention for this market.</td></tr>');
                     return;
                 }
 
                 $.each(recommendations, function (index, recommendation) {
                     var current = parseInt(recommendation.current_target_quantity || 0, 10);
+                    var currentStock = parseInt(recommendation.current_stock_quantity || recommendation.latest_seen_quantity || 0, 10);
                     var recommended = parseInt(recommendation.recommended_quantity || 0, 10);
                     var gap = Math.max(0, recommended - current);
                     var estimatedSold = parseInt(recommendation.recommendation_estimated_sold || 0, 10);
@@ -3517,12 +3663,15 @@
                     totalVolume += isFinite(deltaVolume) ? deltaVolume : 0;
 
                     $body.append(
-                        '<tr>' +
+                        '<tr data-recommendation-item-id="' + itemId + '">' +
                             '<td>' +
                                 sourceIconHtml(recommendation.source_flags || {}) +
                                 escapeHtml(recommendation.type_name || 'Unknown item') +
                                 '<span class="text-muted small market-seeding-item-type">' + escapeHtml(recommendation.type_category || '-') + '</span>' +
                             '</td>' +
+                            '<td>' + escapeHtml(recommendation.type_category || 'Unknown') + '</td>' +
+                            '<td>' + escapeHtml(recommendation.type_group || 'Unknown') + '</td>' +
+                            '<td class="text-right" data-order="' + currentStock + '">' + formatWhole(currentStock) + '</td>' +
                             '<td class="text-right" data-order="' + current + '">' + formatWhole(current) + '</td>' +
                             '<td class="text-right" data-order="' + recommended + '">' +
                                 '<span class="history-recommendation-pill">' +
@@ -3536,7 +3685,8 @@
                             '<td class="text-right" data-order="' + estimatedSold + '">' + formatWhole(estimatedSold) + '</td>' +
                             '<td class="text-right" data-order="' + lowEmptyEvents + '">' + formatWhole(lowEmptyEvents) + '</td>' +
                             '<td class="text-right">' +
-                                (itemId ? '<button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-view-item-details" title="Open target details" data-item-id="' + itemId + '" data-update-url="' + escapeAttr(itemUrl(settingsItemUpdateUrlTemplate, itemId)) + '" data-history-url="' + escapeAttr(itemUrl(settingsItemHistoryUrlTemplate, itemId)) + '" data-item-name="' + escapeAttr(recommendation.type_name || 'Unknown item') + '" data-market-name="' + escapeAttr((recommendation.market_name || marketName || '') + ' - ' + (recommendation.location_name || '')) + '" data-desired-quantity="' + current + '" data-warning-quantity="' + parseInt(recommendation.warning_quantity || 0, 10) + '"><i class="fas fa-search"></i></button> ' +
+                                (itemId ? '<button type="button" class="btn btn-link btn-xs p-0 text-success history-item-action market-seeding-apply-one-recommendation" title="Apply only this recommendation" data-item-id="' + itemId + '"><i class="fas fa-check"></i></button> ' +
+                                    '<button type="button" class="btn btn-link btn-xs p-0 history-item-action market-seeding-view-item-details" title="Open target details" data-item-id="' + itemId + '" data-update-url="' + escapeAttr(itemUrl(settingsItemUpdateUrlTemplate, itemId)) + '" data-history-url="' + escapeAttr(itemUrl(settingsItemHistoryUrlTemplate, itemId)) + '" data-item-name="' + escapeAttr(recommendation.type_name || 'Unknown item') + '" data-market-name="' + escapeAttr((recommendation.market_name || marketName || '') + ' - ' + (recommendation.location_name || '')) + '" data-desired-quantity="' + current + '" data-warning-quantity="' + parseInt(recommendation.warning_quantity || 0, 10) + '"><i class="fas fa-search"></i></button> ' +
                                     '<button type="button" class="btn btn-link btn-xs p-0 text-muted history-item-action market-seeding-hide-recommendation" title="Hide this recommendation in this browser" data-item-id="' + itemId + '"><i class="fas fa-eye-slash"></i></button>' : '-') +
                             '</td>' +
                         '</tr>'
@@ -3551,22 +3701,28 @@
 
                 if ($.fn.DataTable) {
                     recommendationReviewTable = $table.DataTable({
-                        order: [[4, 'desc']],
+                        order: [[7, 'desc']],
                         paging: true,
                         pageLength: 10,
                         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
                         autoWidth: false,
                         retrieve: false,
                         columnDefs: [
-                            { orderable: false, searchable: false, targets: [8] }
+                            { visible: false, searchable: true, targets: [1, 2] },
+                            { orderable: false, searchable: false, targets: [11] }
                         ],
                         language: {
                             emptyTable: 'No recommendations need attention for this market.',
                             zeroRecords: 'No recommendations match this search.'
                         }
                     });
+                    applyRecommendationFilters();
                 }
             }
+
+            $('#market-seeding-recommendations-category-filter, #market-seeding-recommendations-group-filter').on('change', function () {
+                applyRecommendationFilters();
+            });
 
             $.each(settingsRecommendationsByMarket, function (marketId) {
                 refreshRecommendationPanel(marketId);

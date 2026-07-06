@@ -672,6 +672,8 @@
     </style>
 
     <div class="market-seeding-shell {{ $marketSeedingThemeClass }}">
+        @include('seat-market-seeding::partials.expiring-orders-alert')
+
     <div class="row market-seeding-summary">
         <div>
             <div class="info-box">
@@ -1252,6 +1254,7 @@
     @include('seat-market-seeding::partials.item-detail-modal', [
         'marketSeedingThemeClass' => $marketSeedingThemeClass,
         'canManageMarketSeeding' => false,
+        'canViewMarketOrderOwners' => auth()->user()->can('seat-market-seeding.seeders'),
     ])
     </div>
 @endsection

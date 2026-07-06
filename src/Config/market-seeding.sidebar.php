@@ -23,6 +23,13 @@ return [
                 'permission' => 'seat-market-seeding.view',
             ],
             [
+                'name' => 'Seeders',
+                'label' => 'seat-market-seeding::sidebar.seeders',
+                'icon' => 'fas fa-trophy',
+                'route' => 'market-seeding.seeders',
+                'permission' => 'seat-market-seeding.seeders',
+            ],
+            [
                 'name' => 'Settings',
                 'label' => 'seat-market-seeding::sidebar.settings',
                 'icon' => 'fas fa-cog',

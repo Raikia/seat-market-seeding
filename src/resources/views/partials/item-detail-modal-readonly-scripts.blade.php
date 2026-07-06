@@ -1,7 +1,9 @@
             var marketSeedingItemDetailTrendChart = null;
             var marketSeedingItemDetailSourceFits = {};
+            var marketSeedingItemDetailSellOrdersTable = null;
 
             function resetItemDetails() {
+                destroySellOrdersDataTable();
                 $('#market-seeding-detail-current').text('Loading...');
                 $('#market-seeding-detail-missing').text('Loading...');
                 $('#market-seeding-detail-hero-missing').text('Loading...');
@@ -15,6 +17,8 @@
                 $('#market-seeding-detail-item-volume').text('Packaged m3');
                 $('#market-seeding-detail-source-badges').empty();
                 $('#market-seeding-detail-source-list').html('<div class="text-muted">Loading source details...</div>');
+                $('#market-seeding-detail-sell-order-count').text('0 orders');
+                $('#market-seeding-detail-sell-orders').html('<tr><td colspan="4" class="text-muted">Loading active sell orders...</td></tr>');
                 $('#market-seeding-detail-trend-summary').text('Loading...');
                 $('#market-seeding-edit-target-history').html('<tr><td colspan="5" class="text-muted">Loading transition history...</td></tr>');
                 $('#market-seeding-edit-target-change-history').html('<tr><td colspan="5" class="text-muted">Loading target changes...</td></tr>');
@@ -28,6 +32,16 @@
                 }
             }
 
+            function destroySellOrdersDataTable() {
+                var $table = $('#market-seeding-detail-sell-orders-table');
+
+                if ($table.length && $.fn.DataTable && $.fn.DataTable.isDataTable($table[0])) {
+                    $table.DataTable().clear().destroy();
+                }
+
+                marketSeedingItemDetailSellOrdersTable = null;
+            }
+
             function loadItemDetails(url) {
                 if (!url) {
                     $('#market-seeding-edit-target-error').removeClass('d-none').text('No item detail URL was provided.');
@@ -39,6 +53,7 @@
                         renderItemHeader(response.item || {});
                         renderItemDetails(response.details || {});
                         renderSourceDetails(response.source_details || {});
+                        renderSellOrders(response.sell_orders || []);
                         renderTrend(response.trend || {});
                         renderTransitionRows(response.events || []);
                         renderTargetChangeRows(response.target_history || []);
@@ -263,6 +278,99 @@
                     .html(window.marketSeedingFitPanel(fit));
                 $button.html('<i class="fas fa-times"></i> Hide Fit');
             });
+
+            function renderSellOrders(orders) {
+                var $body = $('#market-seeding-detail-sell-orders');
+                var $count = $('#market-seeding-detail-sell-order-count');
+                var $table = $('#market-seeding-detail-sell-orders-table');
+
+                if (!$body.length) {
+                    return;
+                }
+
+                destroySellOrdersDataTable();
+                orders = orders || [];
+                $count.text(marketSeedingItemDetailWhole(orders.length) + ' order' + (orders.length === 1 ? '' : 's'));
+                $body.empty();
+
+                if (!orders.length) {
+                    $body.html('<tr><td colspan="4" class="text-muted">No active character sell orders found for this item at this location.</td></tr>');
+                    return;
+                }
+
+                $.each(orders, function (index, order) {
+                    var expiryClass = order.days_until_expiry !== null && order.days_until_expiry < 0
+                        ? 'edit-target-order-expired'
+                        : (order.days_until_expiry !== null && order.days_until_expiry <= 7 ? 'edit-target-order-expiring' : '');
+                    var expiryText = order.expires_at || '-';
+                    var mainCharacterText = order.main_character_name
+                        ? 'Main: ' + order.main_character_name
+                        : 'Main character unknown';
+                    var portraitUrl = order.character_portrait_url || (
+                        order.character_id ? 'https://images.evetech.net/characters/' + order.character_id + '/portrait?size=64' : ''
+                    );
+                    var jitaDelta = order.jita_delta === null || typeof order.jita_delta === 'undefined'
+                        ? null
+                        : parseFloat(order.jita_delta);
+                    var jitaDeltaPercent = order.jita_delta_percent === null || typeof order.jita_delta_percent === 'undefined'
+                        ? null
+                        : parseFloat(order.jita_delta_percent);
+                    var deltaClass = jitaDelta === null ? '' : (jitaDelta > 0 ? ' is-positive' : (jitaDelta < 0 ? ' is-negative' : ''));
+                    var deltaPrefix = jitaDelta !== null && jitaDelta > 0 ? '+' : '';
+                    var deltaMoney = jitaDelta === null ? '' : Math.abs(jitaDelta).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    var deltaText = jitaDelta === null
+                        ? 'No Jita comparison'
+                        : deltaPrefix + (jitaDelta < 0 ? '-' : '') + deltaMoney + ' ISK (' + deltaPrefix + marketSeedingItemDetailDecimal(jitaDeltaPercent, 1) + '%) vs Jita';
+
+                    if (order.days_until_expiry !== null && typeof order.days_until_expiry !== 'undefined') {
+                        if (order.days_until_expiry < 0) {
+                            expiryText += ' (' + marketSeedingItemDetailWhole(Math.abs(order.days_until_expiry)) + 'd ago)';
+                        } else {
+                            expiryText += ' (' + marketSeedingItemDetailWhole(order.days_until_expiry) + 'd)';
+                        }
+                    }
+
+                    $body.append(
+                        '<tr>' +
+                            '<td data-order="' + marketSeedingItemDetailEscapeAttr(order.character_name || ('Character #' + order.character_id)) + '">' +
+                                '<div class="edit-target-order-character">' +
+                                    (portraitUrl ? '<img src="' + marketSeedingItemDetailEscapeAttr(portraitUrl) + '" alt="' + marketSeedingItemDetailEscapeAttr((order.character_name || 'Character') + ' portrait') + '">' : '') +
+                                    '<div>' +
+                                        '<div class="edit-target-order-character-name">' + marketSeedingItemDetailEscape(order.character_name || ('Character #' + order.character_id)) + '</div>' +
+                                        '<div class="edit-target-order-character-main">' + marketSeedingItemDetailEscape(mainCharacterText) + '</div>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</td>' +
+                            '<td class="text-right" data-order="' + parseInt(order.quantity_remaining || 0, 10) + '">' + marketSeedingItemDetailWhole(order.quantity_remaining) +
+                                '<span class="text-muted"> / ' + marketSeedingItemDetailWhole(order.quantity_total) + '</span></td>' +
+                            '<td class="text-right" data-order="' + parseFloat(order.price || 0) + '">' +
+                                '<div>' + marketSeedingItemDetailMoney(order.price) + '</div>' +
+                                '<div class="edit-target-order-jita-delta' + deltaClass + '">' + marketSeedingItemDetailEscape(deltaText) + '</div>' +
+                            '</td>' +
+                            '<td class="' + expiryClass + '" data-order="' + (order.days_until_expiry === null || typeof order.days_until_expiry === 'undefined' ? 999999 : parseInt(order.days_until_expiry, 10)) + '">' + marketSeedingItemDetailEscape(expiryText) + '</td>' +
+                        '</tr>'
+                    );
+                });
+
+                if ($table.length && $.fn.DataTable) {
+                    marketSeedingItemDetailSellOrdersTable = $table.DataTable({
+                        order: [[2, 'asc']],
+                        pageLength: 5,
+                        lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'All']],
+                        searching: true,
+                        info: true,
+                        autoWidth: false,
+                        deferRender: true,
+                        language: {
+                            emptyTable: 'No active character sell orders found for this item at this location.',
+                            zeroRecords: 'No sell orders match this search.'
+                        }
+                    });
+                }
+            }
 
             function renderTrend(trend) {
                 var labels = trend.labels || [];

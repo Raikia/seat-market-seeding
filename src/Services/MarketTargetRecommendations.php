@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
+use Seat\Eveapi\Models\Sde\InvType;
 
 class MarketTargetRecommendations
 {
@@ -42,6 +43,7 @@ class MarketTargetRecommendations
             ->get();
 
         $this->attachCurrentTargets($rows);
+        $this->attachTypeGroups($rows);
         $this->attachRecommendations($rows, $salesDays, $bufferPercentage);
         $this->attachEconomics($rows, $report);
 
@@ -80,8 +82,10 @@ class MarketTargetRecommendations
             'market_id' => (int) $row->market_id,
             'type_name' => $row->type_name,
             'type_category' => $row->type_category,
+            'type_group' => $row->type_group ?? 'Unknown',
             'market_name' => $row->market_name,
             'location_name' => $row->location_name,
+            'current_stock_quantity' => (int) ($row->latest_seen_quantity ?? 0),
             'current_target_quantity' => (int) $row->current_target_quantity,
             'warning_quantity' => (int) $row->warning_quantity,
             'recommended_quantity' => (int) $row->recommended_quantity,
@@ -106,14 +110,24 @@ class MarketTargetRecommendations
 
     private function attachCurrentTargets(Collection $rows): void
     {
+        $itemIds = $rows->pluck('item_id')->filter()->unique()->values();
         $items = SeededMarketItem::query()
             ->with('sources')
-            ->whereIn('id', $rows->pluck('item_id')->filter()->unique()->values())
+            ->whereIn('id', $itemIds)
             ->get()
             ->keyBy('id');
+        $summaries = MarketStockDailySummary::query()
+            ->whereIn('item_id', $itemIds)
+            ->orderByDesc('summary_date')
+            ->orderByDesc('updated_at')
+            ->get()
+            ->unique('item_id')
+            ->keyBy('item_id');
 
         foreach ($rows as $row) {
             $item = $items->get($row->item_id);
+            $summary = $summaries->get($row->item_id);
+            $row->latest_seen_quantity = $summary ? (int) $summary->latest_current_quantity : 0;
 
             if (!$item) {
                 $row->target_quantity = 1;
@@ -194,6 +208,27 @@ class MarketTargetRecommendations
                 number_format($bufferMultiplier, 2) . 'x',
                 number_format($salesRecommendation)
             );
+        }
+    }
+
+    private function attachTypeGroups(Collection $rows): void
+    {
+        $typeIds = $rows->pluck('type_id')->filter()->unique()->values();
+
+        if ($typeIds->isEmpty()) {
+            return;
+        }
+
+        $groups = InvType::query()
+            ->with('group')
+            ->whereIn('typeID', $typeIds)
+            ->get()
+            ->mapWithKeys(function (InvType $type) {
+                return [(int) $type->typeID => optional($type->group)->groupName ?: 'Unknown'];
+            });
+
+        foreach ($rows as $row) {
+            $row->type_group = $groups->get((int) $row->type_id, 'Unknown');
         }
     }
 

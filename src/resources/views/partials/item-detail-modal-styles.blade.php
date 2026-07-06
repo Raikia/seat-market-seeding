@@ -162,7 +162,8 @@
         font-size: .75rem;
         margin-top: .1rem;
     }
-    .market-seeding-edit-target-modal .edit-target-source-panel {
+    .market-seeding-edit-target-modal .edit-target-source-panel,
+    .market-seeding-edit-target-modal .edit-target-orders-panel {
         border: 1px solid #dee2e6;
         border-radius: 8px;
         margin-bottom: 1rem;
@@ -231,6 +232,65 @@
         display: inline-block;
         margin-right: .5rem;
         white-space: nowrap;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-character {
+        align-items: center;
+        display: flex;
+        gap: .6rem;
+        min-width: 210px;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-character img {
+        background: #111820;
+        border: 1px solid rgba(0, 0, 0, .16);
+        border-radius: 50%;
+        height: 34px;
+        object-fit: cover;
+        width: 34px;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-character-name {
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-character-main,
+    .market-seeding-edit-target-modal .edit-target-order-jita-delta {
+        color: #6c757d;
+        font-size: .76rem;
+        line-height: 1.25;
+        margin-top: .15rem;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-jita-delta.is-positive {
+        color: #dc3545;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-jita-delta.is-negative {
+        color: #28a745;
+    }
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper {
+        padding-top: .25rem;
+    }
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper .row:first-child,
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper .row:last-child {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_length,
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_filter,
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_info,
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_paginate {
+        font-size: .78rem;
+    }
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_filter input,
+    .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_length select {
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        padding: .2rem .45rem;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-expiring {
+        color: #dc3545;
+        font-weight: 700;
+    }
+    .market-seeding-edit-target-modal .edit-target-order-expired {
+        color: #6c757d;
+        text-decoration: line-through;
     }
     .market-seeding-edit-target-modal .edit-target-workspace {
         display: grid;
@@ -326,6 +386,7 @@
     }
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-panel,
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-panel,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-orders-panel,
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-card,
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit,
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-detail,
@@ -335,8 +396,28 @@
     }
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-meta,
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit-meta,
-    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-summary {
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-summary,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-character-main,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta {
         color: #b8c7ce;
+    }
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta.is-positive {
+        color: #ffb3bc;
+    }
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta.is-negative {
+        color: #a9e7bd;
+    }
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_info,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_filter label,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length label {
+        color: #b8c7ce;
+    }
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_filter input,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length select,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length select option {
+        background: #1f2d3d;
+        border-color: #3c4b54;
+        color: #e9ecef;
     }
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-delta {
         color: #b8c7ce;
@@ -348,7 +429,8 @@
         color: #a9e7bd;
     }
     .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-type-icon,
-    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-ship-icon {
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-ship-icon,
+    .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-character img {
         border-color: rgba(244, 231, 190, .18);
         box-shadow: 0 8px 18px rgba(0, 0, 0, .35);
     }

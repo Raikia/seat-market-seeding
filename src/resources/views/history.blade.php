@@ -278,6 +278,61 @@
             max-height: 260px;
             overflow-y: auto;
         }
+        .market-seeding-edit-target-modal .modal-sell-orders-table {
+            max-height: none;
+            overflow-y: visible;
+        }
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper {
+            padding-top: .25rem;
+        }
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper .row:first-child,
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_wrapper .row:last-child {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_length,
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_filter,
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_info,
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_paginate {
+            font-size: .78rem;
+        }
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_filter input,
+        .market-seeding-edit-target-modal .modal-sell-orders-table .dataTables_length select {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            padding: .2rem .45rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-character {
+            align-items: center;
+            display: flex;
+            gap: .6rem;
+            min-width: 210px;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-character img {
+            background: #111820;
+            border: 1px solid rgba(0, 0, 0, .16);
+            border-radius: 50%;
+            height: 34px;
+            object-fit: cover;
+            width: 34px;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-character-name {
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-character-main,
+        .market-seeding-edit-target-modal .edit-target-order-jita-delta {
+            color: #6c757d;
+            font-size: .76rem;
+            line-height: 1.25;
+            margin-top: .15rem;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-jita-delta.is-positive {
+            color: #dc3545;
+        }
+        .market-seeding-edit-target-modal .edit-target-order-jita-delta.is-negative {
+            color: #28a745;
+        }
         .market-seeding-edit-target-modal .modal-dialog {
             max-width: 1060px;
         }
@@ -609,8 +664,28 @@
             border-color: #3c4b54;
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-meta,
-        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit-meta {
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-source-fit-meta,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-character-main,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta {
             color: #b8c7ce;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta.is-positive {
+            color: #ffb3bc;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-jita-delta.is-negative {
+            color: #a9e7bd;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_info,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_filter label,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length label {
+            color: #b8c7ce;
+        }
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_filter input,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length select,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .modal-sell-orders-table .dataTables_length select option {
+            background: #1f2d3d;
+            border-color: #3c4b54;
+            color: #e9ecef;
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-trend-summary {
             color: #b8c7ce;
@@ -628,7 +703,8 @@
             color: #a9e7bd;
         }
         .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-type-icon,
-        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-ship-icon {
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-ship-icon,
+        .market-seeding-edit-target-modal.market-seeding-dark-skin .edit-target-order-character img {
             border-color: rgba(244, 231, 190, .18);
             box-shadow: 0 8px 18px rgba(0, 0, 0, .35);
         }
@@ -722,6 +798,8 @@
     </style>
 
     <div class="market-seeding-history-shell {{ $marketSeedingThemeClass }}">
+        @include('seat-market-seeding::partials.expiring-orders-alert')
+
         <div class="card">
             <div class="card-header">
                 <div>
@@ -1119,6 +1197,7 @@
     @include('seat-market-seeding::partials.item-detail-modal', [
         'marketSeedingThemeClass' => $marketSeedingThemeClass,
         'canManageMarketSeeding' => $canManageMarketSeeding,
+        'canViewMarketOrderOwners' => auth()->user()->can('seat-market-seeding.seeders'),
     ])
 @endsection
 
@@ -1137,6 +1216,7 @@
             var currentTargetDetails = {};
             var targetTrendChart = null;
             var historyItemDetailSourceFits = {};
+            var historyItemDetailSellOrdersTable = null;
             var categoryColors = [
                 'rgba(0, 123, 255, .8)',
                 'rgba(40, 167, 69, .8)',
@@ -1573,6 +1653,7 @@
             }
 
             function resetTargetDetails() {
+                destroyHistorySellOrdersDataTable();
                 currentTargetDetails = {};
                 $('#market-seeding-detail-current').text('Loading...');
                 $('#market-seeding-detail-missing').text('Loading...');
@@ -1592,10 +1673,22 @@
                 $('#market-seeding-detail-trend-summary').text('Loading...');
                 $('#market-seeding-detail-source-badges').html('');
                 $('#market-seeding-detail-source-list').html('<div class="text-muted">Loading source details...</div>');
+                $('#market-seeding-detail-sell-order-count').text('0 orders');
+                $('#market-seeding-detail-sell-orders').html('<tr><td colspan="4" class="text-muted">Loading active sell orders...</td></tr>');
                 if (targetTrendChart) {
                     targetTrendChart.destroy();
                     targetTrendChart = null;
                 }
+            }
+
+            function destroyHistorySellOrdersDataTable() {
+                var $table = $('#market-seeding-detail-sell-orders-table');
+
+                if ($table.length && $.fn.DataTable && $.fn.DataTable.isDataTable($table[0])) {
+                    $table.DataTable().clear().destroy();
+                }
+
+                historyItemDetailSellOrdersTable = null;
             }
 
             function renderTargetDetails(details) {
@@ -1816,6 +1909,99 @@
                 $button.html('<i class="fas fa-times"></i> Hide Fit');
             });
 
+            function renderSellOrders(orders) {
+                var $body = $('#market-seeding-detail-sell-orders');
+                var $count = $('#market-seeding-detail-sell-order-count');
+                var $table = $('#market-seeding-detail-sell-orders-table');
+
+                if (!$body.length) {
+                    return;
+                }
+
+                destroyHistorySellOrdersDataTable();
+                orders = orders || [];
+                $count.text(numberWithCommas(orders.length) + ' order' + (orders.length === 1 ? '' : 's'));
+                $body.empty();
+
+                if (!orders.length) {
+                    $body.html('<tr><td colspan="4" class="text-muted">No active character sell orders found for this item at this location.</td></tr>');
+                    return;
+                }
+
+                $.each(orders, function (index, order) {
+                    var expiryClass = order.days_until_expiry !== null && order.days_until_expiry < 0
+                        ? 'edit-target-order-expired'
+                        : (order.days_until_expiry !== null && order.days_until_expiry <= 7 ? 'edit-target-order-expiring' : '');
+                    var expiryText = order.expires_at || '-';
+                    var mainCharacterText = order.main_character_name
+                        ? 'Main: ' + order.main_character_name
+                        : 'Main character unknown';
+                    var portraitUrl = order.character_portrait_url || (
+                        order.character_id ? 'https://images.evetech.net/characters/' + order.character_id + '/portrait?size=64' : ''
+                    );
+                    var jitaDelta = order.jita_delta === null || typeof order.jita_delta === 'undefined'
+                        ? null
+                        : parseFloat(order.jita_delta);
+                    var jitaDeltaPercent = order.jita_delta_percent === null || typeof order.jita_delta_percent === 'undefined'
+                        ? null
+                        : parseFloat(order.jita_delta_percent);
+                    var deltaClass = jitaDelta === null ? '' : (jitaDelta > 0 ? ' is-positive' : (jitaDelta < 0 ? ' is-negative' : ''));
+                    var deltaPrefix = jitaDelta !== null && jitaDelta > 0 ? '+' : '';
+                    var deltaMoney = jitaDelta === null ? '' : Math.abs(jitaDelta).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    var deltaText = jitaDelta === null
+                        ? 'No Jita comparison'
+                        : deltaPrefix + (jitaDelta < 0 ? '-' : '') + deltaMoney + ' ISK (' + deltaPrefix + jitaDeltaPercent.toFixed(1) + '%) vs Jita';
+
+                    if (order.days_until_expiry !== null && typeof order.days_until_expiry !== 'undefined') {
+                        if (order.days_until_expiry < 0) {
+                            expiryText += ' (' + numberWithCommas(Math.abs(order.days_until_expiry)) + 'd ago)';
+                        } else {
+                            expiryText += ' (' + numberWithCommas(order.days_until_expiry) + 'd)';
+                        }
+                    }
+
+                    $body.append(
+                        '<tr>' +
+                            '<td data-order="' + escapeHtml(order.character_name || ('Character #' + order.character_id)) + '">' +
+                                '<div class="edit-target-order-character">' +
+                                    (portraitUrl ? '<img src="' + escapeHtml(portraitUrl) + '" alt="' + escapeHtml((order.character_name || 'Character') + ' portrait') + '">' : '') +
+                                    '<div>' +
+                                        '<div class="edit-target-order-character-name">' + escapeHtml(order.character_name || ('Character #' + order.character_id)) + '</div>' +
+                                        '<div class="edit-target-order-character-main">' + escapeHtml(mainCharacterText) + '</div>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</td>' +
+                            '<td class="text-right" data-order="' + parseInt(order.quantity_remaining || 0, 10) + '">' + numberWithCommas(order.quantity_remaining) +
+                                '<span class="text-muted"> / ' + numberWithCommas(order.quantity_total) + '</span></td>' +
+                            '<td class="text-right" data-order="' + parseFloat(order.price || 0) + '">' +
+                                '<div>' + formatMoney(order.price) + '</div>' +
+                                '<div class="edit-target-order-jita-delta' + deltaClass + '">' + escapeHtml(deltaText) + '</div>' +
+                            '</td>' +
+                            '<td class="' + expiryClass + '" data-order="' + (order.days_until_expiry === null || typeof order.days_until_expiry === 'undefined' ? 999999 : parseInt(order.days_until_expiry, 10)) + '">' + escapeHtml(expiryText) + '</td>' +
+                        '</tr>'
+                    );
+                });
+
+                if ($table.length && $.fn.DataTable) {
+                    historyItemDetailSellOrdersTable = $table.DataTable({
+                        order: [[2, 'asc']],
+                        pageLength: 5,
+                        lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'All']],
+                        searching: true,
+                        info: true,
+                        autoWidth: false,
+                        deferRender: true,
+                        language: {
+                            emptyTable: 'No active character sell orders found for this item at this location.',
+                            zeroRecords: 'No sell orders match this search.'
+                        }
+                    });
+                }
+            }
+
             function renderTargetTrend(trend) {
                 trend = trend || {};
                 var labels = trend.labels || [];
@@ -1911,6 +2097,7 @@
                     renderTargetDetails({});
                     renderTargetTrend({});
                     renderSourceDetails({});
+                    renderSellOrders([]);
                     $body.html('<tr><td colspan="5" class="text-muted">No transition history is available for this item.</td></tr>');
                     renderTargetChangeHistory([]);
                     return;
@@ -1929,6 +2116,7 @@
                     renderTargetDetails(response.details || {});
                     renderTargetTrend(response.trend || {});
                     renderSourceDetails(response.source_details || {});
+                    renderSellOrders(response.sell_orders || []);
                     renderTargetChangeHistory(response.target_history || []);
 
                     if (!events.length) {

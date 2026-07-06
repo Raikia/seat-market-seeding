@@ -33,6 +33,20 @@ trait CreatesDatabaseSchema
             $table->unsignedInteger('user_id');
         });
 
+        Schema::create('refresh_tokens', function (Blueprint $table) {
+            $table->bigInteger('character_id')->primary();
+            $table->unsignedInteger('user_id')->nullable();
+            $table->integer('version')->default(2);
+            $table->string('character_owner_hash')->nullable();
+            $table->text('refresh_token')->nullable();
+            $table->string('scopes_profile')->nullable();
+            $table->text('scopes')->nullable();
+            $table->timestamp('expires_on')->nullable();
+            $table->text('token')->nullable();
+            $table->softDeletes();
+            $table->timestamps();
+        });
+
         Schema::create('global_settings', function (Blueprint $table) {
             $table->increments('id');
             $table->string('name')->index();
@@ -257,8 +271,35 @@ trait CreatesDatabaseSchema
             $table->bigInteger('type_id')->index();
             $table->integer('volume_remaining')->unsigned()->default(0);
             $table->double('price')->default(0);
-            $table->boolean('is_buy_order')->default(false);
+            $table->boolean('is_buy_order')->nullable()->default(false);
             $table->timestamps();
+        });
+
+        Schema::create('character_infos', function (Blueprint $table) {
+            $table->bigInteger('character_id')->primary();
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('character_orders', function (Blueprint $table) {
+            $table->bigInteger('character_id');
+            $table->bigInteger('order_id');
+            $table->integer('type_id');
+            $table->integer('region_id')->default(10000002);
+            $table->bigInteger('location_id');
+            $table->string('range')->default('station');
+            $table->boolean('is_buy_order')->nullable()->default(false);
+            $table->double('price');
+            $table->integer('volume_total');
+            $table->integer('volume_remain');
+            $table->dateTime('issued');
+            $table->integer('min_volume')->nullable();
+            $table->integer('duration');
+            $table->boolean('is_corporation')->default(false);
+            $table->double('escrow')->nullable();
+            $table->string('state')->default('active');
+            $table->timestamps();
+            $table->primary(['character_id', 'order_id']);
         });
 
         Schema::create('market_prices', function (Blueprint $table) {
@@ -274,6 +315,8 @@ trait CreatesDatabaseSchema
     {
         foreach ([
             'market_prices',
+            'character_orders',
+            'character_infos',
             'market_orders',
             'invTypes',
             'invGroups',
@@ -291,6 +334,7 @@ trait CreatesDatabaseSchema
             'seat_market_seeding_items',
             'seat_market_seeding_markets',
             'global_settings',
+            'refresh_tokens',
             'role_user',
             'roles',
             'users',

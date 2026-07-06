@@ -89,6 +89,34 @@
                         <div class="text-muted">Loading source details...</div>
                     </div>
                 </div>
+                @if($canViewMarketOrderOwners ?? false)
+                    <div class="edit-target-orders-panel">
+                        <div class="edit-target-source-header">
+                            <div>
+                                <div class="edit-target-source-title">Active Sell Orders</div>
+                                <div class="edit-target-source-meta">Character-owned sell orders for this tracked item at this market location.</div>
+                            </div>
+                            <span class="badge badge-info" id="market-seeding-detail-sell-order-count">0 orders</span>
+                        </div>
+                        <div class="modal-history-table modal-sell-orders-table">
+                            <table class="table table-sm table-hover mb-0" id="market-seeding-detail-sell-orders-table">
+                                <thead>
+                                    <tr>
+                                        <th>Character</th>
+                                        <th class="text-right">Remaining</th>
+                                        <th class="text-right">Price</th>
+                                        <th>Expires</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="market-seeding-detail-sell-orders">
+                                    <tr>
+                                        <td colspan="4" class="text-muted">Loading active sell orders...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
                 <div class="edit-target-workspace">
                     <div class="edit-target-panel" id="market-seeding-edit-target-adjust-panel">
                         <div class="edit-target-panel-title">Adjust Target</div>

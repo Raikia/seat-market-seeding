@@ -916,6 +916,7 @@ class SettingsController extends Controller
         return [
             'id' => $item->id,
             'market_id' => $item->market_id,
+            'type_id' => $item->type_id,
             'type_name' => $item->type_name,
             'type_category' => $item->typeCategoryName(),
             'desired_quantity' => $item->desired_quantity,

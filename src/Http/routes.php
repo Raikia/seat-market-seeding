@@ -20,6 +20,12 @@ Route::group([
         'uses' => 'MarketSeedingController@historyTransitions',
     ]);
 
+    Route::get('/seeders', [
+        'as' => 'market-seeding.seeders',
+        'uses' => 'MarketSeedingController@seeders',
+        'middleware' => 'can:seat-market-seeding.seeders',
+    ]);
+
     Route::get('/items/{item}/history', [
         'as' => 'market-seeding.items.history',
         'uses' => 'MarketSeedingController@itemHistory',

@@ -409,7 +409,7 @@ class MarketStockReport
             ->map(fn ($quantity) => (int) $quantity);
     }
 
-    private function packagedVolumes(Collection $typeIds): Collection
+    public function packagedVolumes(Collection $typeIds): Collection
     {
         if ($typeIds->isEmpty()) {
             return collect();

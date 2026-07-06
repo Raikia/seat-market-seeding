@@ -10,7 +10,10 @@ use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingSettings;
+use Raikia\SeatMarketSeeding\Services\MarketOrderExpiryWarnings;
 use Raikia\SeatMarketSeeding\Services\MarketStockReport;
+use Raikia\SeatMarketSeeding\Services\MarketTargetRecommendations;
+use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
 use Raikia\SeatMarketSeeding\Tests\TestCase;
 
 class MarketSeedingControllerTest extends TestCase
@@ -432,6 +435,95 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertFalse((bool) $topSoldItem->recommendation_differs);
     }
 
+    public function test_settings_recommendation_payload_includes_latest_current_stock(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 3244,
+            'type_name' => 'Warp Scrambler II',
+            'desired_quantity' => 10,
+            'warning_quantity' => 3,
+        ]);
+
+        foreach (range(6, 0) as $daysAgo) {
+            MarketStockDailySummary::create([
+                'summary_date' => now()->subDays($daysAgo)->toDateString(),
+                'market_id' => $market->id,
+                'item_id' => $item->id,
+                'type_id' => $item->type_id,
+                'market_name' => $market->name,
+                'location_name' => $market->location_name,
+                'type_name' => $item->type_name,
+                'type_category' => 'Modules',
+                'estimated_sold_quantity' => 10,
+                'sales_events' => 1,
+                'latest_current_quantity' => $daysAgo === 0 ? 4 : 9,
+                'latest_desired_quantity' => 10,
+                'latest_warning_quantity' => 3,
+            ]);
+        }
+
+        $service = app(MarketTargetRecommendations::class);
+        $recommendations = $service->forMarkets(
+            collect([$market]),
+            14,
+            25,
+            app(MarketStockReport::class)
+        );
+        $payload = $service->payload($recommendations[$market->id]->first());
+
+        $this->assertSame(4, $payload['current_stock_quantity']);
+        $this->assertSame(175, $payload['recommended_quantity']);
+    }
+
+    public function test_apply_recommendations_returns_updated_item_payloads(): void
+    {
+        $market = $this->createMarket();
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 3244,
+            'type_name' => 'Warp Scrambler II',
+            'desired_quantity' => 10,
+            'warning_quantity' => 3,
+        ]);
+
+        foreach (range(6, 0) as $daysAgo) {
+            MarketStockDailySummary::create([
+                'summary_date' => now()->subDays($daysAgo)->toDateString(),
+                'market_id' => $market->id,
+                'item_id' => $item->id,
+                'type_id' => $item->type_id,
+                'market_name' => $market->name,
+                'location_name' => $market->location_name,
+                'type_name' => $item->type_name,
+                'type_category' => 'Modules',
+                'estimated_sold_quantity' => 10,
+                'sales_events' => 1,
+                'latest_current_quantity' => 4,
+                'latest_desired_quantity' => 10,
+                'latest_warning_quantity' => 3,
+            ]);
+        }
+
+        $request = Request::create('/market-seeding/settings/recommendations/apply', 'POST', [
+            'item_ids' => [$item->id],
+        ]);
+        app()->instance('request', $request);
+
+        $response = app(MarketSeedingController::class)->applyRecommendations(
+            $request,
+            app(MarketSeedingSettings::class),
+            app(StockTargetProjector::class)
+        );
+        $payload = $response->getData(true);
+
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame($item->id, $payload['items'][0]['id']);
+        $this->assertSame(175, $payload['items'][0]['desired_quantity']);
+        $this->assertSame(53, $payload['items'][0]['warning_quantity']);
+    }
+
     public function test_item_history_includes_source_details(): void
     {
         $market = $this->createMarket();
@@ -466,6 +558,393 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertFalse($payload['source_details']['flags']['doctrine']);
         $this->assertSame('Manual add', $payload['source_details']['manual'][0]['label']);
         $this->assertSame(25, $payload['source_details']['manual'][0]['quantity']);
+    }
+
+    public function test_item_history_returns_active_character_sell_orders_for_seeders(): void
+    {
+        $market = $this->createMarket(['location_id' => 60000001]);
+        $item = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 2048,
+            'type_name' => 'Damage Control II',
+            'desired_quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+
+        auth()->user()->update(['main_character_id' => 90000002]);
+        DB::table('character_infos')->insert([
+            [
+                'character_id' => 90000001,
+                'name' => 'Market Alt',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000002,
+                'name' => 'Main Pilot',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000003,
+                'name' => 'Higher Price Alt',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+        DB::table('refresh_tokens')->insert([
+            'character_id' => 90000001,
+            'user_id' => auth()->id(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('market_orders')->insert([
+            'location_id' => MarketStockReport::JITA_STATION_ID,
+            'type_id' => 2048,
+            'price' => 1200000,
+            'volume_remaining' => 50,
+            'is_buy_order' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('character_orders')->insert([
+            [
+                'character_id' => 90000001,
+                'order_id' => 70000001,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => null,
+                'price' => 1250000,
+                'volume_total' => 10,
+                'volume_remain' => 4,
+                'issued' => now()->subDays(2),
+                'duration' => 7,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 70000002,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => true,
+                'price' => 1000000,
+                'volume_total' => 10,
+                'volume_remain' => 10,
+                'issued' => now()->subDays(1),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 70000003,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 1300000,
+                'volume_total' => 10,
+                'volume_remain' => 10,
+                'issued' => now()->subDays(1),
+                'duration' => 90,
+                'state' => 'cancelled',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000003,
+                'order_id' => 70000004,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 1400000,
+                'volume_total' => 10,
+                'volume_remain' => 9,
+                'issued' => now()->subDays(1),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = app(MarketSeedingController::class)->itemHistory(
+            Request::create('/market-seeding/items/' . $item->id . '/history', 'GET'),
+            $item,
+            app(MarketStockReport::class)
+        );
+        $payload = $response->getData(true);
+
+        $this->assertCount(2, $payload['sell_orders']);
+        $this->assertSame('Market Alt', $payload['sell_orders'][0]['character_name']);
+        $this->assertSame('https://images.evetech.net/characters/90000001/portrait?size=64', $payload['sell_orders'][0]['character_portrait_url']);
+        $this->assertSame(90000002, $payload['sell_orders'][0]['main_character_id']);
+        $this->assertSame('Main Pilot', $payload['sell_orders'][0]['main_character_name']);
+        $this->assertSame(4, $payload['sell_orders'][0]['quantity_remaining']);
+        $this->assertSame(10, $payload['sell_orders'][0]['quantity_total']);
+        $this->assertEquals(1250000.0, $payload['sell_orders'][0]['price']);
+        $this->assertEquals(1200000.0, $payload['sell_orders'][0]['jita_price']);
+        $this->assertEquals(50000.0, $payload['sell_orders'][0]['jita_delta']);
+        $this->assertEqualsWithDelta(4.17, $payload['sell_orders'][0]['jita_delta_percent'], 0.01);
+        $this->assertSame(5, $payload['sell_orders'][0]['days_until_expiry']);
+        $this->assertSame('Higher Price Alt', $payload['sell_orders'][1]['character_name']);
+        $this->assertEquals(1400000.0, $payload['sell_orders'][1]['price']);
+    }
+
+    public function test_seeders_groups_active_tracked_sell_orders_by_main_character_per_market(): void
+    {
+        $this->seedSde();
+        $this->seedType(2048, 'Damage Control II', ['volume' => 5]);
+        $this->seedType(4096, 'ECCM Script', ['volume' => 0.01]);
+        $market = $this->createMarket(['location_id' => 60000001, 'name' => 'Home']);
+        $otherMarket = $this->createMarket(['location_id' => 60000002, 'name' => 'Forward']);
+        $homeItem = SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 2048,
+            'type_name' => 'Damage Control II',
+            'desired_quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+        SeededMarketItem::create([
+            'market_id' => $otherMarket->id,
+            'type_id' => 4096,
+            'type_name' => 'ECCM Script',
+            'desired_quantity' => 30,
+            'warning_quantity' => 10,
+        ]);
+
+        auth()->user()->update(['main_character_id' => 90000002]);
+        DB::table('users')->insert([
+            'id' => 2,
+            'name' => 'other',
+            'main_character_id' => 90000005,
+            'active' => true,
+            'admin' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('character_infos')->insert([
+            ['character_id' => 90000001, 'name' => 'Market Alt A', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000002, 'name' => 'Main Pilot', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000003, 'name' => 'Market Alt B', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000004, 'name' => 'Other Alt', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000005, 'name' => 'Other Main', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('refresh_tokens')->insert([
+            ['character_id' => 90000001, 'user_id' => auth()->id(), 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000003, 'user_id' => auth()->id(), 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000004, 'user_id' => 2, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('character_orders')->insert([
+            [
+                'character_id' => 90000001,
+                'order_id' => 80000001,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => null,
+                'price' => 100,
+                'volume_total' => 20,
+                'volume_remain' => 10,
+                'issued' => now(),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000003,
+                'order_id' => 80000002,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 200,
+                'volume_total' => 20,
+                'volume_remain' => 5,
+                'issued' => now(),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000004,
+                'order_id' => 80000003,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 50,
+                'volume_total' => 20,
+                'volume_remain' => 4,
+                'issued' => now(),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 80000004,
+                'type_id' => 9999,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 999999,
+                'volume_total' => 1,
+                'volume_remain' => 1,
+                'issued' => now(),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 80000005,
+                'type_id' => 4096,
+                'location_id' => 60000002,
+                'is_buy_order' => false,
+                'price' => 25,
+                'volume_total' => 30,
+                'volume_remain' => 21,
+                'issued' => now(),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $view = app(MarketSeedingController::class)->seeders(app(MarketStockReport::class));
+        $leaderboards = $view->getData()['leaderboards'];
+        $homeRows = $leaderboards[$market->id]['rows'];
+        $forwardRows = $leaderboards[$otherMarket->id]['rows'];
+
+        $this->assertSame(2, $leaderboards[$market->id]['total_seeders']);
+        $this->assertSame(3, $leaderboards[$market->id]['total_orders']);
+        $this->assertEquals(2200.0, $leaderboards[$market->id]['total_value']);
+        $this->assertEquals(95.0, $leaderboards[$market->id]['total_volume']);
+        $this->assertSame('Main Pilot', $homeRows[0]['main_character_name']);
+        $this->assertEquals(2000.0, $homeRows[0]['total_value']);
+        $this->assertEquals(75.0, $homeRows[0]['total_volume']);
+        $this->assertCount(2, $homeRows[0]['orders']);
+        $this->assertSame('Damage Control II', $homeRows[0]['orders'][0]['item_name']);
+        $this->assertSame($homeItem->id, $homeRows[0]['orders'][0]['item_id']);
+        $this->assertSame(2048, $homeRows[0]['orders'][0]['type_id']);
+        $this->assertSame(route('market-seeding.items.history', $homeItem), $homeRows[0]['orders'][0]['history_url']);
+        $this->assertSame('Market Alt A', $homeRows[0]['orders'][0]['character_name']);
+        $this->assertSame(10, $homeRows[0]['orders'][0]['quantity_remaining']);
+        $this->assertEquals(50.0, $homeRows[0]['orders'][0]['total_volume']);
+        $this->assertSame(2, $homeRows[0]['character_count']);
+        $this->assertSame(['Market Alt A', 'Market Alt B'], $homeRows[0]['characters']);
+        $this->assertSame('Other Main', $homeRows[1]['main_character_name']);
+        $this->assertEquals(200.0, $homeRows[1]['total_value']);
+        $this->assertEquals(20.0, $homeRows[1]['total_volume']);
+        $this->assertSame(1, $forwardRows->count());
+        $this->assertSame('Main Pilot', $forwardRows[0]['main_character_name']);
+        $this->assertEquals(525.0, $forwardRows[0]['total_value']);
+        $this->assertEquals(0.21, $forwardRows[0]['total_volume']);
+    }
+
+    public function test_expiring_order_warning_only_includes_current_users_tracked_sell_orders_expiring_soon(): void
+    {
+        $market = $this->createMarket(['location_id' => 60000001, 'name' => 'Home']);
+        SeededMarketItem::create([
+            'market_id' => $market->id,
+            'type_id' => 2048,
+            'type_name' => 'Damage Control II',
+            'desired_quantity' => 25,
+            'warning_quantity' => 8,
+        ]);
+
+        DB::table('character_infos')->insert([
+            ['character_id' => 90000001, 'name' => 'My Market Alt', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000002, 'name' => 'Other Pilot', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('refresh_tokens')->insert([
+            ['character_id' => 90000001, 'user_id' => auth()->id(), 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 90000002, 'user_id' => 2, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('users')->insert([
+            'id' => 2,
+            'name' => 'other',
+            'active' => true,
+            'admin' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('character_orders')->insert([
+            [
+                'character_id' => 90000001,
+                'order_id' => 81000001,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 1200000,
+                'volume_total' => 10,
+                'volume_remain' => 4,
+                'issued' => now()->subDays(84),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 81000002,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 1100000,
+                'volume_total' => 10,
+                'volume_remain' => 4,
+                'issued' => now()->subDays(30),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000001,
+                'order_id' => 81000003,
+                'type_id' => 9999,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 999,
+                'volume_total' => 1,
+                'volume_remain' => 1,
+                'issued' => now()->subDays(84),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 90000002,
+                'order_id' => 81000004,
+                'type_id' => 2048,
+                'location_id' => 60000001,
+                'is_buy_order' => false,
+                'price' => 1200000,
+                'volume_total' => 10,
+                'volume_remain' => 4,
+                'issued' => now()->subDays(84),
+                'duration' => 90,
+                'state' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $warnings = app(MarketOrderExpiryWarnings::class)->forUser(auth()->user(), 7);
+
+        $this->assertSame(1, $warnings['count']);
+        $this->assertEquals(4800000.0, $warnings['total_value']);
+        $this->assertSame('My Market Alt', $warnings['orders'][0]['character_name']);
+        $this->assertSame('Damage Control II', $warnings['orders'][0]['type_name']);
+        $this->assertSame('Home', $warnings['orders'][0]['market_name']);
+        $this->assertSame(4, $warnings['orders'][0]['quantity_remaining']);
+        $this->assertSame(6, (int) $warnings['orders'][0]['days_until_expiry']);
     }
 
     public function test_listing_helper_prices_resolve_local_and_jita_prices(): void

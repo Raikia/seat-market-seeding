@@ -2,9 +2,11 @@
 
 namespace Raikia\SeatMarketSeeding;
 
+use Illuminate\Support\Facades\View;
 use Raikia\SeatMarketSeeding\Console\Commands\RefreshMarketSeedingMarkets;
 use Raikia\SeatMarketSeeding\Database\Seeders\ProfileSeeder;
 use Raikia\SeatMarketSeeding\Database\Seeders\ScheduleSeeder;
+use Raikia\SeatMarketSeeding\Services\MarketOrderExpiryWarnings;
 use Seat\Services\AbstractSeatPlugin;
 
 class MarketSeedingServiceProvider extends AbstractSeatPlugin
@@ -22,6 +24,7 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
         $this->loadMigrationsFrom(__DIR__ . '/database/migrations');
         $this->registerPermissions(__DIR__ . '/Config/market-seeding.permissions.php', 'seat-market-seeding');
         $this->registerCommands();
+        $this->shareExpiringOrderWarnings();
     }
 
     /**
@@ -107,6 +110,21 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
                 RefreshMarketSeedingMarkets::class,
             ]);
         }
+    }
+
+    private function shareExpiringOrderWarnings()
+    {
+        View::composer([
+            'seat-market-seeding::index',
+            'seat-market-seeding::history',
+            'seat-market-seeding::seeders',
+            'seat-market-seeding::settings',
+        ], function ($view) {
+            $view->with(
+                'marketSeedingExpiringOrders',
+                $this->app->make(MarketOrderExpiryWarnings::class)->forUser(auth()->user())
+            );
+        });
     }
 
 }
