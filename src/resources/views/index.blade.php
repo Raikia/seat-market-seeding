@@ -706,8 +706,8 @@
             <div class="info-box">
                 <span class="info-box-icon bg-danger"><i class="fas fa-exclamation-triangle"></i></span>
                 <div class="info-box-content">
-                    <span class="info-box-text">Missing Lines</span>
-                    <span class="info-box-number">{{ $whole($totals['missing_lines']) }}</span>
+                    <span class="info-box-text">Empty/Low Status</span>
+                    <span class="info-box-number">{{ $whole($totals['empty_lines']) }} / {{ $whole($totals['low_lines']) }}</span>
                 </div>
             </div>
         </div>
@@ -850,7 +850,7 @@
                             <span class="badge {{ $healthBadge }} market-seeding-health-badge" data-toggle="tooltip" title="{{ $healthTooltip }}">Health <span data-market-metric="header-health">{{ $percent($healthScore) }}</span></span>
                         </h3>
                         <small class="text-muted card-subtitle">
-                            Missing <span data-market-metric="header-missing">{{ $whole($marketReport['totals']['missing_lines']) }}</span> line(s) &middot;
+                            Empty/Low <span data-market-metric="header-empty">{{ $whole($marketReport['totals']['empty_lines']) }}</span> / <span data-market-metric="header-low">{{ $whole($marketReport['totals']['low_lines']) }}</span> line(s) &middot;
                             Restock <span data-market-metric="header-restock">{{ $isk($marketReport['totals']['restock_cost']) }}</span> &middot;
                             <span data-market-metric="header-restock-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                         </small>
@@ -910,8 +910,8 @@
                                 <strong><span data-market-metric="restock-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;</strong>
                             </div>
                             <div class="market-seeding-metric">
-                                <span>Missing</span>
-                                <strong><span data-market-metric="missing">{{ $whole($marketReport['totals']['missing_lines']) }}</span> lines</strong>
+                                <span>Empty/Low Status</span>
+                                <strong><span data-market-metric="empty">{{ $whole($marketReport['totals']['empty_lines']) }}</span> / <span data-market-metric="low">{{ $whole($marketReport['totals']['low_lines']) }}</span> lines</strong>
                             </div>
                         </div>
 
@@ -1676,13 +1676,11 @@
                         seededValue: 0,
                         desiredValue: 0,
                         restockCost: 0,
-                        restockVolume: 0,
-                        missingLines: 0
+                        restockVolume: 0
                     };
 
                     rows.each(function () {
                         var $row = $(this);
-                        var missingQuantity = Number($row.data('missing-quantity') || 0);
                         var stockStatus = String($row.data('stock-status') || '');
 
                         totals.trackedLines++;
@@ -1692,7 +1690,6 @@
                         totals.desiredValue += Number($row.data('desired-value') || 0);
                         totals.restockCost += Number($row.data('restock-cost') || 0);
                         totals.restockVolume += Number($row.data('restock-volume') || 0);
-                        totals.missingLines += missingQuantity > 0 ? 1 : 0;
                     });
 
                     var health = healthScoreFromLines(totals.lowLines, totals.emptyLines, totals.trackedLines);
@@ -1702,7 +1699,8 @@
                     $card.find('[data-market-metric="target"]').text(formatMetricMoney(totals.desiredValue));
                     $card.find('[data-market-metric="restock"]').text(formatMetricMoney(totals.restockCost));
                     $card.find('[data-market-metric="restock-volume"], [data-market-metric="header-restock-volume"]').text(formatDecimal(totals.restockVolume));
-                    $card.find('[data-market-metric="missing"], [data-market-metric="header-missing"]').text(numberWithCommas(totals.missingLines));
+                    $card.find('[data-market-metric="empty"], [data-market-metric="header-empty"]').text(numberWithCommas(totals.emptyLines));
+                    $card.find('[data-market-metric="low"], [data-market-metric="header-low"]').text(numberWithCommas(totals.lowLines));
                     $card.find('[data-market-metric="header-restock"]').text(formatMetricMoney(totals.restockCost));
                     updateMarketHealthBadge($card.find('.market-seeding-health-badge'), health);
                 });
