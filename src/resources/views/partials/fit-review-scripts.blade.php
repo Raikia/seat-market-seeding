@@ -40,6 +40,31 @@
             return groups;
         }
 
+        function combineMatchingItems(items) {
+            var combined = {};
+            var ordered = [];
+
+            $.each(items || [], function (index, item) {
+                var key = String(item.type_id || 0) + ':' + String(item.type_name || '');
+                var quantity = parseInt(item.quantity || 0, 10);
+
+                if (isNaN(quantity)) {
+                    quantity = 0;
+                }
+
+                if (!combined[key]) {
+                    combined[key] = $.extend({}, item, {
+                        quantity: 0
+                    });
+                    ordered.push(combined[key]);
+                }
+
+                combined[key].quantity += quantity;
+            });
+
+            return ordered;
+        }
+
         function fitInfoButton(options, typeId, typeName) {
             if (typeof options.infoButton !== 'function') {
                 return '';
@@ -74,7 +99,7 @@
 
                 slotGroups += '<div class="market-seeding-fit-slot-group">' +
                     '<div class="market-seeding-fit-slot-group-title">' + escapeHtml(labels[groupName] || groupName) + '</div>' +
-                    $.map(items, function (item) {
+                    $.map(combineMatchingItems(items), function (item) {
                         var iconUrl = typeIconUrl(item.type_id, 32);
                         var icon = iconUrl
                             ? '<img src="' + escapeAttr(iconUrl) + '" alt="' + escapeAttr((item.type_name || 'Item') + ' icon') + '" class="market-seeding-fit-item-icon">'
