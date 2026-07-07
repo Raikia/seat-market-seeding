@@ -141,6 +141,7 @@ class MarketSeedingController extends Controller
         $typeIds = $types->pluck('typeID')->map(fn ($typeId) => (int) $typeId)->values();
         $localPrices = $this->listingHelperSellPrices($market->location_id, $typeIds);
         $jitaPrices = $this->listingHelperSellPrices(MarketStockReport::JITA_STATION_ID, $typeIds);
+        $ownSellOrders = $this->listingHelperOwnSellOrders($market, $typeIds);
         $fallbackPrices = Price::query()
             ->whereIn('type_id', $typeIds)
             ->get()
@@ -150,7 +151,7 @@ class MarketSeedingController extends Controller
                 ];
             });
 
-        $prices = $names->mapWithKeys(function ($name) use ($typesByName, $localPrices, $jitaPrices, $fallbackPrices) {
+        $prices = $names->mapWithKeys(function ($name) use ($typesByName, $localPrices, $jitaPrices, $fallbackPrices, $ownSellOrders) {
             $type = $typesByName->get(mb_strtolower($name));
 
             if (!$type) {
@@ -160,10 +161,12 @@ class MarketSeedingController extends Controller
                     'type_name' => $name,
                     'local_price' => null,
                     'jita_price' => null,
+                    'own_sell_orders' => null,
                 ]];
             }
 
             $typeId = (int) $type->typeID;
+            $ownOrders = $ownSellOrders->get($typeId);
 
             return [$name => [
                 'found' => true,
@@ -171,10 +174,67 @@ class MarketSeedingController extends Controller
                 'type_name' => $type->typeName,
                 'local_price' => $localPrices->get($typeId),
                 'jita_price' => $jitaPrices->get($typeId) ?: $fallbackPrices->get($typeId),
+                'own_sell_orders' => $ownOrders ? [
+                    'count' => (int) $ownOrders['count'],
+                    'quantity' => (int) $ownOrders['quantity'],
+                    'lowest_price' => (float) $ownOrders['lowest_price'],
+                    'characters' => collect($ownOrders['characters'])->values()->all(),
+                ] : null,
             ]];
         });
 
         return response()->json(['prices' => $prices]);
+    }
+
+    private function listingHelperOwnSellOrders(SeededMarket $market, $typeIds)
+    {
+        $user = auth()->user();
+
+        if (!$user || collect($typeIds)->isEmpty()) {
+            return collect();
+        }
+
+        $characterIds = RefreshToken::withTrashed()
+            ->where('user_id', $user->id)
+            ->pluck('character_id')
+            ->map(fn ($characterId) => (int) $characterId)
+            ->unique()
+            ->values();
+
+        if ($characterIds->isEmpty()) {
+            return collect();
+        }
+
+        $characterNames = CharacterInfo::query()
+            ->whereIn('character_id', $characterIds)
+            ->pluck('name', 'character_id');
+
+        return CharacterOrder::query()
+            ->whereIn('character_id', $characterIds)
+            ->where('location_id', $market->location_id)
+            ->whereIn('type_id', collect($typeIds)->map(fn ($typeId) => (int) $typeId)->all())
+            ->where(function ($query) {
+                $query->where('is_buy_order', false)
+                    ->orWhereNull('is_buy_order');
+            })
+            ->where('state', 'active')
+            ->where('volume_remain', '>', 0)
+            ->get(['character_id', 'type_id', 'price', 'volume_remain'])
+            ->groupBy(fn (CharacterOrder $order) => (int) $order->type_id)
+            ->map(function ($orders) use ($characterNames) {
+                return [
+                    'count' => $orders->count(),
+                    'quantity' => (int) $orders->sum('volume_remain'),
+                    'lowest_price' => (float) $orders->min('price'),
+                    'characters' => $orders
+                        ->pluck('character_id')
+                        ->unique()
+                        ->map(fn ($characterId) => $characterNames->get($characterId) ?: ('Character #' . $characterId))
+                        ->sort()
+                        ->values()
+                        ->all(),
+                ];
+            });
     }
 
     private function characterSellOrdersForItem(SeededMarketItem $item): array
@@ -333,8 +393,8 @@ class MarketSeedingController extends Controller
                         'order_count' => 0,
                         'characters' => [],
                         'item_types' => [],
-                        'orders' => [],
                         'expiring_order_count' => 0,
+                        'account_key' => $accountKey,
                     ]);
                 }
 
@@ -358,24 +418,6 @@ class MarketSeedingController extends Controller
                     $row['expiring_order_count']++;
                 }
 
-                $row['orders'][] = [
-                    'order_id' => (int) $order->order_id,
-                    'item_id' => $trackedItem ? (int) $trackedItem->id : null,
-                    'type_id' => $typeId,
-                    'character_name' => $characterName,
-                    'item_name' => $typeName,
-                    'market_name' => $market->name,
-                    'location_name' => $market->location_name,
-                    'history_url' => $trackedItem ? route('market-seeding.items.history', $trackedItem) : null,
-                    'quantity_remaining' => (int) $order->volume_remain,
-                    'quantity_total' => (int) $order->volume_total,
-                    'price' => (float) $order->price,
-                    'listed_value' => (int) $order->volume_remain * (float) $order->price,
-                    'total_volume' => $orderVolume,
-                    'expires_at' => $expiresAt ? $expiresAt->format('Y-m-d H:i') : null,
-                    'days_until_expiry' => $daysUntilExpiry,
-                    'expires_soon' => $daysUntilExpiry !== null && $daysUntilExpiry >= 0 && $daysUntilExpiry <= self::EXPIRING_ORDER_WARNING_DAYS,
-                ];
                 $rows->put($accountKey, $row);
             }
 
@@ -393,13 +435,6 @@ class MarketSeedingController extends Controller
                         $row['has_expiring_orders'] = (int) ($row['expiring_order_count'] ?? 0) > 0;
                         $row['characters'] = collect($row['characters'])->sort()->values()->all();
                         $row['item_types'] = collect($row['item_types'])->sort()->values()->take(8)->all();
-                        $row['orders'] = collect($row['orders'])
-                            ->sortBy([
-                                ['item_name', 'asc'],
-                                ['price', 'asc'],
-                            ])
-                            ->values()
-                            ->all();
                         $row['market_share'] = $marketTotalValue > 0 ? ((float) $row['total_value'] / $marketTotalValue) * 100 : 0;
 
                         return $row;
@@ -677,6 +712,140 @@ class MarketSeedingController extends Controller
         $leaderboards = $this->seederLeaderboards($markets, $report);
 
         return view('seat-market-seeding::seeders', compact('markets', 'leaderboards'));
+    }
+
+    public function seederOrders(Request $request, SeededMarket $market, MarketStockReport $report)
+    {
+        abort_unless($this->canViewMarket($market), 403);
+
+        $data = $request->validate([
+            'seeder_key' => 'required|string|max:64',
+        ]);
+
+        $market->load(['items' => function ($query) {
+            $query->select('id', 'market_id', 'type_id', 'type_name');
+        }]);
+
+        $payload = $this->seederOrderPayload($market, $data['seeder_key'], $report);
+
+        abort_if($payload === null, 404);
+
+        return response()->json($payload);
+    }
+
+    private function seederOrderPayload(SeededMarket $market, string $accountKey, MarketStockReport $report): ?array
+    {
+        $trackedItems = $market->items->keyBy(fn (SeededMarketItem $item) => (int) $item->type_id);
+        $typeIds = $trackedItems->keys()->map(fn ($typeId) => (int) $typeId)->values();
+
+        if ($typeIds->isEmpty()) {
+            return null;
+        }
+
+        $characterIds = $this->seederCharacterIdsForAccountKey($accountKey);
+
+        if ($characterIds->isEmpty()) {
+            return null;
+        }
+
+        $packagedVolumes = $report->packagedVolumes($typeIds);
+        $orders = CharacterOrder::query()
+            ->whereIn('character_id', $characterIds)
+            ->where('location_id', $market->location_id)
+            ->whereIn('type_id', $typeIds)
+            ->where(function ($query) {
+                $query->where('is_buy_order', false)
+                    ->orWhereNull('is_buy_order');
+            })
+            ->where('state', 'active')
+            ->where('volume_remain', '>', 0)
+            ->get([
+                'character_id',
+                'order_id',
+                'type_id',
+                'price',
+                'volume_remain',
+                'volume_total',
+                'issued',
+                'duration',
+            ]);
+
+        if ($orders->isEmpty()) {
+            return null;
+        }
+
+        $characterNames = CharacterInfo::query()
+            ->whereIn('character_id', $orders->pluck('character_id')->unique()->values())
+            ->pluck('name', 'character_id');
+        $orders = $orders
+            ->map(function (CharacterOrder $order) use ($market, $trackedItems, $packagedVolumes, $characterNames) {
+                $typeId = (int) $order->type_id;
+                $trackedItem = $trackedItems->get($typeId);
+
+                if (!$trackedItem) {
+                    return null;
+                }
+
+                $issued = $order->issued ? \Carbon\Carbon::parse($order->issued) : null;
+                $expiresAt = $issued ? $issued->copy()->addDays((int) $order->duration) : null;
+                $daysUntilExpiry = $expiresAt ? now()->startOfDay()->diffInDays($expiresAt->copy()->startOfDay(), false) : null;
+                $typeName = $trackedItem->type_name ?: 'Type #' . $typeId;
+
+                return [
+                    'order_id' => (int) $order->order_id,
+                    'item_id' => (int) $trackedItem->id,
+                    'type_id' => $typeId,
+                    'character_name' => $characterNames->get((int) $order->character_id) ?: 'Character #' . (int) $order->character_id,
+                    'item_name' => $typeName,
+                    'market_name' => $market->name,
+                    'location_name' => $market->location_name,
+                    'history_url' => route('market-seeding.items.history', $trackedItem),
+                    'quantity_remaining' => (int) $order->volume_remain,
+                    'quantity_total' => (int) $order->volume_total,
+                    'price' => (float) $order->price,
+                    'listed_value' => (int) $order->volume_remain * (float) $order->price,
+                    'created_value' => (int) $order->volume_total * (float) $order->price,
+                    'total_volume' => (int) $order->volume_remain * (float) $packagedVolumes->get($typeId, 0),
+                    'issued_at' => $issued ? $issued->format('Y-m-d H:i') : null,
+                    'expires_at' => $expiresAt ? $expiresAt->format('Y-m-d H:i') : null,
+                    'days_until_expiry' => $daysUntilExpiry,
+                    'expires_soon' => $daysUntilExpiry !== null && $daysUntilExpiry >= 0 && $daysUntilExpiry <= self::EXPIRING_ORDER_WARNING_DAYS,
+                ];
+            })
+            ->filter()
+            ->sortBy([
+                ['item_name', 'asc'],
+                ['price', 'asc'],
+            ])
+            ->values();
+
+        return [
+            'market' => $market->name,
+            'location' => $market->location_name,
+            'listed_value' => (float) $orders->sum('listed_value'),
+            'total_volume' => (float) $orders->sum('total_volume'),
+            'order_count' => $orders->count(),
+            'tracked_type_count' => $orders->pluck('type_id')->unique()->count(),
+            'orders' => $orders,
+        ];
+    }
+
+    private function seederCharacterIdsForAccountKey(string $accountKey)
+    {
+        if (preg_match('/^user:(\d+)$/', $accountKey, $matches)) {
+            return RefreshToken::withTrashed()
+                ->where('user_id', (int) $matches[1])
+                ->pluck('character_id')
+                ->map(fn ($characterId) => (int) $characterId)
+                ->unique()
+                ->values();
+        }
+
+        if (preg_match('/^character:(\d+)$/', $accountKey, $matches)) {
+            return collect([(int) $matches[1]]);
+        }
+
+        return collect();
     }
 
     public function historyTransitions(Request $request, MarketSeedingSettings $settings)

@@ -13,7 +13,6 @@
         $whole = fn ($value) => number_format((float) $value, 0, '.', ',');
         $volume = fn ($value) => number_format((float) $value, 2, '.', ',') . ' m³';
         $percent = fn ($value) => number_format((float) $value, 1, '.', ',') . '%';
-        $seederOrderPayload = [];
     @endphp
 
     @include('seat-market-seeding::partials.item-detail-modal-styles')
@@ -211,6 +210,35 @@
             margin-top: .15rem;
             overflow-wrap: anywhere;
         }
+        .market-seeding-seeders-shell .seeders-orders-chart-panel {
+            background: linear-gradient(135deg, #f8fbfd 0%, #edf4f8 100%);
+            border: 1px solid #d7dde2;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            padding: .85rem 1rem 1rem;
+        }
+        .market-seeding-seeders-shell .seeders-orders-chart-header {
+            align-items: baseline;
+            display: flex;
+            gap: .75rem;
+            justify-content: space-between;
+            margin-bottom: .65rem;
+        }
+        .market-seeding-seeders-shell .seeders-orders-chart-header h5 {
+            font-size: .85rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        .market-seeding-seeders-shell .seeders-orders-chart-header span {
+            color: #6c757d;
+            font-size: .78rem;
+        }
+        .market-seeding-seeders-shell .seeders-orders-chart-wrap {
+            height: 220px;
+            position: relative;
+        }
         .market-seeding-seeders-shell .seeders-order-item-cell {
             align-items: center;
             display: flex;
@@ -322,9 +350,16 @@
         }
         .market-seeding-dark-skin .seeders-market-stat,
         .market-seeding-dark-skin .seeders-orders-summary-item,
+        .market-seeding-dark-skin .seeders-orders-chart-panel,
         .market-seeding-dark-skin .seeders-empty {
             background: #1f292e;
             border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .seeders-orders-chart-header h5 {
+            color: #f4e7be;
+        }
+        .market-seeding-dark-skin .seeders-orders-chart-header span {
+            color: #b8c7ce;
         }
         .market-seeding-dark-skin .seeders-market-actions .btn-default {
             background: #756f6c;
@@ -485,22 +520,21 @@
                                 </thead>
                                 <tbody>
                                     @foreach($rows as $row)
-                                    @php
-                                        $orderKey = 'market-' . (int) $market->id . '-seeder-' . $loop->index;
-                                        $seederOrderPayload[$orderKey] = [
-                                            'name' => $row['main_character_name'],
-                                            'market' => $market->name,
-                                            'location' => $market->location_name,
-                                            'listed_value' => $row['total_value'],
-                                            'total_volume' => $row['total_volume'],
-                                            'order_count' => $row['order_count'],
-                                            'tracked_type_count' => $row['item_type_count'],
-                                            'orders' => $row['orders'],
-                                        ];
-                                    @endphp
                                     <tr>
                                         <td data-order="{{ $row['main_character_name'] }}">
-                                            <button type="button" class="seeders-person-button js-seeders-orders" data-orders-key="{{ $orderKey }}">
+                                            <button
+                                                type="button"
+                                                class="seeders-person-button js-seeders-orders"
+                                                data-orders-url="{{ route('market-seeding.seeders.orders', $market) }}"
+                                                data-seeder-key="{{ $row['account_key'] }}"
+                                                data-name="{{ $row['main_character_name'] }}"
+                                                data-market="{{ $market->name }}"
+                                                data-location="{{ $market->location_name }}"
+                                                data-listed-value="{{ $row['total_value'] }}"
+                                                data-total-volume="{{ $row['total_volume'] }}"
+                                                data-order-count="{{ $row['order_count'] }}"
+                                                data-tracked-type-count="{{ $row['item_type_count'] }}"
+                                            >
                                                 <div class="seeders-person">
                                                     <img src="{{ $row['portrait_url'] }}" alt="{{ $row['main_character_name'] }} portrait">
                                                     <div>
@@ -579,6 +613,15 @@
                                 <strong id="seedersOrdersTypes">0</strong>
                             </div>
                         </div>
+                        <div class="seeders-orders-chart-panel">
+                            <div class="seeders-orders-chart-header">
+                                <h5>Orders Created Over Time</h5>
+                                <span>Total order value by issue date</span>
+                            </div>
+                            <div class="seeders-orders-chart-wrap">
+                                <canvas id="seedersOrdersCreatedChart"></canvas>
+                            </div>
+                        </div>
                         <table class="table table-sm table-hover" id="seedersOrdersTable">
                             <thead>
                                 <tr>
@@ -612,8 +655,8 @@
         $(function () {
             @include('seat-market-seeding::partials.item-detail-modal-readonly-scripts')
 
-            var seederOrders = @json($seederOrderPayload);
             var activeSeederOrders = [];
+            var seedersOrdersCreatedChart = null;
             var formatNumber = function (value, decimals) {
                 return Number(value || 0).toLocaleString(undefined, {
                     minimumFractionDigits: decimals,
@@ -630,6 +673,23 @@
             };
             var formatVolume = function (value) {
                 return formatNumber(value, 2) + ' m³';
+            };
+            var compactIsk = function (value) {
+                value = Number(value || 0);
+
+                if (Math.abs(value) >= 1000000000000) {
+                    return formatNumber(value / 1000000000000, 2) + 'T ISK';
+                }
+
+                if (Math.abs(value) >= 1000000000) {
+                    return formatNumber(value / 1000000000, 2) + 'B ISK';
+                }
+
+                if (Math.abs(value) >= 1000000) {
+                    return formatNumber(value / 1000000, 2) + 'M ISK';
+                }
+
+                return formatIsk(value);
             };
             var escapeHtml = function (value) {
                 return $('<div>').text(value || '').html();
@@ -669,49 +729,107 @@
 
                 openDetails();
             };
+            var ordersCreatedSeries = function (orders) {
+                var totals = {};
 
-            if ($.fn.DataTable) {
-                $('.market-seeding-seeders-table').DataTable({
-                    order: [[1, 'desc']],
-                    pageLength: 10,
-                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
-                    searching: true,
-                    info: true,
-                    autoWidth: false,
-                    deferRender: true,
-                    language: {
-                        emptyTable: 'No active tracked sell orders were found for this market.',
-                        zeroRecords: 'No seeders match this search.'
+                (orders || []).forEach(function (order) {
+                    if (!order.issued_at) {
+                        return;
                     }
+
+                    var date = String(order.issued_at).slice(0, 10);
+                    var value = Number(order.created_value || 0);
+                    totals[date] = (totals[date] || 0) + value;
                 });
-            }
 
-            $('.market-seeding-seeders-shell .collapse').on('shown.bs.collapse', function () {
-                if ($.fn.DataTable) {
-                    $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+                return Object.keys(totals).sort().map(function (date) {
+                    return {
+                        date: date,
+                        value: totals[date]
+                    };
+                });
+            };
+            var renderOrdersCreatedChart = function (orders) {
+                var canvas = document.getElementById('seedersOrdersCreatedChart');
+
+                if (seedersOrdersCreatedChart) {
+                    seedersOrdersCreatedChart.destroy();
+                    seedersOrdersCreatedChart = null;
                 }
-            });
 
-            $('.js-seeders-orders').on('click', function () {
-                var payload = seederOrders[$(this).data('orders-key')];
-
-                if (!payload) {
+                if (!canvas || !window.Chart) {
                     return;
                 }
 
-                var $table = $('#seedersOrdersTable');
+                var series = ordersCreatedSeries(orders);
+                var isDark = $('.market-seeding-seeders-shell').hasClass('market-seeding-dark-skin');
+                var gridColor = isDark ? 'rgba(244, 231, 190, .14)' : 'rgba(0, 0, 0, .08)';
+                var tickColor = isDark ? '#b8c7ce' : '#6c757d';
 
-                if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
-                    $table.DataTable().destroy();
-                }
-
-                $('#seedersOrdersModalTitle').text(payload.name + ' Tracked Orders');
-                $('#seedersOrdersModalSubtitle').text(payload.market + ' - ' + payload.location);
-                $('#seedersOrdersListedValue').text(formatIsk(payload.listed_value));
-                $('#seedersOrdersVolume').text(formatVolume(payload.total_volume));
-                $('#seedersOrdersCount').text(formatWhole(payload.order_count));
-                $('#seedersOrdersTypes').text(formatWhole(payload.tracked_type_count));
-                activeSeederOrders = payload.orders || [];
+                seedersOrdersCreatedChart = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: series.map(function (point) {
+                            return point.date;
+                        }),
+                        datasets: [{
+                            label: 'Created order value',
+                            data: series.map(function (point) {
+                                return point.value;
+                            }),
+                            backgroundColor: isDark ? 'rgba(123, 223, 242, .55)' : 'rgba(23, 162, 184, .45)',
+                            borderColor: isDark ? '#7bdff2' : '#17a2b8',
+                            lineTension: .25,
+                            borderWidth: 1,
+                            fill: true,
+                            pointBackgroundColor: isDark ? '#7bdff2' : '#17a2b8',
+                            pointBorderColor: isDark ? '#1f292e' : '#fff',
+                            pointHoverRadius: 5,
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        legend: {
+                            display: false
+                        },
+                        tooltips: {
+                            callbacks: {
+                                label: function (tooltipItem) {
+                                    return 'Created: ' + formatIsk(tooltipItem.yLabel);
+                                }
+                            }
+                        },
+                        scales: {
+                            xAxes: [{
+                                gridLines: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    fontColor: tickColor,
+                                    maxRotation: 45,
+                                    minRotation: 0
+                                }
+                            }],
+                            yAxes: [{
+                                gridLines: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    beginAtZero: true,
+                                    fontColor: tickColor,
+                                    callback: function (value) {
+                                        return compactIsk(value).replace(' ISK', '');
+                                    }
+                                }
+                            }]
+                        }
+                    }
+                });
+            };
+            var renderSeederOrdersTable = function ($table, orders) {
+                activeSeederOrders = orders || [];
                 $table.find('tbody').html(activeSeederOrders.map(function (order, index) {
                     var expires = order.expires_at ? escapeHtml(order.expires_at + ' (' + order.days_until_expiry + 'd)') : '-';
                     var expiresClass = order.expires_soon ? ' class="seeders-order-expires-soon"' : '';
@@ -737,8 +855,6 @@
                     '</tr>';
                 }).join(''));
 
-                $('#seedersOrdersModal').modal('show');
-
                 if ($.fn.DataTable) {
                     $table.DataTable({
                         order: [[4, 'desc']],
@@ -750,12 +866,82 @@
                         deferRender: true
                     });
                 }
+            };
+
+            if ($.fn.DataTable) {
+                $('.market-seeding-seeders-table').DataTable({
+                    order: [[1, 'desc']],
+                    pageLength: 10,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                    searching: true,
+                    info: true,
+                    autoWidth: false,
+                    deferRender: true,
+                    language: {
+                        emptyTable: 'No active tracked sell orders were found for this market.',
+                        zeroRecords: 'No seeders match this search.'
+                    }
+                });
+            }
+
+            $('.market-seeding-seeders-shell .collapse').on('shown.bs.collapse', function () {
+                if ($.fn.DataTable) {
+                    $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+                }
+            });
+
+            $('.js-seeders-orders').on('click', function () {
+                var $button = $(this);
+                var $table = $('#seedersOrdersTable');
+
+                if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
+                    $table.DataTable().destroy();
+                }
+
+                activeSeederOrders = [];
+                $('#seedersOrdersModalTitle').text($button.data('name') + ' Tracked Orders');
+                $('#seedersOrdersModalSubtitle').text($button.data('market') + ' - ' + $button.data('location'));
+                $('#seedersOrdersListedValue').text(formatIsk($button.data('listed-value')));
+                $('#seedersOrdersVolume').text(formatVolume($button.data('total-volume')));
+                $('#seedersOrdersCount').text(formatWhole($button.data('order-count')));
+                $('#seedersOrdersTypes').text(formatWhole($button.data('tracked-type-count')));
+                $table.find('tbody').html('<tr><td colspan="7" class="text-muted">Loading tracked orders...</td></tr>');
+
+                $('#seedersOrdersModal')
+                    .one('shown.bs.modal', function () {
+                        renderOrdersCreatedChart(activeSeederOrders);
+                    })
+                    .modal('show');
+
+                $.getJSON($button.data('orders-url'), {
+                    seeder_key: $button.data('seeder-key')
+                }).done(function (payload) {
+                    if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
+                        $table.DataTable().destroy();
+                    }
+
+                    $('#seedersOrdersListedValue').text(formatIsk(payload.listed_value));
+                    $('#seedersOrdersVolume').text(formatVolume(payload.total_volume));
+                    $('#seedersOrdersCount').text(formatWhole(payload.order_count));
+                    $('#seedersOrdersTypes').text(formatWhole(payload.tracked_type_count));
+                    renderSeederOrdersTable($table, payload.orders || []);
+                    renderOrdersCreatedChart(activeSeederOrders);
+                }).fail(function () {
+                    $table.find('tbody').html('<tr><td colspan="7" class="text-danger">Could not load tracked orders for this seeder.</td></tr>');
+                });
             });
 
             $('#seedersOrdersTable').on('click', '.js-seeders-order-item-details', function () {
                 var index = parseInt($(this).data('order-index'), 10);
 
                 openSeederItemDetails(activeSeederOrders[index]);
+            });
+
+            $('#seedersOrdersModal').on('hidden.bs.modal', function () {
+                if (seedersOrdersCreatedChart) {
+                    seedersOrdersCreatedChart.destroy();
+                    seedersOrdersCreatedChart = null;
+                }
             });
         });
     </script>

@@ -8,6 +8,7 @@ use Raikia\SeatMarketSeeding\Services\DoctrineTrackingSync;
 use Raikia\SeatMarketSeeding\Services\EsiMarketOrderRefresh;
 use Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll;
 use Raikia\SeatMarketSeeding\Services\MarketStockTransitionNotifier;
+use Raikia\SeatMarketSeeding\Services\SavedFittingTrackingSync;
 use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Raikia\SeatMarketSeeding\Tests\TestCase;
 use Seat\Eveapi\Models\RefreshToken;
@@ -172,5 +173,105 @@ class MarketSeedingRefreshAllTest extends TestCase
         $this->assertSame(['Home: ESI denied access to this market endpoint.'], $results['errors']);
         $this->assertSame('error', $market->fresh()->last_refresh_status);
         $this->assertSame('ESI denied access to this market endpoint.', $market->fresh()->last_refresh_message);
+    }
+
+    public function test_structure_markets_use_their_configured_refresh_character_tokens(): void
+    {
+        DB::table('character_infos')->insert([
+            ['character_id' => 1001, 'name' => 'First Seeder', 'created_at' => now(), 'updated_at' => now()],
+            ['character_id' => 1002, 'name' => 'Second Seeder', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        DB::table('refresh_tokens')->insert([
+            [
+                'character_id' => 1001,
+                'scopes' => json_encode([MarketSeedingRefreshAll::STRUCTURE_MARKET_SCOPE]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => 1002,
+                'scopes' => json_encode([MarketSeedingRefreshAll::STRUCTURE_MARKET_SCOPE]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $first = $this->createMarket([
+            'name' => 'First Market',
+            'refresh_character_id' => 1001,
+            'refresh_character_name' => 'First Seeder',
+        ]);
+        $second = $this->createMarket([
+            'name' => 'Second Market',
+            'location_id' => 60000002,
+            'refresh_character_id' => 1002,
+            'refresh_character_name' => 'Second Seeder',
+        ]);
+
+        $refresh = new class extends EsiMarketOrderRefresh {
+            public array $tokensByMarket = [];
+
+            public function __construct()
+            {
+            }
+
+            public function refresh(SeededMarket $market, ?RefreshToken $refreshToken = null): int
+            {
+                $this->tokensByMarket[$market->id] = optional($refreshToken)->character_id;
+
+                return 1;
+            }
+
+            public function getLastStats(): array
+            {
+                return [];
+            }
+
+            public function expiredStaleQuantities(): array
+            {
+                return [];
+            }
+        };
+
+        app()->instance(EsiMarketOrderRefresh::class, $refresh);
+        app()->instance(MarketStockTransitionNotifier::class, new class extends MarketStockTransitionNotifier {
+            public function __construct()
+            {
+            }
+
+            public function checkMarket(SeededMarket $market, array $expiredStaleQuantities = []): int
+            {
+                return 0;
+            }
+        });
+        app()->instance(DoctrineTrackingSync::class, new class extends DoctrineTrackingSync {
+            public function __construct()
+            {
+            }
+
+            public function syncMarket(SeededMarket $market): int
+            {
+                return 0;
+            }
+        });
+        app()->instance(SavedFittingTrackingSync::class, new class extends SavedFittingTrackingSync {
+            public function __construct()
+            {
+            }
+
+            public function syncMarket(SeededMarket $market): int
+            {
+                return 0;
+            }
+        });
+
+        $results = app(MarketSeedingRefreshAll::class)->refresh();
+
+        $this->assertSame(2, $results['markets']);
+        $this->assertSame(1001, $refresh->tokensByMarket[$first->id]);
+        $this->assertSame(1002, $refresh->tokensByMarket[$second->id]);
+        $this->assertSame('success', $first->fresh()->last_refresh_status);
+        $this->assertSame('success', $second->fresh()->last_refresh_status);
     }
 }

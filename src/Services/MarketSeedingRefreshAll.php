@@ -7,6 +7,7 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
 use Seat\Eseye\Exceptions\EsiScopeAccessDeniedException;
 use Seat\Eseye\Exceptions\InvalidAuthenticationException;
+use Seat\Eveapi\Models\Character\CharacterInfo;
 use Seat\Eveapi\Models\RefreshToken;
 
 class MarketSeedingRefreshAll
@@ -23,7 +24,7 @@ class MarketSeedingRefreshAll
             'skipped' => [],
         ];
 
-        $marketRelations = ['items', 'trackedDoctrines'];
+        $marketRelations = ['items', 'refreshCharacter', 'trackedDoctrines'];
 
         if ($this->savedFittingTrackingAvailable()) {
             $marketRelations[] = 'trackedSavedFittings';
@@ -34,14 +35,6 @@ class MarketSeedingRefreshAll
             ->orderBy('name')
             ->get();
 
-        $structureToken = null;
-
-        if ($markets->contains('is_structure', true)) {
-            $structureToken = $preferredToken && $this->tokenHasStructureMarketScope($preferredToken)
-                ? $preferredToken
-                : $this->findStructureMarketToken();
-        }
-
         $refresh = app(EsiMarketOrderRefresh::class);
         $notifier = app(MarketStockTransitionNotifier::class);
         $doctrineSync = app(DoctrineTrackingSync::class);
@@ -49,9 +42,15 @@ class MarketSeedingRefreshAll
 
         foreach ($markets as $market) {
             $startedAt = microtime(true);
+            $structureToken = $market->is_structure
+                ? $this->structureMarketTokenFor($market, $preferredToken)
+                : null;
+            $structureTokenLabel = $market->is_structure
+                ? $this->refreshTokenLabel($structureToken, $market)
+                : 'not required for station markets';
 
             if ($market->is_structure && !$structureToken) {
-                $message = sprintf('%s requires a token with %s.', $market->name, self::STRUCTURE_MARKET_SCOPE);
+                $message = $this->structureTokenUnavailableMessage($market);
                 $this->recordRefreshStatus($market, 'skipped', $message);
                 $results['skipped'][] = $message;
                 continue;
@@ -81,6 +80,8 @@ class MarketSeedingRefreshAll
                 logger()->info('Market seeding market refresh completed.', [
                     'market_id' => $market->id,
                     'market_name' => $market->name,
+                    'refresh_token' => $structureTokenLabel,
+                    'refresh_token_character_id' => optional($structureToken)->character_id,
                     'items' => $market->items->count(),
                     'orders' => $orders,
                     'seconds' => round(microtime(true) - $startedAt, 3),
@@ -92,6 +93,9 @@ class MarketSeedingRefreshAll
                 ]);
             } catch (\Throwable $e) {
                 $refreshMessage = $this->refreshFailureMessage($market, $e);
+                if ($market->is_structure) {
+                    $refreshMessage = $this->appendRefreshTokenMessage($refreshMessage, $structureTokenLabel);
+                }
                 $message = sprintf('%s: %s', $market->name, $refreshMessage);
                 $this->recordRefreshStatus($market, 'error', $refreshMessage);
                 $results['errors'][] = $message;
@@ -99,6 +103,8 @@ class MarketSeedingRefreshAll
                 logger()->error('Market seeding market refresh failed.', [
                     'market_id' => $market->id,
                     'market_name' => $market->name,
+                    'refresh_token' => $structureTokenLabel,
+                    'refresh_token_character_id' => optional($structureToken)->character_id,
                     'items' => $market->items->count(),
                     'seconds' => round(microtime(true) - $startedAt, 3),
                     'error' => $e->getMessage(),
@@ -114,6 +120,86 @@ class MarketSeedingRefreshAll
         }
 
         return $results;
+    }
+
+    private function structureMarketTokenFor(SeededMarket $market, ?RefreshToken $preferredToken = null): ?RefreshToken
+    {
+        if ($market->refresh_character_id) {
+            $configuredToken = RefreshToken::find($market->refresh_character_id);
+
+            return $configuredToken && $this->tokenHasStructureMarketScope($configuredToken)
+                ? $configuredToken
+                : null;
+        }
+
+        if ($preferredToken && $this->tokenHasStructureMarketScope($preferredToken)) {
+            return $preferredToken;
+        }
+
+        return $this->findStructureMarketToken();
+    }
+
+    private function structureTokenUnavailableMessage(SeededMarket $market): string
+    {
+        if ($market->refresh_character_id) {
+            $token = RefreshToken::find($market->refresh_character_id);
+            $character = $market->refresh_character_name
+                ?: optional($market->refreshCharacter)->name
+                ?: CharacterInfo::query()->where('character_id', $market->refresh_character_id)->value('name')
+                ?: ('Character #' . $market->refresh_character_id);
+
+            if (!$token) {
+                return sprintf(
+                    '%s is configured to refresh with %s, but that character does not have an active refresh token. Re-authenticate that character or choose another refresh character.',
+                    $market->name,
+                    $character
+                );
+            }
+
+            return sprintf(
+                '%s is configured to refresh with %s, but that token is missing the %s scope required for structure market orders.',
+                $market->name,
+                $character,
+                self::STRUCTURE_MARKET_SCOPE
+            );
+        }
+
+        return sprintf(
+            '%s requires a token with %s. No refresh character is configured, and no legacy automatic token was available.',
+            $market->name,
+            self::STRUCTURE_MARKET_SCOPE
+        );
+    }
+
+    private function refreshTokenLabel(?RefreshToken $token, SeededMarket $market): string
+    {
+        if ($token) {
+            $name = $market->refresh_character_id && (int) $market->refresh_character_id === (int) $token->character_id
+                ? ($market->refresh_character_name ?: optional($market->refreshCharacter)->name)
+                : null;
+
+            $name = $name
+                ?: CharacterInfo::query()->where('character_id', $token->character_id)->value('name')
+                ?: ('Character #' . $token->character_id);
+
+            return sprintf('%s (#%d)', $name, $token->character_id);
+        }
+
+        if ($market->refresh_character_id) {
+            $name = $market->refresh_character_name
+                ?: optional($market->refreshCharacter)->name
+                ?: CharacterInfo::query()->where('character_id', $market->refresh_character_id)->value('name')
+                ?: ('Character #' . $market->refresh_character_id);
+
+            return sprintf('%s (#%d)', $name, $market->refresh_character_id);
+        }
+
+        return 'legacy automatic token selection';
+    }
+
+    private function appendRefreshTokenMessage(string $message, string $tokenLabel): string
+    {
+        return rtrim($message, '.') . '. Refresh token: ' . $tokenLabel . '.';
     }
 
     private function refreshFailureMessage(SeededMarket $market, \Throwable $e): string
@@ -181,7 +267,14 @@ class MarketSeedingRefreshAll
 
     private function tokenHasStructureMarketScope(RefreshToken $token): bool
     {
-        return in_array(self::STRUCTURE_MARKET_SCOPE, $token->scopes ?: [], true);
+        $scopes = $token->scopes ?: [];
+
+        if (is_string($scopes)) {
+            $decoded = json_decode($scopes, true);
+            $scopes = is_array($decoded) ? $decoded : [];
+        }
+
+        return in_array(self::STRUCTURE_MARKET_SCOPE, $scopes, true);
     }
 
     private function recordRefreshStatus(SeededMarket $market, string $status, string $message, int $orders = 0): void

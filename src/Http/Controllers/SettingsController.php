@@ -28,6 +28,8 @@ use Raikia\SeatMarketSeeding\Services\StockTargetPreviewer;
 use Raikia\SeatMarketSeeding\Services\StockTargetImporter;
 use Raikia\SeatMarketSeeding\Services\StockTargetProjector;
 use Raikia\SeatMarketSeeding\Support\MarketSeedingCache;
+use Seat\Eveapi\Models\Character\CharacterInfo;
+use Seat\Eveapi\Models\RefreshToken;
 use Seat\Eveapi\Models\Sde\InvType;
 use Seat\Eveapi\Models\Sde\StaStation;
 use Seat\Eveapi\Models\Universe\UniverseStructure;
@@ -38,7 +40,7 @@ class SettingsController extends Controller
     public function index(SavedFittingSource $savedFittings, MarketSeedingSettings $settings, MarketStockReport $report, MarketTargetRecommendations $recommendations)
     {
         $savedFittingTrackingAvailable = $this->savedFittingTrackingAvailable();
-        $marketRelations = ['items.sources', 'items.type.group', 'role', 'trackedDoctrines.fitSettings'];
+        $marketRelations = ['items.sources', 'items.type.group', 'role', 'refreshCharacter', 'trackedDoctrines.fitSettings'];
 
         if ($savedFittingTrackingAvailable) {
             $marketRelations[] = 'trackedSavedFittings';
@@ -816,6 +818,37 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function searchRefreshCharacters(Request $request)
+    {
+        $query = trim((string) $request->input('q', ''));
+        $characterIds = RefreshToken::query()
+            ->whereJsonContains('scopes', \Raikia\SeatMarketSeeding\Services\MarketSeedingRefreshAll::STRUCTURE_MARKET_SCOPE)
+            ->pluck('character_id')
+            ->map(fn ($characterId) => (int) $characterId)
+            ->all();
+
+        if (empty($characterIds)) {
+            return response()->json(['results' => []]);
+        }
+
+        $characters = CharacterInfo::query()
+            ->whereIn('character_id', $characterIds)
+            ->when($query !== '', function ($builder) use ($query) {
+                $builder->where('name', 'like', '%' . $this->escapeLike($query) . '%');
+            })
+            ->orderBy('name')
+            ->limit(25)
+            ->get(['character_id', 'name'])
+            ->map(function (CharacterInfo $character) {
+                return [
+                    'id' => $character->character_id,
+                    'text' => $character->name,
+                ];
+            });
+
+        return response()->json(['results' => $characters]);
+    }
+
     private function marketRules(): array
     {
         return [
@@ -826,6 +859,7 @@ class SettingsController extends Controller
             'solar_system_id' => 'nullable|integer',
             'is_structure' => 'nullable|boolean',
             'role_id' => 'nullable|integer',
+            'refresh_character_id' => 'nullable|integer',
             'notes' => 'nullable|string',
         ];
     }
@@ -888,6 +922,14 @@ class SettingsController extends Controller
         $data['region_id'] = $data['region_id'] ?: 10000002;
         $data['is_structure'] = (bool) ($data['is_structure'] ?? false);
         $data['role_id'] = $data['role_id'] ?: null;
+        $data['refresh_character_id'] = $data['refresh_character_id'] ?: null;
+        $data['refresh_character_name'] = null;
+
+        if ($data['refresh_character_id']) {
+            $data['refresh_character_name'] = CharacterInfo::query()
+                ->where('character_id', $data['refresh_character_id'])
+                ->value('name');
+        }
 
         return $data;
     }

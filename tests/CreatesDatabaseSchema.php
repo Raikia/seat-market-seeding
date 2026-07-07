@@ -64,6 +64,8 @@ trait CreatesDatabaseSchema
             $table->bigInteger('solar_system_id')->unsigned()->nullable();
             $table->boolean('is_structure')->default(false);
             $table->unsignedInteger('role_id')->nullable();
+            $table->bigInteger('refresh_character_id')->unsigned()->nullable();
+            $table->string('refresh_character_name')->nullable();
             $table->text('notes')->nullable();
             $table->timestamp('last_refreshed_at')->nullable();
             $table->string('last_refresh_status')->nullable();

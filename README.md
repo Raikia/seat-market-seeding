@@ -24,20 +24,25 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Preview imports before applying them.
 - Export missing items in a copy/paste friendly EVE multi-buy format.
 - Show estimated Jita restock cost and packaged restock volume.
-- Show seeded value, target value, missing lines, restock cost, and per-market health.
+- Show seeded value, target value, empty/low status, restock cost, and per-market health.
+- Show category readiness on the dashboard, so it is easier to spot if one area like ships or ammo is falling behind.
 - Compare local market prices against Jita prices.
-- Filter the dashboard by market, category, group, and stock status.
-- Track source of each item target, including manual adds, doctrine tracking, or both.
+- Filter the dashboard by market, category, group, stock status, and restock priority.
+- Track source of each item target, including manual adds, tracked doctrines, and tracked character saved fits.
 - Auto-track Seat-Fitting doctrines with separate ship and fitting multipliers per fit.
+- Auto-track character saved fittings with separate hull and fitting multipliers.
 - Choose whether doctrine fits are summed together or use the maximum requirement per item.
-- Review doctrine sync changes before applying them.
+- Review doctrine, saved fit, and import changes before applying them.
 - Keep stock transition history, daily movement summaries, and target-change audit history.
 - Review high-usage items, estimated sales, restock pace, and market/category heatmaps.
 - Get target stock recommendations based on recent estimated sales pace.
 - Apply recommended target changes in bulk after reviewing the expected cost and volume increase.
 - Send grouped SeAT notifications when items move to low stock, empty stock, or get restocked.
 - Use the Listing Helper to turn EVE market transaction logs into multi-sell pricing lines.
+- See which characters are actively seeding tracked market items, with a per-market Seeders page.
+- Warn users when their tracked sell orders are getting close to expiring.
 - Refresh market data manually or on a SeAT schedule.
+- Pick a refresh character per market, so structure market refreshes use the right token.
 - Cache dashboard calculations briefly and add helpful indexes for larger market lists.
 
 ## Seat-Fitting Integration
@@ -48,7 +53,9 @@ Doctrine tracking is per market. When a doctrine is tracked, the plugin can sync
 
 Each tracked doctrine can be tuned per fit. You can stock fewer hulls than modules, give support ships a smaller multiplier than mainline ships, and choose whether duplicated modules across fits are summed or use the largest individual fit requirement.
 
-Manual targets are kept separate from doctrine targets. For example, if you manually track 50 Warp Scrambler IIs and a doctrine adds 1 more, removing that doctrine will not remove the manually tracked amount.
+Character saved fits can also be tracked. They behave like a one-ship doctrine, but are labeled separately so it is clear whether a target came from a manual add, a doctrine, a saved fit, or some mix of all three.
+
+Manual targets are kept separate from linked targets. For example, if you manually track 50 Warp Scrambler IIs and a doctrine adds 1 more, removing that doctrine will not remove the manually tracked amount.
 
 ## Settings
 
@@ -61,13 +68,13 @@ Common setup steps:
 3. Refresh ESI market data.
 4. Use the dashboard to review shortages, prices, health, and restock exports.
 
-The settings page also includes reusable market profiles, recommendation tuning, stock history retention, and maintenance actions for clearing stock history or target audit history.
+The settings page also includes reusable market profiles, recommendation tuning, refresh character selection, stock history retention, and maintenance actions for clearing stock history or target audit history.
 
 ## Dashboard and History
 
 The dashboard is meant for day-to-day restocking. It shows each market’s health, local quantity, target quantity, missing quantity, local price, Jita price, restock cost, and restock volume. Restock lists can be copied directly into EVE multi-buy.
 
-The dashboard also includes a Listing Helper for sellers. Paste a character or corporation market transaction log, choose markup and fee settings, and it will generate copy/paste friendly EVE multi-sell lines. It can optionally compare against cached local sell orders, show rows that would not be the lowest listing, flag below break-even items, and remember your helper preferences in the browser.
+The dashboard also includes a Listing Helper for sellers. Paste a character or corporation market transaction log, choose markup and fee settings, and it will generate copy/paste friendly EVE multi-sell lines. It can optionally compare against cached local sell orders, show rows that would not be the lowest listing, flag below break-even items, warn when one of your characters already has an order up, and remember your helper preferences in the browser.
 
 The history page is meant for planning. It keeps a record of stock state changes, estimated sold quantities, restocks, and daily market movement. It includes filters, charts, most-sold item tables, restock frequency tables, and a needs-attention view for items whose target stock probably needs to change.
 
@@ -77,13 +84,19 @@ Target recommendations are based only on estimated sold quantity over the config
 
 Target changes are audited separately from stock history. The audit log records who changed a target, when it changed, the old and new target, the old and new low warning, and whether the change came from a manual edit, bulk import, saved fit import, doctrine sync, recommendation, or market clear.
 
+## Seeders
+
+The Seeders page shows who is actively seeding each tracked market. It groups character orders by the main character on the SeAT account, then shows listed value, total volume, tracked orders, and market share. Clicking a seeder opens their current tracked orders for that market.
+
+The plugin can also warn a user when one of their own character orders for a tracked item is close to expiring.
+
 ## Permissions
 
 The plugin has a manager permission for configuration. Users with view access can see markets they are allowed to see, while managers can create markets, edit targets, manage profiles, and refresh data.
 
 ## Notes
 
-Market data depends on what SeAT can retrieve from ESI and what orders are available for the configured location. Structure access may require the right character/token access in SeAT.
+Market data depends on what SeAT can retrieve from ESI and what orders are available for the configured location. Structure access may require the right character/token access in SeAT. If a structure market is flaky, set the refresh character on that market explicitly.
 
 Jita pricing is based on sell orders from Jita 4-4 when available, with SeAT price data used as a fallback.
 
@@ -98,4 +111,4 @@ cd /var/www/seat
 ./vendor/bin/phpunit -c packages/seat-market-seeding/phpunit.xml
 ```
 
-The suite covers imports, target projection, doctrine/manual target interaction, recommendations support logic, market report math, settings, listing helper pricing, and history clearing behavior.
+The suite covers imports, target projection, doctrine/manual target interaction, saved fit tracking, recommendations support logic, market report math, settings, listing helper pricing, seeders, refresh character selection, and history clearing behavior.

@@ -3,6 +3,7 @@
 namespace Raikia\SeatMarketSeeding\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Seat\Eveapi\Models\Character\CharacterInfo;
 
 class SeededMarket extends Model
 {
@@ -17,6 +18,8 @@ class SeededMarket extends Model
         'solar_system_id',
         'is_structure',
         'role_id',
+        'refresh_character_id',
+        'refresh_character_name',
         'notes',
         'last_refreshed_at',
         'last_refresh_status',
@@ -30,6 +33,7 @@ class SeededMarket extends Model
         'region_id' => 'integer',
         'solar_system_id' => 'integer',
         'is_structure' => 'boolean',
+        'refresh_character_id' => 'integer',
         'last_refreshed_at' => 'datetime',
         'last_refresh_orders' => 'integer',
     ];
@@ -57,6 +61,11 @@ class SeededMarket extends Model
     public function role()
     {
         return $this->belongsTo(\Seat\Web\Models\Acl\Role::class, 'role_id');
+    }
+
+    public function refreshCharacter()
+    {
+        return $this->belongsTo(CharacterInfo::class, 'refresh_character_id', 'character_id');
     }
 
     public function stockHistory()

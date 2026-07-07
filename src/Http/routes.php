@@ -26,6 +26,12 @@ Route::group([
         'middleware' => 'can:seat-market-seeding.seeders',
     ]);
 
+    Route::get('/seeders/markets/{market}/orders', [
+        'as' => 'market-seeding.seeders.orders',
+        'uses' => 'MarketSeedingController@seederOrders',
+        'middleware' => 'can:seat-market-seeding.seeders',
+    ]);
+
     Route::get('/items/{item}/history', [
         'as' => 'market-seeding.items.history',
         'uses' => 'MarketSeedingController@itemHistory',
@@ -160,6 +166,10 @@ Route::group([
         Route::get('/search/locations', [
             'as' => 'market-seeding.search.locations',
             'uses' => 'SettingsController@searchLocations',
+        ]);
+        Route::get('/search/refresh-characters', [
+            'as' => 'market-seeding.search.refresh-characters',
+            'uses' => 'SettingsController@searchRefreshCharacters',
         ]);
         Route::get('/search/saved-fittings', [
             'as' => 'market-seeding.search.saved-fittings',

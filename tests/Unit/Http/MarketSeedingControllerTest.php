@@ -827,17 +827,10 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame('Main Pilot', $homeRows[0]['main_character_name']);
         $this->assertEquals(2000.0, $homeRows[0]['total_value']);
         $this->assertEquals(75.0, $homeRows[0]['total_volume']);
-        $this->assertCount(2, $homeRows[0]['orders']);
+        $this->assertArrayNotHasKey('orders', $homeRows[0]);
+        $this->assertSame('user:' . auth()->id(), $homeRows[0]['account_key']);
         $this->assertTrue($homeRows[0]['has_expiring_orders']);
         $this->assertSame(1, $homeRows[0]['expiring_order_count']);
-        $this->assertSame('Damage Control II', $homeRows[0]['orders'][0]['item_name']);
-        $this->assertSame($homeItem->id, $homeRows[0]['orders'][0]['item_id']);
-        $this->assertSame(2048, $homeRows[0]['orders'][0]['type_id']);
-        $this->assertSame(route('market-seeding.items.history', $homeItem), $homeRows[0]['orders'][0]['history_url']);
-        $this->assertSame('Market Alt A', $homeRows[0]['orders'][0]['character_name']);
-        $this->assertSame(10, $homeRows[0]['orders'][0]['quantity_remaining']);
-        $this->assertEquals(50.0, $homeRows[0]['orders'][0]['total_volume']);
-        $this->assertTrue($homeRows[0]['orders'][0]['expires_soon']);
         $this->assertSame(2, $homeRows[0]['character_count']);
         $this->assertSame(['Market Alt A', 'Market Alt B'], $homeRows[0]['characters']);
         $this->assertSame('Other Main', $homeRows[1]['main_character_name']);
@@ -848,6 +841,26 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame('Main Pilot', $forwardRows[0]['main_character_name']);
         $this->assertEquals(525.0, $forwardRows[0]['total_value']);
         $this->assertEquals(0.21, $forwardRows[0]['total_volume']);
+
+        $ordersRequest = Request::create('/market-seeding/seeders/markets/' . $market->id . '/orders', 'GET', [
+            'seeder_key' => $homeRows[0]['account_key'],
+        ]);
+        app()->instance('request', $ordersRequest);
+        $ordersPayload = app(MarketSeedingController::class)
+            ->seederOrders($ordersRequest, $market, app(MarketStockReport::class))
+            ->getData(true);
+
+        $this->assertSame(2, $ordersPayload['order_count']);
+        $this->assertEquals(2000.0, $ordersPayload['listed_value']);
+        $this->assertEquals(75.0, $ordersPayload['total_volume']);
+        $this->assertSame('Damage Control II', $ordersPayload['orders'][0]['item_name']);
+        $this->assertSame($homeItem->id, $ordersPayload['orders'][0]['item_id']);
+        $this->assertSame(2048, $ordersPayload['orders'][0]['type_id']);
+        $this->assertSame(route('market-seeding.items.history', $homeItem), $ordersPayload['orders'][0]['history_url']);
+        $this->assertSame('Market Alt A', $ordersPayload['orders'][0]['character_name']);
+        $this->assertSame(10, $ordersPayload['orders'][0]['quantity_remaining']);
+        $this->assertEquals(50.0, $ordersPayload['orders'][0]['total_volume']);
+        $this->assertTrue($ordersPayload['orders'][0]['expires_soon']);
     }
 
     public function test_expiring_order_warning_only_includes_current_users_tracked_sell_orders_expiring_soon(): void

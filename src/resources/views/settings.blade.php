@@ -983,6 +983,13 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="form-group col-md-7">
+                        <label for="refresh_character_id">Refresh Character</label>
+                        <select name="refresh_character_id" id="refresh_character_id" class="form-control market-refresh-character-selector" style="width: 100%;">
+                            <option value="">Legacy automatic token selection</option>
+                        </select>
+                        <small class="form-text text-muted">Used for structure market refreshes. Leave blank to keep the legacy automatic token picker.</small>
+                    </div>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
@@ -1128,6 +1135,7 @@
     @foreach($markets as $market)
         @php
             $marketCollapseId = 'market-settings-body-' . $market->id;
+            $marketConfigCollapseId = 'market-config-fields-' . $market->id;
             $manualCollapseId = 'manual-location-fields-' . $market->id;
         @endphp
 
@@ -1184,68 +1192,87 @@
             </div>
             <div class="collapse" id="{{ $marketCollapseId }}">
                 <div class="card-body">
-                    <form action="{{ route('market-seeding.markets.update', $market->id) }}" method="POST" class="mb-3">
-                        {{ csrf_field() }}
-                        {{ method_field('PUT') }}
-                        <div class="form-row align-items-end">
-                            <div class="form-group col-lg-3 col-md-6">
-                                <label>Name</label>
-                                <input type="text" class="form-control" name="name" value="{{ $market->name }}" required>
-                            </div>
-                            <div class="form-group col-lg-4 col-md-6">
-                                <label>Station or Structure</label>
-                                <select class="form-control market-location-selector" style="width: 100%;" data-prefix="market-{{ $market->id }}">
-                                    <option value="{{ $market->location_id }}" selected>{{ $market->location_name }}</option>
-                                </select>
-                                <input type="hidden" name="location_id" id="market-{{ $market->id }}-location_id" value="{{ $market->location_id }}" required>
-                                <input type="hidden" name="location_name" id="market-{{ $market->id }}-location_name" value="{{ $market->location_name }}" required>
-                                <input type="hidden" name="region_id" id="market-{{ $market->id }}-region_id" value="{{ $market->region_id }}">
-                                <input type="hidden" name="solar_system_id" id="market-{{ $market->id }}-solar_system_id" value="{{ $market->solar_system_id }}">
-                                <input type="hidden" name="is_structure" id="market-{{ $market->id }}-is_structure" value="{{ $market->is_structure ? 1 : 0 }}">
-                            </div>
-                            <div class="form-group col-lg-2 col-md-6">
-                                <label>Visibility Role</label>
-                                <select name="role_id" class="form-control">
-                                    <option value="">Public</option>
-                                    @foreach($roles as $role)
-                                        <option value="{{ $role->id }}" {{ $market->role_id == $role->id ? 'selected' : '' }}>{{ $role->title }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="form-group col-lg-1 col-md-12">
-                                <button type="submit" class="btn btn-primary btn-block">Save</button>
-                            </div>
-                        </div>
-
-                        <button type="button" class="btn btn-link p-0" data-toggle="collapse" data-target="#{{ $manualCollapseId }}" aria-expanded="false" aria-controls="{{ $manualCollapseId }}">
-                            Manual location override
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-default btn-sm" data-toggle="collapse" data-target="#{{ $marketConfigCollapseId }}" aria-expanded="false" aria-controls="{{ $marketConfigCollapseId }}">
+                            <i class="fas fa-edit"></i> Edit Market Details
                         </button>
-                        <div class="collapse mt-3" id="{{ $manualCollapseId }}">
-                            <div class="alert alert-light border mb-0">
-                                <div class="form-row">
-                                    <div class="form-group col-md-3">
-                                        <label>Location ID</label>
-                                        <input type="number" class="form-control manual-location-id" data-target="#market-{{ $market->id }}-location_id" value="{{ $market->location_id }}">
+                        <div class="collapse mt-3" id="{{ $marketConfigCollapseId }}">
+                            <form action="{{ route('market-seeding.markets.update', $market->id) }}" method="POST">
+                                {{ csrf_field() }}
+                                {{ method_field('PUT') }}
+                                <div class="form-row align-items-end">
+                                    <div class="form-group col-lg-3 col-md-6">
+                                        <label>Name</label>
+                                        <input type="text" class="form-control" name="name" value="{{ $market->name }}" required>
                                     </div>
-                                    <div class="form-group col-md-5">
-                                        <label>Location Name</label>
-                                        <input type="text" class="form-control manual-location-name" data-target="#market-{{ $market->id }}-location_name" value="{{ $market->location_name }}">
+                                    <div class="form-group col-lg-5 col-md-6">
+                                        <label>Station or Structure</label>
+                                        <select class="form-control market-location-selector" style="width: 100%;" data-prefix="market-{{ $market->id }}">
+                                            <option value="{{ $market->location_id }}" selected>{{ $market->location_name }}</option>
+                                        </select>
+                                        <input type="hidden" name="location_id" id="market-{{ $market->id }}-location_id" value="{{ $market->location_id }}" required>
+                                        <input type="hidden" name="location_name" id="market-{{ $market->id }}-location_name" value="{{ $market->location_name }}" required>
+                                        <input type="hidden" name="region_id" id="market-{{ $market->id }}-region_id" value="{{ $market->region_id }}">
+                                        <input type="hidden" name="solar_system_id" id="market-{{ $market->id }}-solar_system_id" value="{{ $market->solar_system_id }}">
+                                        <input type="hidden" name="is_structure" id="market-{{ $market->id }}-is_structure" value="{{ $market->is_structure ? 1 : 0 }}">
                                     </div>
-                                    <div class="form-group col-md-2">
-                                        <label>Region ID</label>
-                                        <input type="number" class="form-control manual-region-id" data-target="#market-{{ $market->id }}-region_id" value="{{ $market->region_id }}">
-                                    </div>
-                                    <div class="form-group col-md-2">
-                                        <label>Type</label>
-                                        <select class="form-control manual-is-structure" data-target="#market-{{ $market->id }}-is_structure">
-                                            <option value="0" {{ !$market->is_structure ? 'selected' : '' }}>Station</option>
-                                            <option value="1" {{ $market->is_structure ? 'selected' : '' }}>Structure</option>
+                                    <div class="form-group col-lg-2 col-md-6">
+                                        <label>Visibility Role</label>
+                                        <select name="role_id" class="form-control">
+                                            <option value="">Public</option>
+                                            @foreach($roles as $role)
+                                                <option value="{{ $role->id }}" {{ $market->role_id == $role->id ? 'selected' : '' }}>{{ $role->title }}</option>
+                                            @endforeach
                                         </select>
                                     </div>
+                                    <div class="form-group col-lg-2 col-md-6">
+                                        <button type="submit" class="btn btn-primary btn-block">Save Market</button>
+                                    </div>
                                 </div>
-                            </div>
+                                <div class="form-row">
+                                    <div class="form-group col-lg-5 col-md-7">
+                                        <label>Refresh Character</label>
+                                        <select name="refresh_character_id" class="form-control market-refresh-character-selector" style="width: 100%;">
+                                            <option value="">Legacy automatic token selection</option>
+                                            @if($market->refresh_character_id)
+                                                <option value="{{ $market->refresh_character_id }}" selected>{{ $market->refresh_character_name ?: optional($market->refreshCharacter)->name ?: ('Character #' . $market->refresh_character_id) }}</option>
+                                            @endif
+                                        </select>
+                                        <small class="form-text text-muted">Token used for structure market refreshes.</small>
+                                    </div>
+                                </div>
+
+                                <button type="button" class="btn btn-link p-0" data-toggle="collapse" data-target="#{{ $manualCollapseId }}" aria-expanded="false" aria-controls="{{ $manualCollapseId }}">
+                                    Manual location override
+                                </button>
+                                <div class="collapse mt-3" id="{{ $manualCollapseId }}">
+                                    <div class="alert alert-light border mb-0">
+                                        <div class="form-row">
+                                            <div class="form-group col-md-3">
+                                                <label>Location ID</label>
+                                                <input type="number" class="form-control manual-location-id" data-target="#market-{{ $market->id }}-location_id" value="{{ $market->location_id }}">
+                                            </div>
+                                            <div class="form-group col-md-5">
+                                                <label>Location Name</label>
+                                                <input type="text" class="form-control manual-location-name" data-target="#market-{{ $market->id }}-location_name" value="{{ $market->location_name }}">
+                                            </div>
+                                            <div class="form-group col-md-2">
+                                                <label>Region ID</label>
+                                                <input type="number" class="form-control manual-region-id" data-target="#market-{{ $market->id }}-region_id" value="{{ $market->region_id }}">
+                                            </div>
+                                            <div class="form-group col-md-2">
+                                                <label>Type</label>
+                                                <select class="form-control manual-is-structure" data-target="#market-{{ $market->id }}-is_structure">
+                                                    <option value="0" {{ !$market->is_structure ? 'selected' : '' }}>Station</option>
+                                                    <option value="1" {{ $market->is_structure ? 'selected' : '' }}>Structure</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
 
                     @php
                         $marketRecommendations = collect($recommendationsByMarket->get($market->id, collect()));
@@ -2548,6 +2575,26 @@
                 $(selectors.regionId).val(data.region_id || 10000002);
                 $(selectors.solarSystemId).val(data.solar_system_id || '');
                 $(selectors.isStructure).val(data.is_structure ? 1 : 0);
+            });
+
+            $('.market-refresh-character-selector').each(function () {
+                $(this).select2({
+                    dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body),
+                    allowClear: true,
+                    ajax: {
+                        url: '{{ route('market-seeding.search.refresh-characters') }}',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return { q: params.term || '' };
+                        },
+                        processResults: function (data) {
+                            return data;
+                        }
+                    },
+                    minimumInputLength: 0,
+                    placeholder: 'Legacy automatic token selection'
+                });
             });
 
             $('.manual-location-id, .manual-location-name, .manual-region-id, .manual-is-structure').on('input change', function () {

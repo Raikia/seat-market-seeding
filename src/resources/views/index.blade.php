@@ -261,6 +261,75 @@
             display: block;
             font-size: 1rem;
         }
+        .market-seeding-category-readiness {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            padding: .75rem;
+        }
+        .market-seeding-category-readiness-header {
+            align-items: center;
+            display: flex;
+            gap: .5rem;
+            justify-content: space-between;
+            margin-bottom: .65rem;
+        }
+        .market-seeding-category-readiness-header strong {
+            font-size: .85rem;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+        .market-seeding-category-readiness-header span {
+            color: #6c757d;
+            font-size: .78rem;
+        }
+        .market-seeding-category-readiness-grid {
+            display: grid;
+            gap: .55rem;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        }
+        .market-seeding-category-readiness-card {
+            background: #f8f9fa;
+            border: 1px solid #e3e7ea;
+            border-radius: 7px;
+            padding: .55rem .65rem;
+        }
+        .market-seeding-category-readiness-title {
+            align-items: center;
+            display: flex;
+            gap: .5rem;
+            justify-content: space-between;
+            margin-bottom: .4rem;
+        }
+        .market-seeding-category-readiness-name {
+            font-weight: 700;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .market-seeding-category-readiness-score {
+            font-size: .75rem;
+            font-weight: 800;
+        }
+        .market-seeding-category-readiness-bar {
+            background: #e9ecef;
+            border-radius: 999px;
+            height: 6px;
+            margin-bottom: .4rem;
+            overflow: hidden;
+        }
+        .market-seeding-category-readiness-fill {
+            height: 100%;
+            transition: width .16s ease;
+        }
+        .market-seeding-category-readiness-meta {
+            color: #6c757d;
+            display: flex;
+            flex-wrap: wrap;
+            font-size: .72rem;
+            gap: .35rem .6rem;
+        }
         .market-seeding-priority-badge {
             cursor: help;
         }
@@ -533,6 +602,21 @@
             background: #1f2d3d;
             border-left-color: #3c8dbc;
             color: #e9ecef;
+        }
+        .market-seeding-dark-skin .market-seeding-category-readiness {
+            background: #1f292e;
+            border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-category-readiness-card {
+            background: #1f2d33;
+            border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .market-seeding-category-readiness-header span,
+        .market-seeding-dark-skin .market-seeding-category-readiness-meta {
+            color: #b8c7ce;
+        }
+        .market-seeding-dark-skin .market-seeding-category-readiness-bar {
+            background: #34464f;
         }
         .market-seeding-dark-skin .market-seeding-filter-card {
             background: linear-gradient(180deg, #22313a 0%, #1f2d33 100%);
@@ -913,6 +997,13 @@
                                 <span>Empty/Low Status</span>
                                 <strong><span data-market-metric="empty">{{ $whole($marketReport['totals']['empty_lines']) }}</span> / <span data-market-metric="low">{{ $whole($marketReport['totals']['low_lines']) }}</span> lines</strong>
                             </div>
+                        </div>
+                        <div class="market-seeding-category-readiness" data-market-category-readiness>
+                            <div class="market-seeding-category-readiness-header">
+                                <strong>Readiness by Category</strong>
+                                <span>Uses the current dashboard filters</span>
+                            </div>
+                            <div class="market-seeding-category-readiness-grid"></div>
                         </div>
 
                         <div class="table-responsive market-seeding-table-shell">
@@ -1703,7 +1794,63 @@
                     $card.find('[data-market-metric="low"], [data-market-metric="header-low"]').text(numberWithCommas(totals.lowLines));
                     $card.find('[data-market-metric="header-restock"]').text(formatMetricMoney(totals.restockCost));
                     updateMarketHealthBadge($card.find('.market-seeding-health-badge'), health);
+                    updateMarketCategoryReadiness($card, rows);
                 });
+            }
+
+            function updateMarketCategoryReadiness($card, rows) {
+                var categories = {};
+
+                rows.each(function () {
+                    var $row = $(this);
+                    var category = String($row.data('category') || 'Unknown');
+                    var stockStatus = String($row.data('stock-status') || '');
+
+                    if (!categories[category]) {
+                        categories[category] = {
+                            lines: 0,
+                            low: 0,
+                            empty: 0
+                        };
+                    }
+
+                    categories[category].lines++;
+                    categories[category].low += stockStatus === 'low' ? 1 : 0;
+                    categories[category].empty += stockStatus === 'empty' ? 1 : 0;
+                });
+
+                var categoryNames = Object.keys(categories).sort();
+                var $panel = $card.find('[data-market-category-readiness]');
+                var $grid = $panel.find('.market-seeding-category-readiness-grid');
+
+                if (!categoryNames.length) {
+                    $panel.addClass('d-none');
+                    $grid.empty();
+                    return;
+                }
+
+                $panel.removeClass('d-none');
+                $grid.html(categoryNames.map(function (category) {
+                    var totals = categories[category];
+                    var health = healthScoreFromLines(totals.low, totals.empty, totals.lines);
+                    var fillClass = health >= 90 ? 'bg-success' : (health >= 60 ? 'bg-warning' : 'bg-danger');
+                    var badgeClass = health >= 90 ? 'badge-success' : (health >= 60 ? 'badge-warning' : 'badge-danger');
+
+                    return '<div class="market-seeding-category-readiness-card">' +
+                        '<div class="market-seeding-category-readiness-title">' +
+                            '<span class="market-seeding-category-readiness-name" title="' + escapeHtml(category) + '">' + escapeHtml(category) + '</span>' +
+                            '<span class="badge ' + badgeClass + ' market-seeding-category-readiness-score">' + formatPercent(health) + '</span>' +
+                        '</div>' +
+                        '<div class="market-seeding-category-readiness-bar">' +
+                            '<div class="market-seeding-category-readiness-fill ' + fillClass + '" style="width: ' + Math.max(0, Math.min(100, health)) + '%;"></div>' +
+                        '</div>' +
+                        '<div class="market-seeding-category-readiness-meta">' +
+                            '<span>' + numberWithCommas(totals.lines) + ' lines</span>' +
+                            '<span>' + numberWithCommas(totals.empty) + ' empty</span>' +
+                            '<span>' + numberWithCommas(totals.low) + ' low</span>' +
+                        '</div>' +
+                    '</div>';
+                }).join(''));
             }
 
             function filteredMarketRows($table) {
@@ -2551,6 +2698,7 @@
 
                     var isUnknown = priceInfo.found === false;
                     var isBelowBreakEven = profit < 0;
+                    var ownSellOrders = priceInfo.own_sell_orders || null;
 
                     if (isUnknown) {
                         stats.unknown++;
@@ -2576,6 +2724,10 @@
                         });
                     }
 
+                    if (ownSellOrders && Number(ownSellOrders.count || 0) > 0) {
+                        notes.push({ label: 'Your order exists', className: 'badge-warning' });
+                    }
+
                     reviewRows.push({
                         name: item.name,
                         quantity: item.quantity,
@@ -2583,6 +2735,7 @@
                         sellPrice: sellPrice,
                         localPrice: priceInfo.local_price ? parseFloat(priceInfo.local_price) : null,
                         jitaPrice: priceInfo.jita_price ? parseFloat(priceInfo.jita_price) : null,
+                        ownSellOrders: ownSellOrders,
                         profit: profit,
                         profitPercent: profitPercent,
                         notes: notes
@@ -2659,12 +2812,27 @@
 
                     var localPrice = row.localPrice ? formatMetricMoney(row.localPrice) : '<span class="text-muted">None</span>';
                     var profitClass = row.profit < 0 ? 'text-danger' : 'text-success';
+                    var ownOrdersHtml = '';
+
+                    if (row.ownSellOrders && Number(row.ownSellOrders.count || 0) > 0) {
+                        var characters = (row.ownSellOrders.characters || []).join(', ');
+                        var lowestPrice = row.ownSellOrders.lowest_price
+                            ? ' at ' + formatMetricMoney(row.ownSellOrders.lowest_price)
+                            : '';
+
+                        ownOrdersHtml = '<div class="text-warning small">Your orders: ' +
+                            numberWithCommas(row.ownSellOrders.quantity || 0) +
+                            ' listed' + lowestPrice +
+                            (characters ? ' by ' + escapeHtml(characters) : '') +
+                            '</div>';
+                    }
 
                     $body.append(
                         '<tr>' +
                             '<td>' +
                                 '<strong>' + escapeHtml(row.name) + '</strong>' +
                                 (row.jitaPrice ? '<div class="text-muted small">Jita ' + formatMetricMoney(row.jitaPrice) + '</div>' : '') +
+                                ownOrdersHtml +
                             '</td>' +
                             '<td class="text-right" data-order="' + row.quantity + '">' + numberWithCommas(row.quantity) + '</td>' +
                             '<td class="text-right" data-order="' + row.highestCost + '">' + formatMetricMoney(row.highestCost) + '</td>' +
