@@ -1208,7 +1208,8 @@
                                 <div>
                                     <strong>Build EVE multi-sell lines from wallet transactions.</strong>
                                     <div class="text-muted small">
-                                        Paste a character or corporation market transaction log. Purchase rows are grouped, sell rows are ignored, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
+                                        Paste a character or corporation market transaction log, or paste <code>Item Name&lt;tab&gt;quantity</code> rows when no purchase prices are available.
+                                        Purchase rows are grouped, sell rows are ignored, the highest unit cost is used, and output is generated as <code>Item Name price</code>.
                                     </div>
                                 </div>
                             </div>
@@ -1220,7 +1221,7 @@
                                         </div>
                                         <div class="form-group mb-0">
                                             <textarea class="form-control market-seeding-listing-helper-input" rows="10" placeholder="Paste wallet transactions here..."></textarea>
-                                            <small class="form-text text-muted">Supports character logs with 7 columns and corporation logs with 9 columns. Only rows with a negative total cost are used.</small>
+                                            <small class="form-text text-muted">Supports character logs with 7 columns, corporation logs with 9 columns, and item + quantity rows. Only market transaction rows with a negative total cost are used.</small>
                                         </div>
                                     </div>
                                     <div class="market-seeding-listing-helper-panel">
@@ -1314,7 +1315,7 @@
                                             <tr>
                                                 <th>Item</th>
                                                 <th class="text-right">Qty</th>
-                                                <th class="text-right">Unit Cost</th>
+                                                <th class="text-right">Unit Cost Basis</th>
                                                 <th class="text-right">Unit Sell</th>
                                                 <th class="text-right">Local Unit Sell</th>
                                                 <th class="text-right">Total Profit</th>
@@ -2602,7 +2603,8 @@
                 var result = {
                     items: {},
                     skipped: 0,
-                    transactionCount: 0
+                    transactionCount: 0,
+                    quantityOnlyCount: 0
                 };
 
                 String(text || '').split(/\r?\n/).forEach(function (line) {
@@ -2616,9 +2618,35 @@
 
                     var isCharacterLog = columns.length === 7;
                     var isCorporationLog = columns.length >= 9;
+                    var isQuantityOnly = columns.length === 2;
 
-                    if (!isCharacterLog && !isCorporationLog) {
+                    if (!isCharacterLog && !isCorporationLog && !isQuantityOnly) {
                         result.skipped++;
+                        return;
+                    }
+
+                    if (isQuantityOnly) {
+                        var quantityOnlyName = $.trim(columns[0]);
+                        var quantityOnlyQuantity = parseNumber(columns[1]);
+
+                        if (!quantityOnlyName || quantityOnlyQuantity <= 0) {
+                            result.skipped++;
+                            return;
+                        }
+
+                        if (!result.items[quantityOnlyName]) {
+                            result.items[quantityOnlyName] = {
+                                name: quantityOnlyName,
+                                quantity: 0,
+                                highestCost: 0,
+                                transactionCount: 0,
+                                quantityOnlyCount: 0
+                            };
+                        }
+
+                        result.items[quantityOnlyName].quantity += quantityOnlyQuantity;
+                        result.items[quantityOnlyName].quantityOnlyCount++;
+                        result.quantityOnlyCount++;
                         return;
                     }
 
@@ -2641,7 +2669,8 @@
                             name: itemName,
                             quantity: 0,
                             highestCost: 0,
-                            transactionCount: 0
+                            transactionCount: 0,
+                            quantityOnlyCount: 0
                         };
                     }
 
@@ -2680,14 +2709,21 @@
                     warnings.push(parsed.skipped + ' transaction line(s) could not be parsed.');
                 }
 
+                if (parsed.quantityOnlyCount) {
+                    warnings.push(parsed.quantityOnlyCount + ' item + quantity row(s) did not include purchase pricing. Jita pricing is being used as the original cost basis for those rows.');
+                }
+
                 $.each(parsed.items, function (itemName, item) {
                     var priceInfo = prices[itemName] || {};
-                    var markupPrice = roundUpToEvePrice(item.highestCost * (1 + (markup / 100)));
+                    var jitaPrice = priceInfo.jita_price ? parseFloat(priceInfo.jita_price) : null;
+                    var useJitaCostBasis = item.highestCost <= 0;
+                    var costBasis = useJitaCostBasis ? (jitaPrice || 0) : item.highestCost;
+                    var markupPrice = roundUpToEvePrice(costBasis * (1 + (markup / 100)));
                     var localUndercutPrice = priceInfo.local_price ? previousEvePrice(parseFloat(priceInfo.local_price)) : null;
                     var competitivePrice = useCompetitive ? localUndercutPrice : null;
                     var sellPrice = competitivePrice ? Math.min(markupPrice, competitivePrice) : markupPrice;
                     var gross = sellPrice * item.quantity;
-                    var basis = item.highestCost * item.quantity;
+                    var basis = costBasis * item.quantity;
                     var fees = gross * feeRate;
                     var profit = gross - basis - fees;
                     var profitPercent = basis > 0 ? (profit / basis) * 100 : 0;
@@ -2698,6 +2734,7 @@
 
                     var isUnknown = priceInfo.found === false;
                     var isBelowBreakEven = profit < 0;
+                    var isMissingCostBasis = useJitaCostBasis && !jitaPrice;
                     var ownSellOrders = priceInfo.own_sell_orders || null;
 
                     if (isUnknown) {
@@ -2706,6 +2743,14 @@
                     } else if (useCompetitive && !priceInfo.local_price) {
                         stats.noLocal++;
                         notes.push({ label: 'No local sell', className: 'badge-info' });
+                    }
+
+                    if (useJitaCostBasis) {
+                        if (jitaPrice) {
+                            notes.push({ label: 'Jita cost basis', className: 'badge-info' });
+                        } else if (!isUnknown) {
+                            notes.push({ label: 'No Jita cost basis', className: 'badge-danger' });
+                        }
                     }
 
                     if (isBelowBreakEven) {
@@ -2731,17 +2776,18 @@
                     reviewRows.push({
                         name: item.name,
                         quantity: item.quantity,
-                        highestCost: item.highestCost,
+                        highestCost: costBasis,
+                        costBasisSource: useJitaCostBasis ? 'jita' : 'transaction',
                         sellPrice: sellPrice,
                         localPrice: priceInfo.local_price ? parseFloat(priceInfo.local_price) : null,
-                        jitaPrice: priceInfo.jita_price ? parseFloat(priceInfo.jita_price) : null,
+                        jitaPrice: jitaPrice,
                         ownSellOrders: ownSellOrders,
                         profit: profit,
                         profitPercent: profitPercent,
                         notes: notes
                     });
 
-                    if (!excludeProblemItems || (!isUnknown && !isBelowBreakEven)) {
+                    if (!excludeProblemItems || (!isUnknown && !isMissingCostBasis && !isBelowBreakEven)) {
                         stats.uniqueItems++;
                         stats.quantity += item.quantity;
                         stats.value += gross;
@@ -2827,6 +2873,10 @@
                             '</div>';
                     }
 
+                    var costBasisLabel = row.costBasisSource === 'jita'
+                        ? '<div class="text-muted small">from Jita</div>'
+                        : '<div class="text-muted small">from transaction</div>';
+
                     $body.append(
                         '<tr>' +
                             '<td>' +
@@ -2835,7 +2885,7 @@
                                 ownOrdersHtml +
                             '</td>' +
                             '<td class="text-right" data-order="' + row.quantity + '">' + numberWithCommas(row.quantity) + '</td>' +
-                            '<td class="text-right" data-order="' + row.highestCost + '">' + formatMetricMoney(row.highestCost) + '</td>' +
+                            '<td class="text-right" data-order="' + row.highestCost + '">' + formatMetricMoney(row.highestCost) + costBasisLabel + '</td>' +
                             '<td class="text-right" data-order="' + row.sellPrice + '"><strong>' + formatMetricMoney(row.sellPrice) + '</strong></td>' +
                             '<td class="text-right" data-order="' + (row.localPrice || 0) + '">' + localPrice + '</td>' +
                             '<td class="text-right ' + profitClass + '" data-order="' + row.profit + '">' + formatSignedMoney(row.profit) + '</td>' +
