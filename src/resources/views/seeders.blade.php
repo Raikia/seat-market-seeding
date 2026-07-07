@@ -25,6 +25,7 @@
             margin-bottom: 1.25rem;
         }
         .market-seeding-seeders-shell .seeders-market-card {
+            border: 1px solid #dee2e6;
             border-radius: 8px;
             overflow: hidden;
         }
@@ -34,6 +35,11 @@
             gap: 1rem;
             justify-content: space-between;
             width: 100%;
+        }
+        .market-seeding-seeders-shell .seeders-market-actions {
+            align-items: center;
+            display: flex;
+            flex: 0 0 auto;
         }
         .market-seeding-seeders-shell .seeders-market-title {
             font-size: 1.05rem;
@@ -54,6 +60,7 @@
             max-width: 1020px;
         }
         .market-seeding-seeders-shell .seeders-market-stat {
+            background: linear-gradient(135deg, #f8fbfd 0%, #edf4f8 100%);
             border: 1px solid #d7dde2;
             border-radius: 8px;
             padding: .7rem .9rem;
@@ -124,6 +131,20 @@
             line-height: 1.35;
             margin-top: .15rem;
         }
+        .market-seeding-seeders-shell .seeders-expiring-pill {
+            background: rgba(220, 53, 69, .12);
+            border: 1px solid rgba(220, 53, 69, .45);
+            border-radius: 999px;
+            color: #dc3545;
+            display: inline-flex;
+            font-size: .68rem;
+            font-weight: 800;
+            gap: .25rem;
+            letter-spacing: .02em;
+            margin-top: .35rem;
+            padding: .15rem .45rem;
+            text-transform: uppercase;
+        }
         .market-seeding-seeders-shell .seeders-share {
             min-width: 105px;
         }
@@ -172,6 +193,7 @@
             margin: 1rem 0;
         }
         .market-seeding-seeders-shell .seeders-orders-summary-item {
+            background: linear-gradient(135deg, #f8fbfd 0%, #edf4f8 100%);
             border: 1px solid #d7dde2;
             border-radius: 8px;
             padding: .65rem .8rem;
@@ -227,6 +249,10 @@
             color: #ff9f43;
             text-decoration: none;
         }
+        .market-seeding-seeders-shell .seeders-order-expires-soon {
+            color: #dc3545;
+            font-weight: 800;
+        }
         .market-seeding-seeders-shell .market-seeding-table-shell .dataTables_wrapper {
             padding: .5rem .25rem 0;
         }
@@ -247,6 +273,21 @@
             border-radius: .25rem;
             padding: .25rem .5rem;
         }
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_wrapper {
+            padding-top: .25rem;
+        }
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_length,
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_filter,
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_info,
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_paginate {
+            font-size: .875rem;
+        }
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_filter input,
+        .market-seeding-seeders-shell .seeders-orders-modal .dataTables_length select {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            padding: .25rem .5rem;
+        }
         .market-seeding-dark-skin .seeders-intro,
         .market-seeding-dark-skin .seeders-market-location,
         .market-seeding-dark-skin .seeders-market-stat span,
@@ -256,16 +297,51 @@
         .market-seeding-dark-skin .seeders-empty,
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_info,
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter label,
-        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length label {
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length label,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_info,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_filter label,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_length label {
             color: #b8c7ce;
+        }
+        .market-seeding-dark-skin .seeders-market-card,
+        .market-seeding-dark-skin .seeders-market-card .card-header,
+        .market-seeding-dark-skin .seeders-market-card .card-body {
+            background: #222d32;
+            border-color: #3c4b54;
+            color: #e9ecef;
+        }
+        .market-seeding-dark-skin .seeders-market-card .card-header {
+            border-bottom-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .seeders-market-title,
+        .market-seeding-dark-skin .seeders-market-stat strong,
+        .market-seeding-dark-skin .seeders-orders-summary-item strong,
+        .market-seeding-dark-skin .seeders-person-name,
+        .market-seeding-dark-skin .seeders-order-item-name {
+            color: #f4e7be;
         }
         .market-seeding-dark-skin .seeders-market-stat,
         .market-seeding-dark-skin .seeders-orders-summary-item,
         .market-seeding-dark-skin .seeders-empty {
+            background: #1f292e;
             border-color: #3c4b54;
+        }
+        .market-seeding-dark-skin .seeders-market-actions .btn-default {
+            background: #756f6c;
+            border-color: #756f6c;
+            color: #f4e7be;
+        }
+        .market-seeding-dark-skin .seeders-market-actions .btn-default:hover,
+        .market-seeding-dark-skin .seeders-market-actions .btn-default:focus {
+            background: #867f7b;
+            border-color: #867f7b;
+            color: #fff7d6;
         }
         .market-seeding-dark-skin .seeders-share-bar {
             background: #34464f;
+        }
+        .market-seeding-dark-skin .seeders-share-fill {
+            background: #7bdff2;
         }
         .market-seeding-dark-skin .seeders-person img {
             border-color: rgba(244, 231, 190, .18);
@@ -273,9 +349,39 @@
         .market-seeding-dark-skin .seeders-order-item-main img {
             border-color: rgba(244, 231, 190, .18);
         }
+        .market-seeding-dark-skin .seeders-expiring-pill {
+            background: rgba(220, 53, 69, .2);
+            border-color: rgba(255, 107, 107, .55);
+            color: #ff9aa2;
+        }
+        .market-seeding-dark-skin .seeders-order-expires-soon {
+            color: #ff9aa2;
+        }
+        .market-seeding-dark-skin .seeders-orders-modal .modal-content {
+            background: #2f2927;
+            color: #f4e7be;
+        }
+        .market-seeding-dark-skin .seeders-orders-modal .modal-header {
+            border-bottom-color: rgba(244, 231, 190, .24);
+        }
+        .market-seeding-dark-skin .seeders-orders-modal .modal-header .close {
+            color: #f4e7be;
+            opacity: .75;
+            text-shadow: none;
+        }
+        .market-seeding-dark-skin .seeders-orders-modal .table {
+            color: #f4e7be;
+        }
+        .market-seeding-dark-skin .seeders-orders-modal .table thead th,
+        .market-seeding-dark-skin .seeders-orders-modal .table td {
+            border-color: rgba(244, 231, 190, .24);
+        }
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_filter input,
         .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select,
-        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select option {
+        .market-seeding-dark-skin .market-seeding-table-shell .dataTables_length select option,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_filter input,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_length select,
+        .market-seeding-dark-skin .seeders-orders-modal .dataTables_length select option {
             background: #1f2d3d;
             border-color: #3c4b54;
             color: #e9ecef;
@@ -306,9 +412,13 @@
         @include('seat-market-seeding::partials.expiring-orders-alert')
 
         <p class="seeders-intro">
-            Main characters ranked by the value of active character-owned sell orders for tracked items at each seeded market.
+            Main characters ranked by the value of active character-owned sell orders for items tracked by this plugin at each seeded market.
             Values use remaining order quantity multiplied by the listed price.
         </p>
+
+        @php
+            $singleMarket = $markets->count() === 1;
+        @endphp
 
         @forelse($markets as $market)
             @php
@@ -320,6 +430,8 @@
                     'rows' => collect(),
                 ];
                 $rows = collect($leaderboard['rows']);
+                $collapseId = 'market-seeding-seeders-market-' . $market->id;
+                $startsExpanded = $singleMarket;
             @endphp
             <div class="card seeders-market-card">
                 <div class="card-header">
@@ -334,7 +446,7 @@
                                 <strong>{{ $whole($leaderboard['total_seeders']) }}</strong>
                             </div>
                             <div class="seeders-market-stat">
-                                <span>Orders</span>
+                                <span>Tracked Orders</span>
                                 <strong>{{ $whole($leaderboard['total_orders']) }}</strong>
                             </div>
                             <div class="seeders-market-stat">
@@ -346,27 +458,33 @@
                                 <strong>{{ $volume($leaderboard['total_volume']) }}</strong>
                             </div>
                         </div>
+                        <div class="seeders-market-actions">
+                            <button type="button" class="btn btn-sm btn-default" data-toggle="collapse" data-target="#{{ $collapseId }}" aria-expanded="{{ $startsExpanded ? 'true' : 'false' }}" aria-controls="{{ $collapseId }}">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body market-seeding-table-shell">
-                    @if($rows->isEmpty())
-                        <div class="seeders-empty">
-                            No active character-owned sell orders were found for tracked items at this market.
-                        </div>
-                    @else
-                        <table class="table table-sm table-hover market-seeding-seeders-table">
-                            <thead>
-                                <tr>
-                                    <th>Main Character</th>
-                                    <th class="text-right">Listed Value</th>
-                                    <th class="text-right">Market Share</th>
-                                    <th class="text-right">Total m³</th>
-                                    <th class="text-right">Orders</th>
-                                    <th class="text-right">Tracked Types</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($rows as $row)
+                <div id="{{ $collapseId }}" class="collapse {{ $startsExpanded ? 'show' : '' }}">
+                    <div class="card-body market-seeding-table-shell">
+                        @if($rows->isEmpty())
+                            <div class="seeders-empty">
+                                No active tracked character-owned sell orders were found at this market.
+                            </div>
+                        @else
+                            <table class="table table-sm table-hover market-seeding-seeders-table">
+                                <thead>
+                                    <tr>
+                                        <th>Main Character</th>
+                                        <th class="text-right">Listed Value</th>
+                                        <th class="text-right">Market Share</th>
+                                        <th class="text-right">Total m³</th>
+                                        <th class="text-right">Tracked Orders</th>
+                                        <th class="text-right">Tracked Types</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($rows as $row)
                                     @php
                                         $orderKey = 'market-' . (int) $market->id . '-seeder-' . $loop->index;
                                         $seederOrderPayload[$orderKey] = [
@@ -393,6 +511,13 @@
                                                         <div class="seeders-person-meta">
                                                             {{ implode(', ', $row['characters']) }}
                                                         </div>
+                                                        @if($row['has_expiring_orders'] ?? false)
+                                                            <div>
+                                                                <span class="seeders-expiring-pill" title="{{ $whole($row['expiring_order_count'] ?? 0) }} order{{ (int) ($row['expiring_order_count'] ?? 0) === 1 ? '' : 's' }} expiring within 14 days">
+                                                                    <i class="fas fa-clock"></i> Order expiring soon
+                                                                </span>
+                                                            </div>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </button>
@@ -410,10 +535,11 @@
                                         <td class="text-right" data-order="{{ $row['order_count'] }}">{{ $whole($row['order_count']) }}</td>
                                         <td class="text-right" data-order="{{ $row['item_type_count'] }}">{{ $whole($row['item_type_count']) }}</td>
                                     </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    @endif
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        @endif
+                    </div>
                 </div>
             </div>
         @empty
@@ -427,7 +553,7 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <div class="seeders-orders-title-wrap">
-                            <h4 class="modal-title" id="seedersOrdersModalTitle">Seeder Orders</h4>
+                            <h4 class="modal-title" id="seedersOrdersModalTitle">Seeder Tracked Orders</h4>
                             <p class="seeders-orders-subtitle" id="seedersOrdersModalSubtitle"></p>
                         </div>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -445,7 +571,7 @@
                                 <strong id="seedersOrdersVolume">0.00 m³</strong>
                             </div>
                             <div class="seeders-orders-summary-item">
-                                <span>Orders</span>
+                                <span>Tracked Orders</span>
                                 <strong id="seedersOrdersCount">0</strong>
                             </div>
                             <div class="seeders-orders-summary-item">
@@ -560,6 +686,12 @@
                 });
             }
 
+            $('.market-seeding-seeders-shell .collapse').on('shown.bs.collapse', function () {
+                if ($.fn.DataTable) {
+                    $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+                }
+            });
+
             $('.js-seeders-orders').on('click', function () {
                 var payload = seederOrders[$(this).data('orders-key')];
 
@@ -573,7 +705,7 @@
                     $table.DataTable().destroy();
                 }
 
-                $('#seedersOrdersModalTitle').text(payload.name + ' Orders');
+                $('#seedersOrdersModalTitle').text(payload.name + ' Tracked Orders');
                 $('#seedersOrdersModalSubtitle').text(payload.market + ' - ' + payload.location);
                 $('#seedersOrdersListedValue').text(formatIsk(payload.listed_value));
                 $('#seedersOrdersVolume').text(formatVolume(payload.total_volume));
@@ -582,6 +714,7 @@
                 activeSeederOrders = payload.orders || [];
                 $table.find('tbody').html(activeSeederOrders.map(function (order, index) {
                     var expires = order.expires_at ? escapeHtml(order.expires_at + ' (' + order.days_until_expiry + 'd)') : '-';
+                    var expiresClass = order.expires_soon ? ' class="seeders-order-expires-soon"' : '';
                     var icon = typeIconUrl(order.type_id, 32);
                     var itemCell = '<div class="seeders-order-item-cell">' +
                         '<div class="seeders-order-item-main">' +
@@ -600,7 +733,7 @@
                         '<td class="text-right" data-order="' + Number(order.price || 0) + '">' + formatIsk(order.price) + '</td>' +
                         '<td class="text-right" data-order="' + Number(order.listed_value || 0) + '">' + formatIsk(order.listed_value) + '</td>' +
                         '<td class="text-right" data-order="' + Number(order.total_volume || 0) + '">' + formatVolume(order.total_volume) + '</td>' +
-                        '<td data-order="' + Number(order.days_until_expiry || 0) + '">' + expires + '</td>' +
+                        '<td data-order="' + Number(order.days_until_expiry || 0) + '"' + expiresClass + '>' + expires + '</td>' +
                     '</tr>';
                 }).join(''));
 

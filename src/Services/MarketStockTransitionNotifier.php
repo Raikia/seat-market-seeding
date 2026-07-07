@@ -34,7 +34,7 @@ class MarketStockTransitionNotifier
         $this->settings = $settings;
     }
 
-    public function checkMarket(SeededMarket $market): int
+    public function checkMarket(SeededMarket $market, array $expiredStaleQuantities = []): int
     {
         $this->pruneHistory();
 
@@ -59,7 +59,13 @@ class MarketStockTransitionNotifier
             $currentQuantity = (int) $quantities->get($item->type_id, 0);
             $currentStatus = $this->statusFor($item, $currentQuantity);
             $previousStatus = $item->stock_status;
-            $snapshot = $this->recordSnapshot($market, $item, $previousSnapshots->get($item->id), $currentQuantity);
+            $snapshot = $this->recordSnapshot(
+                $market,
+                $item,
+                $previousSnapshots->get($item->id),
+                $currentQuantity,
+                (int) ($expiredStaleQuantities[$this->locationTypeKey($market->location_id, $item->type_id)] ?? 0)
+            );
 
             if ($previousStatus && $previousStatus !== $currentStatus) {
                 $this->recordHistory($market, $item, $previousStatus, $currentStatus, $currentQuantity);
@@ -232,10 +238,10 @@ class MarketStockTransitionNotifier
         ];
     }
 
-    private function recordSnapshot(SeededMarket $market, SeededMarketItem $item, ?MarketStockSnapshot $previousSnapshot, int $currentQuantity): MarketStockSnapshot
+    private function recordSnapshot(SeededMarket $market, SeededMarketItem $item, ?MarketStockSnapshot $previousSnapshot, int $currentQuantity, int $expiredQuantity = 0): MarketStockSnapshot
     {
         $previousQuantity = optional($previousSnapshot)->current_quantity;
-        $estimatedSoldQuantity = $previousQuantity === null ? 0 : max(0, (int) $previousQuantity - $currentQuantity);
+        $estimatedSoldQuantity = $previousQuantity === null ? 0 : max(0, (int) $previousQuantity - $currentQuantity - max(0, $expiredQuantity));
         $restockedQuantity = $previousQuantity === null ? 0 : max(0, $currentQuantity - (int) $previousQuantity);
 
         return MarketStockSnapshot::create([
@@ -254,6 +260,11 @@ class MarketStockTransitionNotifier
             'warning_quantity' => (int) $item->warning_quantity,
             'desired_quantity' => $item->desired_quantity,
         ]);
+    }
+
+    private function locationTypeKey(int $locationId, int $typeId): string
+    {
+        return sprintf('%d:%d', $locationId, $typeId);
     }
 
     private function recordDailySummary(MarketStockSnapshot $snapshot, ?string $transitionStatus = null): void

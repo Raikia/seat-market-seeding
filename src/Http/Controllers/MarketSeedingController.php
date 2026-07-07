@@ -29,6 +29,8 @@ use Seat\Web\Http\Controllers\Controller;
 
 class MarketSeedingController extends Controller
 {
+    private const EXPIRING_ORDER_WARNING_DAYS = 14;
+
     const MIN_RECOMMENDATION_DAYS_WITH_DATA = 7;
 
     public function index(MarketStockReport $report)
@@ -332,6 +334,7 @@ class MarketSeedingController extends Controller
                         'characters' => [],
                         'item_types' => [],
                         'orders' => [],
+                        'expiring_order_count' => 0,
                     ]);
                 }
 
@@ -349,6 +352,12 @@ class MarketSeedingController extends Controller
                 $row['order_count']++;
                 $row['characters'][(int) $order->character_id] = $characterName;
                 $row['item_types'][$typeId] = $typeName;
+                $daysUntilExpiry = $expiresAt ? now()->startOfDay()->diffInDays($expiresAt->copy()->startOfDay(), false) : null;
+
+                if ($daysUntilExpiry !== null && $daysUntilExpiry >= 0 && $daysUntilExpiry <= self::EXPIRING_ORDER_WARNING_DAYS) {
+                    $row['expiring_order_count']++;
+                }
+
                 $row['orders'][] = [
                     'order_id' => (int) $order->order_id,
                     'item_id' => $trackedItem ? (int) $trackedItem->id : null,
@@ -364,7 +373,8 @@ class MarketSeedingController extends Controller
                     'listed_value' => (int) $order->volume_remain * (float) $order->price,
                     'total_volume' => $orderVolume,
                     'expires_at' => $expiresAt ? $expiresAt->format('Y-m-d H:i') : null,
-                    'days_until_expiry' => $expiresAt ? now()->startOfDay()->diffInDays($expiresAt->copy()->startOfDay(), false) : null,
+                    'days_until_expiry' => $daysUntilExpiry,
+                    'expires_soon' => $daysUntilExpiry !== null && $daysUntilExpiry >= 0 && $daysUntilExpiry <= self::EXPIRING_ORDER_WARNING_DAYS,
                 ];
                 $rows->put($accountKey, $row);
             }
@@ -380,6 +390,7 @@ class MarketSeedingController extends Controller
                     ->map(function (array $row) use ($marketTotalValue) {
                         $row['character_count'] = count($row['characters']);
                         $row['item_type_count'] = count($row['item_types']);
+                        $row['has_expiring_orders'] = (int) ($row['expiring_order_count'] ?? 0) > 0;
                         $row['characters'] = collect($row['characters'])->sort()->values()->all();
                         $row['item_types'] = collect($row['item_types'])->sort()->values()->take(8)->all();
                         $row['orders'] = collect($row['orders'])

@@ -16,6 +16,7 @@ class EsiMarketOrderRefresh
 
     private array $refreshedLocationTypes = [];
     private array $lastStats = [];
+    private array $expiredStaleQuantities = [];
     private MarketSeedingSettings $settings;
 
     public function __construct(MarketSeedingSettings $settings)
@@ -46,6 +47,11 @@ class EsiMarketOrderRefresh
     public function getLastStats(): array
     {
         return $this->lastStats;
+    }
+
+    public function expiredStaleQuantities(): array
+    {
+        return $this->expiredStaleQuantities;
     }
 
     private function refreshStationMarket(SeededMarket $market): int
@@ -115,7 +121,9 @@ class EsiMarketOrderRefresh
                 $page++;
             } while ($page <= $pages);
 
-            $this->incrementStat($segment . '_stale_deleted', $this->deleteStaleSellOrders($locationId, [$typeId], $refreshedOrderIds));
+            $stale = $this->deleteStaleSellOrders($locationId, [$typeId], $refreshedOrderIds);
+            $this->incrementStat($segment . '_stale_deleted', $stale['deleted']);
+            $this->incrementStat($segment . '_stale_expired_quantity', $stale['expired_quantity']);
             $this->markLocationTypeRefreshed($locationId, $typeId, $cacheMinutes);
         }
 
@@ -166,12 +174,14 @@ class EsiMarketOrderRefresh
             $page++;
         } while ($page <= $pages);
 
-        $this->incrementStat('market_stale_deleted', $this->deleteStaleSellOrders($market->location_id, $trackedTypeIds, $refreshedOrderIds));
+        $stale = $this->deleteStaleSellOrders($market->location_id, $trackedTypeIds, $refreshedOrderIds);
+        $this->incrementStat('market_stale_deleted', $stale['deleted']);
+        $this->incrementStat('market_stale_expired_quantity', $stale['expired_quantity']);
 
         return $count;
     }
 
-    private function deleteStaleSellOrders(int $locationId, array $typeIds, array $refreshedOrderIds): int
+    private function deleteStaleSellOrders(int $locationId, array $typeIds, array $refreshedOrderIds): array
     {
         $query = MarketOrder::query()
             ->where('location_id', $locationId)
@@ -182,7 +192,34 @@ class EsiMarketOrderRefresh
             $query->whereNotIn('order_id', array_unique($refreshedOrderIds));
         }
 
-        return $query->delete();
+        $now = now();
+        $expiredQuantities = (clone $query)
+            ->whereNotNull('expiry')
+            ->where('expiry', '<=', $now)
+            ->get(['type_id', 'volume_remaining'])
+            ->groupBy(fn (MarketOrder $order) => (int) $order->type_id)
+            ->map(fn ($orders) => (int) $orders->sum('volume_remaining'));
+
+        foreach ($expiredQuantities as $typeId => $quantity) {
+            $this->rememberExpiredStaleQuantity($locationId, (int) $typeId, (int) $quantity);
+        }
+
+        $deleted = $query->delete();
+
+        return [
+            'deleted' => $deleted,
+            'expired_quantity' => (int) $expiredQuantities->sum(),
+        ];
+    }
+
+    private function rememberExpiredStaleQuantity(int $locationId, int $typeId, int $quantity): void
+    {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $key = $this->locationTypeKey($locationId, $typeId);
+        $this->expiredStaleQuantities[$key] = ($this->expiredStaleQuantities[$key] ?? 0) + $quantity;
     }
 
     private function refreshedLocationTypeHit(int $locationId, int $typeId, int $cacheMinutes = 0): ?string
@@ -290,6 +327,7 @@ class EsiMarketOrderRefresh
 
     private function resetStats(): void
     {
+        $this->expiredStaleQuantities = [];
         $this->lastStats = [
             'market_types_seen' => 0,
             'market_types_refreshed' => 0,
@@ -301,6 +339,7 @@ class EsiMarketOrderRefresh
             'market_pages' => 0,
             'market_orders_seen' => 0,
             'market_stale_deleted' => 0,
+            'market_stale_expired_quantity' => 0,
             'jita_types_seen' => 0,
             'jita_types_refreshed' => 0,
             'jita_types_cached' => 0,
@@ -311,6 +350,7 @@ class EsiMarketOrderRefresh
             'jita_pages' => 0,
             'jita_orders_seen' => 0,
             'jita_stale_deleted' => 0,
+            'jita_stale_expired_quantity' => 0,
             'orders_upserted' => 0,
         ];
     }

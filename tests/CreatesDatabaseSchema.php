@@ -180,10 +180,18 @@ trait CreatesDatabaseSchema
 
         Schema::create('seat_market_seeding_stock_snapshots', function (Blueprint $table) {
             $table->increments('id');
-            $table->unsignedInteger('market_id');
-            $table->unsignedInteger('item_id');
+            $table->unsignedInteger('market_id')->nullable();
+            $table->unsignedInteger('item_id')->nullable();
+            $table->unsignedInteger('role_id')->nullable();
             $table->bigInteger('type_id')->unsigned();
+            $table->string('market_name')->nullable();
+            $table->string('location_name')->nullable();
+            $table->string('type_name')->nullable();
+            $table->string('type_category')->default('Unknown');
+            $table->integer('previous_quantity')->unsigned()->nullable();
             $table->integer('current_quantity')->unsigned()->default(0);
+            $table->integer('estimated_sold_quantity')->unsigned()->default(0);
+            $table->integer('restocked_quantity')->unsigned()->default(0);
             $table->integer('desired_quantity')->unsigned()->default(0);
             $table->integer('warning_quantity')->unsigned()->default(0);
             $table->string('stock_status')->default('unknown');
@@ -270,8 +278,15 @@ trait CreatesDatabaseSchema
             $table->bigInteger('location_id')->index();
             $table->bigInteger('type_id')->index();
             $table->integer('volume_remaining')->unsigned()->default(0);
+            $table->integer('volume_total')->unsigned()->default(0);
             $table->double('price')->default(0);
             $table->boolean('is_buy_order')->nullable()->default(false);
+            $table->timestamp('issued')->nullable();
+            $table->timestamp('expiry')->nullable();
+            $table->integer('duration')->nullable();
+            $table->bigInteger('system_id')->nullable();
+            $table->integer('min_volume')->nullable();
+            $table->string('range')->nullable();
             $table->timestamps();
         });
 

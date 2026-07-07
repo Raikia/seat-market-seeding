@@ -73,7 +73,7 @@ class MarketSeedingRefreshAll
                 $esiSeconds = round(microtime(true) - $esiStartedAt, 3);
                 $results['orders'] += $orders;
                 $notificationStartedAt = microtime(true);
-                $results['notifications'] += $notifier->checkMarket($market);
+                $results['notifications'] += $notifier->checkMarket($market, $refresh->expiredStaleQuantities());
                 $notificationSeconds = round(microtime(true) - $notificationStartedAt, 3);
                 $this->recordRefreshStatus($market, 'success', 'Refresh completed successfully.', $orders);
                 $results['markets']++;

@@ -747,7 +747,7 @@ class MarketSeedingControllerTest extends TestCase
                 'price' => 100,
                 'volume_total' => 20,
                 'volume_remain' => 10,
-                'issued' => now(),
+                'issued' => now()->subDays(80),
                 'duration' => 90,
                 'state' => 'active',
                 'created_at' => now(),
@@ -828,6 +828,8 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertEquals(2000.0, $homeRows[0]['total_value']);
         $this->assertEquals(75.0, $homeRows[0]['total_volume']);
         $this->assertCount(2, $homeRows[0]['orders']);
+        $this->assertTrue($homeRows[0]['has_expiring_orders']);
+        $this->assertSame(1, $homeRows[0]['expiring_order_count']);
         $this->assertSame('Damage Control II', $homeRows[0]['orders'][0]['item_name']);
         $this->assertSame($homeItem->id, $homeRows[0]['orders'][0]['item_id']);
         $this->assertSame(2048, $homeRows[0]['orders'][0]['type_id']);
@@ -835,9 +837,11 @@ class MarketSeedingControllerTest extends TestCase
         $this->assertSame('Market Alt A', $homeRows[0]['orders'][0]['character_name']);
         $this->assertSame(10, $homeRows[0]['orders'][0]['quantity_remaining']);
         $this->assertEquals(50.0, $homeRows[0]['orders'][0]['total_volume']);
+        $this->assertTrue($homeRows[0]['orders'][0]['expires_soon']);
         $this->assertSame(2, $homeRows[0]['character_count']);
         $this->assertSame(['Market Alt A', 'Market Alt B'], $homeRows[0]['characters']);
         $this->assertSame('Other Main', $homeRows[1]['main_character_name']);
+        $this->assertFalse($homeRows[1]['has_expiring_orders']);
         $this->assertEquals(200.0, $homeRows[1]['total_value']);
         $this->assertEquals(20.0, $homeRows[1]['total_volume']);
         $this->assertSame(1, $forwardRows->count());
