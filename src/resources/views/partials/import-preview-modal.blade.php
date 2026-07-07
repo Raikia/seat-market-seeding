@@ -41,12 +41,14 @@
                                 <th class="text-right">Current</th>
                                 <th class="text-right">Import</th>
                                 <th class="text-right">After Import</th>
+                                <th class="text-right">Delta Cost</th>
+                                <th class="text-right">Delta Volume</th>
                                 <th class="text-right">Low Warning</th>
                             </tr>
                         </thead>
                         <tbody class="market-seeding-preview-rows">
                             <tr>
-                                <td colspan="6" class="text-muted">No preview loaded.</td>
+                                <td colspan="8" class="text-muted">No preview loaded.</td>
                             </tr>
                         </tbody>
                     </table>

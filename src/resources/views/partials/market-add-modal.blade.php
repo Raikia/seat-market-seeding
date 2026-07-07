@@ -39,24 +39,55 @@
 
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="{{ $addTabId }}" role="tabpanel" aria-labelledby="{{ $addTabId }}-tab">
-                        <form action="{{ route('market-seeding.items.store', $market->id) }}" method="POST" class="market-seeding-add-item-form" data-table="{{ $tableSelector }}" data-card="{{ $cardSelector }}">
+                        <form action="{{ route('market-seeding.items.import', $market->id) }}" method="POST" class="market-seeding-one-item-form market-seeding-import-form" data-preview-url="{{ route('market-seeding.items.preview', $market->id) }}" data-table="{{ $tableSelector }}" data-card="{{ $cardSelector }}">
                             {{ csrf_field() }}
-                            <div class="form-group">
-                                <label>Item</label>
-                                <select name="type_id" class="form-control item-selector" style="width: 100%;" required></select>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group col-md-5">
-                                    <label>Target Quantity</label>
-                                    <input type="number" class="form-control" name="desired_quantity" value="1" min="1" required>
+                            <input type="hidden" name="stock_list" class="market-seeding-stock-list" value="">
+                            <input type="hidden" name="mode" value="add">
+                            <input type="hidden" name="ship_multiplier" value="1">
+                            <input type="hidden" name="fitting_multiplier" value="1">
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-lg-6">
+                                    <label>Item</label>
+                                    <select class="form-control item-selector market-seeding-one-item-selector" style="width: 100%;"></select>
                                 </div>
-                                <div class="form-group col-md-5">
+                                <div class="form-group col-lg-2 col-md-4">
+                                    <label>Target Quantity</label>
+                                    <input type="number" class="form-control market-seeding-one-item-quantity" value="1" min="1">
+                                </div>
+                                <div class="form-group col-lg-2 col-md-4">
                                     <label>Low Warning %</label>
                                     <input type="number" class="form-control" name="warning_percentage" value="33" min="0" max="100" required>
                                 </div>
-                                <div class="form-group col-md-2">
+                                <div class="form-group col-lg-2 col-md-4">
                                     <label>&nbsp;</label>
-                                    <button type="submit" class="btn btn-primary btn-block">Add</button>
+                                    <button type="button" class="btn btn-primary btn-block market-seeding-one-item-add">
+                                        <i class="fas fa-plus"></i> Add to List
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="market-seeding-one-item-queue mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <strong>Selected Items</strong>
+                                        <div class="small text-muted">Add one or more items, then preview the combined import before saving.</div>
+                                    </div>
+                                    <button type="button" class="btn btn-default btn-xs market-seeding-one-item-clear">Clear List</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0 market-seeding-one-item-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Item</th>
+                                                <th class="text-right" style="width: 160px;">Target Quantity</th>
+                                                <th class="text-right" style="width: 80px;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="market-seeding-one-item-empty">
+                                                <td colspan="3" class="text-muted">No items selected yet.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                             <div class="form-check">
@@ -65,7 +96,12 @@
                                     Keep higher existing targets instead of adding smaller duplicate quantities
                                 </label>
                             </div>
-                            <div class="market-seeding-add-feedback small mt-2" style="display: none;"></div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-success market-seeding-preview-import market-seeding-one-item-preview" disabled>
+                                    Preview Import
+                                </button>
+                            </div>
+                            <div class="market-seeding-import-feedback small mt-2" style="display: none;"></div>
                         </form>
                     </div>
 

@@ -2,19 +2,25 @@
 
 namespace Raikia\SeatMarketSeeding\Services;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedDoctrine;
 use Raikia\SeatMarketSeeding\Models\MarketSeedingTrackedSavedFitting;
 use Raikia\SeatMarketSeeding\Models\SeededMarket;
+use Seat\Eveapi\Models\Market\MarketOrder;
+use Seat\Eveapi\Models\Market\Price;
 
 class StockTargetPreviewer
 {
     private StockTargetProjector $projector;
 
-    public function __construct(StockTargetProjector $projector)
+    private MarketStockReport $stockReport;
+
+    public function __construct(StockTargetProjector $projector, MarketStockReport $stockReport)
     {
         $this->projector = $projector;
+        $this->stockReport = $stockReport;
     }
 
     public function preview(SeededMarket $market, array $items, string $mode, bool $keepHigherQuantity = false, int $warningPercentage = 33): array
@@ -49,16 +55,10 @@ class StockTargetPreviewer
                 'action' => $this->action($currentQuantity, $projection['quantity'], (bool) $current, $mode),
             ];
         })->values();
+        $rows = $this->withValueDeltas($rows);
 
         return [
-            'summary' => [
-                'total' => $rows->count(),
-                'new' => $rows->where('action', 'new')->count(),
-                'increase' => $rows->where('action', 'increase')->count(),
-                'reduce' => $rows->where('action', 'reduce')->count(),
-                'replace' => $rows->where('action', 'replace')->count(),
-                'unchanged' => $rows->where('action', 'unchanged')->count(),
-            ],
+            'summary' => $this->summary($rows),
             'rows' => $rows,
         ];
     }
@@ -127,17 +127,10 @@ class StockTargetPreviewer
         })->filter(function (array $row) {
             return $row['type_name'] && ($row['current_quantity'] > 0 || $row['new_quantity'] > 0 || $row['import_quantity'] > 0);
         })->sortBy('type_name')->values();
+        $rows = $this->withValueDeltas($rows);
 
         return [
-            'summary' => [
-                'total' => $rows->count(),
-                'new' => $rows->where('action', 'new')->count(),
-                'increase' => $rows->where('action', 'increase')->count(),
-                'reduce' => $rows->where('action', 'reduce')->count(),
-                'replace' => 0,
-                'remove' => $rows->where('action', 'remove')->count(),
-                'unchanged' => $rows->where('action', 'unchanged')->count(),
-            ],
+            'summary' => $this->summary($rows),
             'rows' => $rows,
             'validation' => [
                 'processed_lines' => count($items),
@@ -228,17 +221,10 @@ class StockTargetPreviewer
         })->filter(function (array $row) {
             return $row['type_name'] && ($row['current_quantity'] > 0 || $row['new_quantity'] > 0 || $row['import_quantity'] > 0);
         })->sortBy('type_name')->values();
+        $rows = $this->withValueDeltas($rows);
 
         return [
-            'summary' => [
-                'total' => $rows->count(),
-                'new' => $rows->where('action', 'new')->count(),
-                'increase' => $rows->where('action', 'increase')->count(),
-                'reduce' => $rows->where('action', 'reduce')->count(),
-                'replace' => 0,
-                'remove' => $rows->where('action', 'remove')->count(),
-                'unchanged' => $rows->where('action', 'unchanged')->count(),
-            ],
+            'summary' => $this->summary($rows),
             'rows' => $rows,
             'validation' => [
                 'processed_lines' => count($items),
@@ -297,6 +283,77 @@ class StockTargetPreviewer
         }
 
         return $newQuantity > $currentQuantity ? 'increase' : 'unchanged';
+    }
+
+    private function withValueDeltas(Collection $rows): Collection
+    {
+        $typeIds = $rows->pluck('type_id')
+            ->map(fn ($typeId) => (int) $typeId)
+            ->filter()
+            ->unique()
+            ->values();
+        $prices = $this->prices($typeIds);
+        $volumes = $this->stockReport->packagedVolumes($typeIds);
+
+        return $rows->map(function (array $row) use ($prices, $volumes) {
+            $typeId = (int) $row['type_id'];
+            $deltaQuantity = (int) $row['new_quantity'] - (int) $row['current_quantity'];
+            $unitPrice = (float) $prices->get($typeId, 0);
+            $unitVolume = (float) $volumes->get($typeId, 0);
+
+            $row['delta_quantity'] = $deltaQuantity;
+            $row['unit_price'] = $unitPrice;
+            $row['unit_volume'] = $unitVolume;
+            $row['delta_cost'] = $deltaQuantity * $unitPrice;
+            $row['delta_volume'] = $deltaQuantity * $unitVolume;
+
+            return $row;
+        });
+    }
+
+    private function prices(Collection $typeIds): Collection
+    {
+        if ($typeIds->isEmpty()) {
+            return collect();
+        }
+
+        $prices = MarketOrder::query()
+            ->selectRaw('type_id, MIN(price) as price')
+            ->where('location_id', MarketStockReport::JITA_STATION_ID)
+            ->whereIn('type_id', $typeIds)
+            ->where('is_buy_order', false)
+            ->groupBy('type_id')
+            ->pluck('price', 'type_id')
+            ->map(fn ($price) => (float) $price);
+        $missingTypeIds = $typeIds->reject(fn ($typeId) => $prices->has($typeId))->values();
+
+        if ($missingTypeIds->isNotEmpty()) {
+            $fallbackPrices = Price::query()
+                ->whereIn('type_id', $missingTypeIds)
+                ->get()
+                ->mapWithKeys(function (Price $price) {
+                    return [(int) $price->type_id => (float) ($price->sell_price ?: $price->average_price)];
+                })
+                ->filter(fn ($price) => $price > 0);
+            $prices = $prices->union($fallbackPrices);
+        }
+
+        return $prices;
+    }
+
+    private function summary(Collection $rows): array
+    {
+        return [
+            'total' => $rows->count(),
+            'new' => $rows->where('action', 'new')->count(),
+            'increase' => $rows->where('action', 'increase')->count(),
+            'reduce' => $rows->where('action', 'reduce')->count(),
+            'replace' => $rows->where('action', 'replace')->count(),
+            'remove' => $rows->where('action', 'remove')->count(),
+            'unchanged' => $rows->where('action', 'unchanged')->count(),
+            'delta_cost' => (float) $rows->sum('delta_cost'),
+            'delta_volume' => (float) $rows->sum('delta_volume'),
+        ];
     }
 
     private function marketRelations(): array

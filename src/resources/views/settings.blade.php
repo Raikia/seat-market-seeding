@@ -606,31 +606,39 @@
         }
         .market-seeding-preview-summary {
             display: grid;
-            gap: .65rem;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: .5rem;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             margin: 0;
         }
         .market-seeding-preview-summary-card {
             background: rgba(60, 141, 188, .1);
             border: 1px solid rgba(60, 141, 188, .22);
             border-radius: .35rem;
-            padding: .75rem .9rem;
+            min-width: 0;
+            padding: .6rem .7rem;
+        }
+        .market-seeding-preview-summary-card.is-delta {
+            background: rgba(23, 162, 184, .12);
+            border-color: rgba(23, 162, 184, .28);
         }
         .market-seeding-preview-summary-label {
+            align-items: center;
             color: #6c757d;
-            display: block;
-            font-size: .72rem;
+            display: flex;
+            font-size: .68rem;
             font-weight: 700;
+            gap: .3rem;
             letter-spacing: .04em;
             line-height: 1.1;
             text-transform: uppercase;
         }
         .market-seeding-preview-summary-value {
             display: block;
-            font-size: 1.25rem;
+            font-size: 1.05rem;
             font-weight: 700;
             line-height: 1.15;
             margin-top: .25rem;
+            overflow-wrap: anywhere;
         }
         .market-seeding-doctrine-fit-rows {
             display: grid;
@@ -717,6 +725,29 @@
         .market-seeding-preview-table tbody td {
             vertical-align: middle;
         }
+        .market-seeding-one-item-queue {
+            background: rgba(60, 141, 188, .06);
+            border: 1px solid rgba(60, 141, 188, .18);
+            border-radius: .35rem;
+            padding: .85rem;
+        }
+        .market-seeding-one-item-table tbody td {
+            vertical-align: middle;
+        }
+        .market-seeding-one-item-name {
+            align-items: center;
+            display: flex;
+            gap: .5rem;
+        }
+        .market-seeding-one-item-icon {
+            background: rgba(0, 0, 0, .2);
+            border: 1px solid rgba(255, 255, 255, .14);
+            border-radius: .25rem;
+            flex: 0 0 auto;
+            height: 28px;
+            object-fit: cover;
+            width: 28px;
+        }
         @keyframes market-seeding-row-saved {
             0% {
                 background: rgba(40, 167, 69, .25);
@@ -742,7 +773,8 @@
         }
         .market-seeding-dark-skin .market-seeding-preview-section,
         .market-seeding-dark-skin .market-seeding-preview-summary-card,
-        .market-seeding-dark-skin .market-seeding-preview-fit-card {
+        .market-seeding-dark-skin .market-seeding-preview-fit-card,
+        .market-seeding-dark-skin .market-seeding-one-item-queue {
             background: rgba(60, 141, 188, .08);
             border-color: rgba(114, 188, 212, .22);
         }
@@ -1484,6 +1516,30 @@
         </div>
     </div>
 
+    <div class="modal fade market-seeding-profile-modal {{ $marketSeedingThemeClass }}" id="market-seeding-success-modal" tabindex="-1" role="dialog" aria-labelledby="market-seeding-success-title" aria-hidden="true">
+        <div class="modal-dialog modal-sm" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="market-seeding-success-title">
+                            <i class="fas fa-check-circle text-success"></i> Targets Updated
+                        </h5>
+                        <small class="text-muted">The market target list was saved successfully.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0" id="market-seeding-success-message">Market targets updated successfully.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @include('seat-market-seeding::partials.item-detail-modal', [
         'marketSeedingThemeClass' => $marketSeedingThemeClass,
         'canManageMarketSeeding' => true,
@@ -1629,6 +1685,63 @@
                 }
             });
 
+            $('.market-seeding-one-item-add').on('click', function () {
+                var $form = $(this).closest('.market-seeding-one-item-form');
+                var $selector = $form.find('.market-seeding-one-item-selector');
+                var selected = $selector.select2('data')[0] || null;
+                var quantity = Math.max(1, parseInt($form.find('.market-seeding-one-item-quantity').val() || 1, 10));
+                var $feedback = $form.find('.market-seeding-import-feedback');
+
+                $feedback.hide().removeClass('text-success text-danger').text('');
+
+                if (!selected || !selected.id) {
+                    $feedback.addClass('text-danger').text('Choose an item before adding it to the list.').show();
+                    return;
+                }
+
+                addOneItemSelection($form, {
+                    type_id: Number(selected.id),
+                    type_name: selected.text || selected.name || 'Selected item',
+                    quantity: quantity
+                });
+                $selector.val(null).trigger('change');
+                $form.find('.market-seeding-one-item-quantity').val('1');
+                $feedback.addClass('text-success').text('Item added to the import list.').show();
+            });
+
+            $(document).on('input change', '.market-seeding-one-item-row-quantity', function () {
+                var $input = $(this);
+                var $form = $input.closest('.market-seeding-one-item-form');
+                var typeId = Number($input.closest('tr').data('type-id') || 0);
+                var quantity = Math.max(1, parseInt($input.val() || 1, 10));
+                var items = oneItemSelections($form);
+
+                $input.val(quantity);
+                $.each(items, function (index, item) {
+                    if (Number(item.type_id) === typeId) {
+                        item.quantity = quantity;
+                    }
+                });
+                storeOneItemSelections($form, items);
+            });
+
+            $(document).on('click', '.market-seeding-one-item-remove', function () {
+                var $form = $(this).closest('.market-seeding-one-item-form');
+                var typeId = Number($(this).closest('tr').data('type-id') || 0);
+                var items = $.grep(oneItemSelections($form), function (item) {
+                    return Number(item.type_id) !== typeId;
+                });
+
+                storeOneItemSelections($form, items);
+            });
+
+            $('.market-seeding-one-item-clear').on('click', function () {
+                var $form = $(this).closest('.market-seeding-one-item-form');
+
+                storeOneItemSelections($form, []);
+                $form.find('.market-seeding-import-feedback').hide().removeClass('text-success text-danger').text('');
+            });
+
             $('.market-seeding-add-item-form').on('submit', function (event) {
                 event.preventDefault();
 
@@ -1657,6 +1770,7 @@
                     $form.find('input[name="desired_quantity"]').val('1');
                     $form.find('input[name="warning_percentage"]').val('33');
                     $feedback.addClass('text-success').text(response.message || 'Item saved successfully.').show();
+                    showSettingsConfirmation(response.message || 'Item saved successfully.');
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
                 }).always(function () {
@@ -1670,6 +1784,11 @@
                 var $form = $(this);
                 var $button = $form.find('button[type="submit"]');
                 var $feedback = $form.find('.market-seeding-import-feedback');
+
+                if ($form.hasClass('market-seeding-one-item-form') && !syncOneItemStockList($form)) {
+                    $feedback.addClass('text-danger').text('Add at least one item before applying the import.').show();
+                    return;
+                }
 
                 $button.prop('disabled', true);
                 $feedback.hide().removeClass('text-success text-danger').text('');
@@ -1686,6 +1805,7 @@
                     updateTrackedCount(marketCardForForm($form), response.tracked_count);
                     resetImportForm($form);
                     showSettingsNotice(response.message || 'Import completed successfully.', 'success');
+                    showSettingsConfirmation(response.message || 'Import completed successfully.');
                     $feedback.addClass('text-success').text(response.message || 'Import completed successfully.').show();
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
@@ -1699,6 +1819,11 @@
                 var $button = $(this);
                 var $feedback = $form.find('.market-seeding-import-feedback');
                 var $sourceModal = $form.closest('.modal');
+
+                if ($form.hasClass('market-seeding-one-item-form') && !syncOneItemStockList($form)) {
+                    $feedback.addClass('text-danger').text('Add at least one item before previewing the import.').show();
+                    return;
+                }
 
                 $button.prop('disabled', true);
                 $feedback.hide().removeClass('text-success text-danger').text('');
@@ -1855,6 +1980,7 @@
                     $form.find('input[name="warning_percentage"]').val('33');
                     $form.find('select[name="merge_mode"]').val('max');
                     $feedback.addClass('text-success').text(response.message || 'Saved fit tracking updated successfully.').show();
+                    showSettingsConfirmation(response.message || 'Saved fit tracking updated successfully.');
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
                 }).always(function () {
@@ -1930,6 +2056,7 @@
                     $form.find('select[name="merge_mode"]').val('max');
                     $form.find('select[name="fit_aggregation_mode"]').val('max');
                     $feedback.addClass('text-success').text(response.message || 'Doctrine tracking updated successfully.').show();
+                    showSettingsConfirmation(response.message || 'Doctrine tracking updated successfully.');
                 }).fail(function (xhr) {
                     $feedback.addClass('text-danger').text(errorMessage(xhr)).show();
                 }).always(function () {
@@ -2781,6 +2908,14 @@
                 $('.market-seeding-settings-shell').prepend($notice);
             }
 
+            function showSettingsConfirmation(message) {
+                $('#market-seeding-success-message').text(message || 'Market targets updated successfully.');
+
+                window.setTimeout(function () {
+                    $('#market-seeding-success-modal').modal('show');
+                }, 150);
+            }
+
             function resetImportForm($form) {
                 $form.find('.market-seeding-stock-list').val('');
                 $form.find('.market-seeding-profile-selector').val('');
@@ -2791,6 +2926,86 @@
                 $form.find('input[name="warning_percentage"]').val('33');
                 $form.find('select[name="mode"]').val('add');
                 $form.find('input[name="keep_higher_quantity"]').prop('checked', true);
+
+                if ($form.hasClass('market-seeding-one-item-form')) {
+                    storeOneItemSelections($form, []);
+                    $form.find('.market-seeding-one-item-selector').val(null).trigger('change');
+                    $form.find('.market-seeding-one-item-quantity').val('1');
+                }
+            }
+
+            function oneItemSelections($form) {
+                return $form.data('one-item-selections') || [];
+            }
+
+            function storeOneItemSelections($form, items) {
+                $form.data('one-item-selections', items);
+                renderOneItemSelections($form);
+                syncOneItemStockList($form, true);
+            }
+
+            function addOneItemSelection($form, item) {
+                var items = oneItemSelections($form).slice();
+                var found = false;
+
+                $.each(items, function (index, existing) {
+                    if (Number(existing.type_id) === Number(item.type_id)) {
+                        existing.quantity = Math.max(1, Number(existing.quantity || 0) + Number(item.quantity || 0));
+                        found = true;
+                    }
+                });
+
+                if (!found) {
+                    items.push({
+                        type_id: Number(item.type_id),
+                        type_name: item.type_name,
+                        quantity: Math.max(1, Number(item.quantity || 1))
+                    });
+                }
+
+                items.sort(function (a, b) {
+                    return String(a.type_name || '').localeCompare(String(b.type_name || ''));
+                });
+                storeOneItemSelections($form, items);
+            }
+
+            function renderOneItemSelections($form) {
+                var items = oneItemSelections($form);
+                var $body = $form.find('.market-seeding-one-item-table tbody');
+
+                if (!items.length) {
+                    $body.html('<tr class="market-seeding-one-item-empty"><td colspan="3" class="text-muted">No items selected yet.</td></tr>');
+                    $form.find('.market-seeding-one-item-preview').prop('disabled', true);
+                    return;
+                }
+
+                $body.html($.map(items, function (item) {
+                    var icon = window.marketSeedingTypeIconUrl
+                        ? '<img src="' + escapeAttr(window.marketSeedingTypeIconUrl(item.type_id, 32)) + '" alt="" class="market-seeding-one-item-icon">'
+                        : '';
+
+                    return '<tr data-type-id="' + escapeAttr(item.type_id) + '">' +
+                        '<td><div class="market-seeding-one-item-name">' + icon + '<span>' + escapeHtml(item.type_name) + '</span></div></td>' +
+                        '<td class="text-right"><input type="number" class="form-control form-control-sm text-right market-seeding-one-item-row-quantity" value="' + escapeAttr(item.quantity) + '" min="1"></td>' +
+                        '<td class="text-right"><button type="button" class="btn btn-danger btn-xs market-seeding-one-item-remove" title="Remove item"><i class="fas fa-times"></i></button></td>' +
+                    '</tr>';
+                }).join(''));
+                $form.find('.market-seeding-one-item-preview').prop('disabled', false);
+            }
+
+            function syncOneItemStockList($form, allowEmpty) {
+                var items = oneItemSelections($form);
+
+                if (!items.length) {
+                    $form.find('.market-seeding-stock-list').val('');
+                    return !!allowEmpty;
+                }
+
+                $form.find('.market-seeding-stock-list').val($.map(items, function (item) {
+                    return item.type_name + ' x' + Math.max(1, parseInt(item.quantity || 1, 10));
+                }).join('\n'));
+
+                return true;
             }
 
             function serializeInlineItemForm($form) {
@@ -2818,20 +3033,18 @@
                 var rows = response.rows || [];
                 var validation = response.validation || {};
                 var summaryCards = [
-                    ['Items', summary.total || 0],
-                    ['New', summary.new || 0],
-                    ['Increased', summary.increase || 0],
-                    ['Replaced', summary.replace || 0],
-                    ['Reduced', summary.reduce || 0],
-                    ['Removed', summary.remove || 0],
-                    ['Unchanged', summary.unchanged || 0]
+                    { label: 'Items', value: formatWhole(summary.total || 0) },
+                    { label: 'Cost', icon: 'fas fa-exchange-alt', value: formatSignedMoney(summary.delta_cost || 0), delta: true },
+                    { label: 'Volume', icon: 'fas fa-exchange-alt', value: formatSignedVolume(summary.delta_volume || 0), delta: true }
                 ];
                 renderDoctrineFits = renderDoctrineFits !== false;
 
                 $('.market-seeding-preview-summary').html($.map(summaryCards, function (card) {
-                    return '<div class="market-seeding-preview-summary-card">' +
-                        '<span class="market-seeding-preview-summary-label">' + escapeHtml(card[0]) + '</span>' +
-                        '<span class="market-seeding-preview-summary-value">' + formatWhole(card[1]) + '</span>' +
+                    var icon = card.icon ? '<i class="' + escapeAttr(card.icon) + '"></i>' : '';
+
+                    return '<div class="market-seeding-preview-summary-card' + (card.delta ? ' is-delta' : '') + '">' +
+                        '<span class="market-seeding-preview-summary-label">' + icon + escapeHtml(card.label) + '</span>' +
+                        '<span class="market-seeding-preview-summary-value">' + escapeHtml(card.value) + '</span>' +
                     '</div>';
                 }).join(''));
                 if (renderDoctrineFits) {
@@ -2840,7 +3053,7 @@
                 renderImportValidation(validation);
 
                 if (!rows.length) {
-                    $('.market-seeding-preview-rows').html('<tr><td colspan="6" class="text-muted">No valid item lines were found.</td></tr>');
+                    $('.market-seeding-preview-rows').html('<tr><td colspan="8" class="text-muted">No valid item lines were found.</td></tr>');
                     return;
                 }
 
@@ -2852,6 +3065,8 @@
                             '<td class="text-right">' + formatWhole(row.current_quantity) + '</td>' +
                             '<td class="text-right">' + formatWhole(row.import_quantity) + '</td>' +
                             '<td class="text-right">' + formatWhole(row.new_quantity) + '</td>' +
+                            '<td class="text-right">' + escapeHtml(formatSignedMoney(row.delta_cost || 0)) + '</td>' +
+                            '<td class="text-right">' + escapeHtml(formatSignedVolume(row.delta_volume || 0)) + '</td>' +
                             '<td class="text-right">' + formatWhole(row.warning_quantity) + '</td>' +
                         '</tr>';
                 }).join(''));
@@ -3110,7 +3325,6 @@
 
                 var html = '<strong>Import validation:</strong> ' +
                     formatWhole(processed) + ' parsed line(s), ' +
-                    formatWhole(ignored) + ' ignored EFT/header/blank line(s), ' +
                     formatWhole(skipped.length) + ' skipped line(s).';
 
                 if (skipped.length) {
@@ -3773,6 +3987,18 @@
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                 }) + ' ISK';
+            }
+
+            function formatSignedMoney(value) {
+                value = Number(value || 0);
+
+                return (value > 0 ? '+' : value < 0 ? '-' : '') + formatMoney(Math.abs(value));
+            }
+
+            function formatSignedVolume(value) {
+                value = Number(value || 0);
+
+                return (value > 0 ? '+' : value < 0 ? '-' : '') + formatDecimal(Math.abs(value), 2) + ' m3';
             }
 
             function formatWhole(value) {
