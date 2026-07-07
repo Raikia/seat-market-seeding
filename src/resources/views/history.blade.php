@@ -1657,6 +1657,7 @@
                 currentTargetDetails = {};
                 $('#market-seeding-detail-current').text('Loading...');
                 $('#market-seeding-detail-missing').text('Loading...');
+                $('#market-seeding-detail-missing-note').text('Needed to hit target');
                 $('#market-seeding-detail-hero-missing').text('Loading...');
                 $('#market-seeding-detail-local-price').text('Loading...');
                 $('#market-seeding-detail-price-delta').text('vs Jita');
@@ -2075,6 +2076,7 @@
                 var originalRestockVolume = parseFloat(currentTargetDetails.restock_volume || 0);
 
                 $('#market-seeding-detail-missing').text(numberWithCommas(missingQuantity));
+                $('#market-seeding-detail-missing-note').text('Needed to hit target of ' + numberWithCommas(targetQuantity));
                 $('#market-seeding-detail-hero-missing').text(numberWithCommas(missingQuantity));
                 $('#market-seeding-detail-target-value').text(formatMoney(targetValue));
                 $('#market-seeding-detail-restock-value').text(formatMoney(restockValue));

@@ -708,14 +708,20 @@
 
                 var openDetails = function () {
                     resetItemDetails();
+                    $('#market-seeding-edit-target-title').text('Item Details');
+                    $('#market-seeding-edit-target-modal').addClass('is-read-only');
+                    $('#market-seeding-edit-target-adjust-panel').hide();
+                    $('#market-seeding-edit-target-save').hide();
                     $('#market-seeding-edit-target-item').text(order.item_name || 'Item');
                     $('#market-seeding-edit-target-market').text(
                         (order.market_name || '') + (order.location_name ? ' - ' + order.location_name : '')
                     );
                     $('#market-seeding-edit-target-form')
-                        .attr('action', '#')
+                        .attr('action', '')
                         .data('original-target-quantity', 0)
                         .data('original-warning-quantity', 0);
+                    $('#market-seeding-edit-target-success').addClass('d-none').text('');
+                    $('#market-seeding-edit-target-error').addClass('d-none').text('');
                     $('#market-seeding-edit-target-modal').modal('show');
                     loadItemDetails(order.history_url);
                 };
@@ -890,7 +896,7 @@
                 }
             });
 
-            $('.js-seeders-orders').on('click', function () {
+            $('.market-seeding-seeders-shell').on('click', '.js-seeders-orders', function () {
                 var $button = $(this);
                 var $table = $('#seedersOrdersTable');
 

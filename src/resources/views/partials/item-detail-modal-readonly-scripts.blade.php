@@ -6,6 +6,7 @@
                 destroySellOrdersDataTable();
                 $('#market-seeding-detail-current').text('Loading...');
                 $('#market-seeding-detail-missing').text('Loading...');
+                $('#market-seeding-detail-missing-note').text('Needed to hit target');
                 $('#market-seeding-detail-hero-missing').text('Loading...');
                 $('#market-seeding-detail-local-price').text('Loading...');
                 $('#market-seeding-detail-price-delta').text('vs Jita');
@@ -88,6 +89,7 @@
 
                 $('#market-seeding-detail-current').text(marketSeedingItemDetailWhole(current));
                 $('#market-seeding-detail-missing').text(marketSeedingItemDetailWhole(missing));
+                $('#market-seeding-detail-missing-note').text('Needed to hit target of ' + marketSeedingItemDetailWhole(desired));
                 $('#market-seeding-detail-hero-missing').text(marketSeedingItemDetailWhole(missing));
                 $('#market-seeding-detail-local-price').text(marketSeedingItemDetailMoney(details.local_price || details.jita_price));
                 $('#market-seeding-detail-jita-price').text(marketSeedingItemDetailMoney(details.jita_price));

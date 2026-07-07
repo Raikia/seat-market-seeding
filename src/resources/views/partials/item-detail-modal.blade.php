@@ -35,7 +35,7 @@
                         <span class="edit-target-detail-label">Missing</span>
                         <span class="edit-target-detail-value" id="market-seeding-detail-missing">-</span>
                         <span class="edit-target-delta" id="market-seeding-detail-missing-delta"></span>
-                        <span class="edit-target-detail-note">Needed to hit target</span>
+                        <span class="edit-target-detail-note" id="market-seeding-detail-missing-note">Needed to hit target</span>
                     </div>
                     <div class="edit-target-detail">
                         <span class="edit-target-detail-label">Market Price</span>

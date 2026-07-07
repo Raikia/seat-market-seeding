@@ -3467,6 +3467,7 @@
                 $('#market-seeding-edit-target-market').text($button.data('market-name') || '');
                 $('#market-seeding-edit-target-quantity').val($button.data('desired-quantity') || '');
                 $('#market-seeding-edit-warning-quantity').val($button.data('warning-quantity') || '');
+                updateSettingsMissingTargetNote();
                 renderRecommendationCard(settingsRecommendationDetailsByItem[itemId], $button);
                 $('#market-seeding-edit-target-success').addClass('d-none').text('');
                 $('#market-seeding-edit-target-error').addClass('d-none').text('');
@@ -3484,6 +3485,7 @@
 
             $('#market-seeding-edit-target-quantity').on('input change', function () {
                 scaleEditWarningFromTarget();
+                updateSettingsMissingTargetNote();
             });
 
             $('#market-seeding-edit-warning-quantity').on('input change', function () {
@@ -3571,6 +3573,12 @@
                 var scaledWarning = originalWarning === 0 ? 0 : Math.ceil(targetQuantity * (originalWarning / originalTarget));
 
                 $('#market-seeding-edit-warning-quantity').val(Math.min(targetQuantity, Math.max(0, scaledWarning)));
+            }
+
+            function updateSettingsMissingTargetNote() {
+                var targetQuantity = Math.max(1, parseInt($('#market-seeding-edit-target-quantity').val() || 1, 10));
+
+                $('#market-seeding-detail-missing-note').text('Needed to hit target of ' + formatWhole(targetQuantity));
             }
 
             function clampEditWarningToTarget() {
