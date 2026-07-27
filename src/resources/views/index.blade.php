@@ -51,6 +51,11 @@
             ->unique(fn ($row) => $row['category'] . '|' . $row['group'])
             ->sortBy('group')
             ->values();
+        $sourceFilters = $stockRows
+            ->flatMap(fn ($row) => $row['source_filters'] ?? [])
+            ->unique('key')
+            ->sortBy(fn ($source) => ($source['type'] ?? '') . '|' . ($source['label'] ?? ''))
+            ->values();
         $dashboardItemDetails = [];
         foreach ($stockReport['markets'] as $marketReport) {
             $market = $marketReport['market'];
@@ -115,8 +120,7 @@
             border: 1px solid rgba(31, 73, 103, .12);
             border-radius: .65rem;
             box-shadow: 0 8px 20px rgba(24, 50, 71, .05);
-            flex: 1 1 auto;
-            max-width: 940px;
+            flex: 1 1 0;
             padding: .75rem .85rem .85rem;
         }
         .market-seeding-filter-header {
@@ -159,8 +163,12 @@
             padding-top: .65rem;
         }
         .market-seeding-filter-field {
-            flex: 0 1 165px;
-            min-width: 150px;
+            flex: 1 1 145px;
+            min-width: 135px;
+        }
+        .market-seeding-filter-field.is-wide {
+            flex-basis: 240px;
+            min-width: 210px;
         }
         .market-seeding-filter-field label {
             color: #54657a;
@@ -187,7 +195,9 @@
             align-items: center;
             display: flex;
             flex: 0 0 auto;
+            flex-wrap: wrap;
             gap: .35rem;
+            justify-content: flex-end;
         }
         @media (max-width: 1199px) {
             .market-seeding-controls {
@@ -837,6 +847,17 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="market-seeding-filter-field is-wide">
+                            <label for="market-seeding-source-filter">Doctrine / Fit</label>
+                            <select class="form-control form-control-sm" id="market-seeding-source-filter">
+                                <option value="">All Doctrines / Fits</option>
+                                @foreach($sourceFilters as $sourceFilter)
+                                    <option value="{{ $sourceFilter['key'] }}">
+                                        {{ ($sourceFilter['type'] ?? '') === 'doctrine' ? 'Doctrine' : 'Saved Fit' }}: {{ $sourceFilter['label'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="market-seeding-filter-field">
                             <label for="market-seeding-type-filter">Category</label>
                             <select class="form-control form-control-sm" id="market-seeding-type-filter">
@@ -900,11 +921,14 @@
                 $restockLines = $marketReport['rows']
                     ->filter(fn ($row) => $row['missing_quantity'] > 0)
                     ->map(function ($row) use ($market) {
+                        $sourceFilterKeys = collect($row['source_filters'] ?? [])->pluck('key')->values()->all();
+
                         return [
                             'category' => $row['type_category'],
                             'group' => $row['type_group'] ?? 'Unknown',
                             'status' => $row['stock_status'],
                             'priority' => $row['priority']['level'],
+                            'source_filters' => $sourceFilterKeys,
                             'type_id' => $row['item']->type_id,
                             'name' => $row['item']->type_name,
                             'quantity' => $row['missing_quantity'],
@@ -1015,6 +1039,7 @@
                                         <th>Group</th>
                                         <th>Status</th>
                                         <th>Priority Level</th>
+                                        <th>Source</th>
                                         <th>Priority</th>
                                         <th class="text-right">Current</th>
                                         <th class="text-right">Target</th>
@@ -1034,6 +1059,7 @@
                                             data-group="{{ $row['type_group'] ?? 'Unknown' }}"
                                             data-stock-status="{{ $row['stock_status'] }}"
                                             data-priority="{{ $row['priority']['level'] }}"
+                                            data-source-filters="{{ implode(' ', collect($row['source_filters'] ?? [])->pluck('key')->all()) }}"
                                             data-market-id="{{ $market->id }}"
                                             data-type-id="{{ $row['item']->type_id }}"
                                             data-item-name="{{ $row['item']->type_name }}"
@@ -1063,6 +1089,7 @@
                                             <td>{{ $row['type_group'] ?? 'Unknown' }}</td>
                                             <td>{{ $row['stock_status'] }}</td>
                                             <td>{{ $row['priority']['level'] }}</td>
+                                            <td>{{ ' ' . implode(' ', collect($row['source_filters'] ?? [])->pluck('key')->all()) . ' ' }}</td>
                                             <td data-order="{{ $row['priority']['score'] }}">
                                                 <span class="badge {{ $priorityBadge($row['priority']['level']) }} market-seeding-priority-badge"
                                                       data-priority-tooltip="{{ $priorityTooltip($row['priority']) }}"
@@ -1111,7 +1138,7 @@
                         </div>
                         <div class="modal-body">
                             <p class="text-muted mb-2">
-                                This list follows the dashboard category and group filters.
+                                This list follows the dashboard filters.
                                 Estimated restock volume: <span class="market-seeding-export-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
                             <div class="form-group">
@@ -1361,8 +1388,25 @@
             var listingHelperCsrfToken = '{{ csrf_token() }}';
             var listingHelperPreferenceKey = 'seat-market-seeding.listing-helper.preferences.v1';
             var temporaryPurchaseKey = 'seat-market-seeding.temporary-purchases.v1';
+            var dashboardSourceFilter = '';
 
             if ($.fn.DataTable) {
+                $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+                    if (!$(settings.nTable).hasClass('market-seeding-dashboard-table') || !dashboardSourceFilter) {
+                        return true;
+                    }
+
+                    var row = settings.aoData && settings.aoData[dataIndex]
+                        ? settings.aoData[dataIndex].nTr
+                        : null;
+
+                    if (!row) {
+                        return true;
+                    }
+
+                    return matchesDashboardSourceFilter($(row).data('source-filters'), dashboardSourceFilter);
+                });
+
                 dashboardTables = $('.market-seeding-dashboard-table').DataTable({
                     order: [[0, 'asc']],
                     paging: true,
@@ -1371,13 +1415,21 @@
                     stateSave: true,
                     autoWidth: false,
                     columnDefs: [
-                        { targets: [1, 2, 3, 4], visible: false }
+                        { targets: [1, 2, 3, 4, 5], visible: false }
                     ],
                     stateSaveParams: function (settings, data) {
-                        data.marketSeedingSchema = 8;
+                        data.marketSeedingSchema = 11;
+
+                        if (data.columns) {
+                            [1, 2, 3, 4, 5].forEach(function (columnIndex) {
+                                if (data.columns[columnIndex] && data.columns[columnIndex].search) {
+                                    data.columns[columnIndex].search.search = '';
+                                }
+                            });
+                        }
                     },
                     stateLoadParams: function (settings, data) {
-                        return data.marketSeedingSchema === 8;
+                        return data.marketSeedingSchema === 11;
                     },
                     language: {
                         emptyTable: 'No stock targets have been configured for this market.',
@@ -1547,6 +1599,10 @@
                 applyDashboardFilters();
             });
 
+            $('#market-seeding-source-filter').on('change', function () {
+                applyDashboardFilters();
+            });
+
             $('#market-seeding-group-filter').on('change', function () {
                 applyDashboardFilters();
             });
@@ -1561,6 +1617,7 @@
 
             $('#market-seeding-reset-filters').on('click', function () {
                 $('#market-seeding-market-filter').val('all').trigger('change');
+                $('#market-seeding-source-filter').val('');
                 $('#market-seeding-type-filter').val('');
                 $('#market-seeding-group-filter').val('');
                 $('#market-seeding-stock-status-filter').val('');
@@ -1683,8 +1740,11 @@
             function applyDashboardFilters() {
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
+                var sourceFilter = $('#market-seeding-source-filter').val();
                 var stockStatus = $('#market-seeding-stock-status-filter').val();
                 var priority = $('#market-seeding-priority-filter').val();
+
+                dashboardSourceFilter = sourceFilter || '';
 
                 $('.market-seeding-dashboard-table').each(function () {
                     if (!$.fn.DataTable || !$.fn.DataTable.isDataTable(this)) {
@@ -1694,8 +1754,10 @@
                                 $(this).data('group'),
                                 $(this).data('stock-status'),
                                 $(this).data('priority'),
+                                String($(this).data('source-filters') || ''),
                                 typeCategory,
                                 typeGroup,
+                                sourceFilter,
                                 stockStatus,
                                 priority
                             );
@@ -1716,7 +1778,10 @@
                         .search(stockStatusSearchRegex(stockStatus), true, false);
                     table
                         .column(4)
-                        .search(priority ? '^' + escapeRegex(priority) + '$' : '', true, false)
+                        .search(priority ? '^' + escapeRegex(priority) + '$' : '', true, false);
+                    table
+                        .column(5)
+                        .search('', true, false)
                         .draw();
                 });
 
@@ -1887,11 +1952,12 @@
 
                 var typeCategory = $('#market-seeding-type-filter').val();
                 var typeGroup = $('#market-seeding-group-filter').val();
+                var sourceFilter = $('#market-seeding-source-filter').val();
                 var stockStatus = $('#market-seeding-stock-status-filter').val();
                 var priority = $('#market-seeding-priority-filter').val();
                 var lines = $(textarea).data('lines') || [];
                 var filtered = $.grep(lines, function (line) {
-                    return matchesDashboardFilters(line.category, line.group, line.status, line.priority, typeCategory, typeGroup, stockStatus, priority);
+                    return matchesDashboardFilters(line.category, line.group, line.status, line.priority, line.source_filters || [], typeCategory, typeGroup, sourceFilter, stockStatus, priority);
                 });
                 var marketId = modal.find('.market-seeding-purchased-tools').data('market-id');
                 filtered = applyTemporaryPurchases(filtered, marketId);
@@ -2403,11 +2469,24 @@
                 };
             }
 
-            function matchesDashboardFilters(category, group, stockStatus, priority, selectedCategory, selectedGroup, selectedStatus, selectedPriority) {
+            function matchesDashboardFilters(category, group, stockStatus, priority, sourceFilters, selectedCategory, selectedGroup, selectedSource, selectedStatus, selectedPriority) {
                 return (!selectedCategory || category === selectedCategory)
                     && (!selectedGroup || group === selectedGroup)
+                    && matchesDashboardSourceFilter(sourceFilters, selectedSource)
                     && matchesStockStatusFilter(stockStatus, selectedStatus)
                     && (!selectedPriority || priority === selectedPriority);
+            }
+
+            function matchesDashboardSourceFilter(sourceFilters, selectedSource) {
+                if (!selectedSource) {
+                    return true;
+                }
+
+                var sourceFilterText = $.isArray(sourceFilters)
+                    ? ' ' + sourceFilters.join(' ') + ' '
+                    : ' ' + String(sourceFilters || '') + ' ';
+
+                return sourceFilterText.indexOf(' ' + selectedSource + ' ') !== -1;
             }
 
             function matchesStockStatusFilter(stockStatus, selectedStatus) {

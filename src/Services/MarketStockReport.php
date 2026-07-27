@@ -170,6 +170,7 @@ class MarketStockReport
                     'type_category' => $item->typeCategoryName(),
                     'type_group' => $item->typeGroupName(),
                     'source_flags' => $item->sourceFlags(),
+                    'source_filters' => $this->itemSourceFilters($item),
                     'current_quantity' => $currentQuantity,
                     'missing_quantity' => $missingQuantity,
                     'local_price' => $localPrice,
@@ -297,14 +298,62 @@ class MarketStockReport
     private function loadMarketRelations(Collection $markets): void
     {
         if ($markets instanceof EloquentCollection) {
-            $markets->loadMissing('items.sources', 'items.type.group', 'role');
+            $markets->loadMissing('items.sources.trackedDoctrine', 'items.sources.trackedSavedFitting', 'items.type.group', 'role');
 
             return;
         }
 
         $markets->each(function (SeededMarket $market) {
-            $market->loadMissing('items.sources', 'items.type.group', 'role');
+            $market->loadMissing('items.sources.trackedDoctrine', 'items.sources.trackedSavedFitting', 'items.type.group', 'role');
         });
+    }
+
+    private function itemSourceFilters(SeededMarketItem $item): array
+    {
+        $sources = $item->relationLoaded('sources')
+            ? $item->sources
+            : $item->sources()->with('trackedDoctrine', 'trackedSavedFitting')->get();
+
+        return $sources
+            ->map(function ($source) {
+                if ($source->source_type === \Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource::SOURCE_DOCTRINE) {
+                    $id = (int) $source->tracked_doctrine_id;
+
+                    if ($id <= 0) {
+                        return null;
+                    }
+
+                    return [
+                        'key' => 'doctrine:' . $id,
+                        'type' => 'doctrine',
+                        'label' => optional($source->trackedDoctrine)->doctrine_name ?: 'Doctrine #' . $id,
+                    ];
+                }
+
+                if ($source->source_type === \Raikia\SeatMarketSeeding\Models\MarketSeedingItemSource::SOURCE_SAVED_FIT) {
+                    $id = (int) $source->tracked_saved_fitting_id;
+
+                    if ($id <= 0) {
+                        return null;
+                    }
+
+                    $savedFitting = $source->trackedSavedFitting;
+                    $shipName = optional($savedFitting)->ship_type_name;
+                    $fitName = optional($savedFitting)->fitting_name ?: 'Saved Fit #' . $id;
+
+                    return [
+                        'key' => 'fitting:' . $id,
+                        'type' => 'fitting',
+                        'label' => $shipName ? $shipName . ' - ' . $fitName : $fitName,
+                    ];
+                }
+
+                return null;
+            })
+            ->filter()
+            ->unique('key')
+            ->values()
+            ->all();
     }
 
     private function healthScore(int $lowLines, int $emptyLines, int $trackedLines): float
