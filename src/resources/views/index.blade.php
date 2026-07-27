@@ -1141,17 +1141,33 @@
                                 This list follows the dashboard filters.
                                 Estimated restock volume: <span class="market-seeding-export-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
-                            <div class="form-group">
-                                <label for="{{ $exportId }}-freight-limit">Remaining Freight Space</label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control market-seeding-freight-limit" id="{{ $exportId }}-freight-limit" min="0" step="0.01" placeholder="Optional, e.g. 40000">
-                                    <div class="input-group-append">
-                                        <span class="input-group-text">m&sup3;</span>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ $exportId }}-freight-limit">Remaining Freight Space</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control market-seeding-freight-limit" id="{{ $exportId }}-freight-limit" min="0" step="0.01" placeholder="Optional, e.g. 40000">
+                                            <div class="input-group-append">
+                                                <span class="input-group-text">m&sup3;</span>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">Trim the list to fit inside this remaining cargo space.</small>
                                     </div>
                                 </div>
-                                <small class="form-text text-muted">When set, the list is trimmed to fit as close as possible inside this remaining cargo space.</small>
-                                <small class="form-text text-muted market-seeding-freight-result d-none"></small>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ $exportId }}-value-limit">Maximum ISK Value</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control market-seeding-value-limit" id="{{ $exportId }}-value-limit" placeholder="Optional, e.g. 2000000000">
+                                            <div class="input-group-append">
+                                                <span class="input-group-text">ISK</span>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">Trim the list so estimated restock cost stays under this value.</small>
+                                    </div>
+                                </div>
                             </div>
+                            <small class="form-text text-muted market-seeding-limit-result d-none"></small>
                             <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
                             <div class="market-seeding-restock-output-actions">
                                 <button type="button" class="btn btn-sm btn-outline-success market-seeding-mark-visible-purchased">
@@ -1473,7 +1489,7 @@
                 document.execCommand('copy');
             });
 
-            $(document).on('input change', '.market-seeding-freight-limit', function () {
+            $(document).on('input change', '.market-seeding-freight-limit, .market-seeding-value-limit', function () {
                 updateRestockExport($(this).closest('.market-seeding-modal'));
             });
 
@@ -1962,9 +1978,13 @@
                 var marketId = modal.find('.market-seeding-purchased-tools').data('market-id');
                 filtered = applyTemporaryPurchases(filtered, marketId);
                 var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
-                var selected = applyFreightLimit(filtered, freightLimit);
+                var valueLimit = parsePositiveMoney(modal.find('.market-seeding-value-limit').val());
+                var selected = applyRestockLimits(filtered, freightLimit, valueLimit);
                 var volume = selected.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
+                }, 0);
+                var value = selected.reduce(function (total, line) {
+                    return total + restockLineValue(line);
                 }, 0);
 
                 modal.data('restock-selected-lines', selected);
@@ -1973,25 +1993,36 @@
                 }).join('\n');
 
                 modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
-                updateFreightResult(modal, freightLimit, volume);
+                updateLimitResult(modal, freightLimit, valueLimit, volume, value);
                 renderTemporaryPurchases(modal, lines);
             }
 
-            function updateFreightResult(modal, freightLimit, selectedVolume) {
-                var result = modal.find('.market-seeding-freight-result');
+            function updateLimitResult(modal, freightLimit, valueLimit, selectedVolume, selectedValue) {
+                var result = modal.find('.market-seeding-limit-result');
+                var parts = [];
 
-                if (!freightLimit || freightLimit <= 0) {
+                if ((!freightLimit || freightLimit <= 0) && (!valueLimit || valueLimit <= 0)) {
                     result.addClass('d-none').empty();
                     return;
                 }
 
-                result
-                    .removeClass('d-none')
-                    .html(
-                        'Filtered list volume: <strong>' + formatDecimal(selectedVolume) + '</strong> m&sup3; of ' +
-                        '<strong>' + formatDecimal(freightLimit) + '</strong> m&sup3; available. ' +
-                        'Remaining: <strong>' + formatDecimal(Math.max(0, freightLimit - selectedVolume)) + '</strong> m&sup3;.'
+                if (freightLimit && freightLimit > 0) {
+                    parts.push(
+                        'Volume: <strong>' + formatDecimal(selectedVolume) + '</strong> / ' +
+                        '<strong>' + formatDecimal(freightLimit) + '</strong> m&sup3; ' +
+                        '(remaining <strong>' + formatDecimal(Math.max(0, freightLimit - selectedVolume)) + '</strong> m&sup3;)'
                     );
+                }
+
+                if (valueLimit && valueLimit > 0) {
+                    parts.push(
+                        'Value: <strong>' + formatIsk(selectedValue) + '</strong> / ' +
+                        '<strong>' + formatIsk(valueLimit) + '</strong> ' +
+                        '(remaining <strong>' + formatIsk(Math.max(0, valueLimit - selectedValue)) + '</strong>)'
+                    );
+                }
+
+                result.removeClass('d-none').html('Filtered list totals: ' + parts.join(' &middot; '));
             }
 
             function temporaryPurchaseStorage() {
@@ -2373,61 +2404,95 @@
                 };
             }
 
-            function applyFreightLimit(lines, freightLimit) {
-                if (!freightLimit || freightLimit <= 0) {
+            function applyRestockLimits(lines, freightLimit, valueLimit) {
+                var hasFreightLimit = freightLimit && freightLimit > 0;
+                var hasValueLimit = valueLimit && valueLimit > 0;
+
+                if (!hasFreightLimit && !hasValueLimit) {
                     return lines;
                 }
 
                 var candidates = $.map(lines, function (line, index) {
+                    var quantity = Number(line.quantity || 0);
+                    var unitVolume = Number(line.unit_volume || 0);
+                    var unitValue = Number(line.unit_value || 0);
+
                     return $.extend({}, line, {
                         originalIndex: index,
-                        quantity: Number(line.quantity || 0),
-                        unit_volume: Number(line.unit_volume || 0),
-                        volume: Number(line.volume || 0)
+                        quantity: quantity,
+                        unit_volume: unitVolume,
+                        unit_value: unitValue,
+                        volume: quantity * unitVolume,
+                        value: quantity * unitValue
                     });
                 });
-                var zeroVolumeSelections = {};
+                var freeSelections = {};
 
                 $.each(candidates, function (index, line) {
-                    if (line.unit_volume <= 0 && line.quantity > 0) {
-                        zeroVolumeSelections[line.originalIndex] = $.extend({}, line);
+                    var consumesVolume = hasFreightLimit && line.unit_volume > 0;
+                    var consumesValue = hasValueLimit && line.unit_value > 0;
+
+                    if (!consumesVolume && !consumesValue && line.quantity > 0) {
+                        freeSelections[line.originalIndex] = $.extend({}, line);
                     }
                 });
 
-                var volumeCandidates = $.grep(candidates, function (line) {
-                    return line.quantity > 0 && line.unit_volume > 0;
+                var limitedCandidates = $.grep(candidates, function (line) {
+                    var consumesVolume = hasFreightLimit && line.unit_volume > 0;
+                    var consumesValue = hasValueLimit && line.unit_value > 0;
+
+                    return line.quantity > 0 && (consumesVolume || consumesValue);
                 });
                 var packingOrders = [
-                    volumeCandidates.slice().sort(function (a, b) {
+                    limitedCandidates.slice().sort(function (a, b) {
                         return a.originalIndex - b.originalIndex;
                     }),
-                    volumeCandidates.slice().sort(function (a, b) {
+                    limitedCandidates.slice().sort(function (a, b) {
                         return a.unit_volume - b.unit_volume || a.originalIndex - b.originalIndex;
                     }),
-                    volumeCandidates.slice().sort(function (a, b) {
+                    limitedCandidates.slice().sort(function (a, b) {
+                        return a.unit_value - b.unit_value || a.originalIndex - b.originalIndex;
+                    }),
+                    limitedCandidates.slice().sort(function (a, b) {
                         if (b.unit_volume !== a.unit_volume) {
                             return b.unit_volume - a.unit_volume;
                         }
 
                         return a.originalIndex - b.originalIndex;
                     }),
-                    volumeCandidates.slice().sort(function (a, b) {
+                    limitedCandidates.slice().sort(function (a, b) {
+                        if (b.unit_value !== a.unit_value) {
+                            return b.unit_value - a.unit_value;
+                        }
+
+                        return a.originalIndex - b.originalIndex;
+                    }),
+                    limitedCandidates.slice().sort(function (a, b) {
                         if (b.volume !== a.volume) {
                             return b.volume - a.volume;
+                        }
+
+                        return a.originalIndex - b.originalIndex;
+                    }),
+                    limitedCandidates.slice().sort(function (a, b) {
+                        if (b.value !== a.value) {
+                            return b.value - a.value;
                         }
 
                         return a.originalIndex - b.originalIndex;
                     })
                 ];
                 var bestSelection = {
-                    selectedByIndex: $.extend({}, zeroVolumeSelections),
-                    volume: 0
+                    selectedByIndex: $.extend({}, freeSelections),
+                    volume: 0,
+                    value: 0,
+                    score: -1
                 };
 
                 $.each(packingOrders, function (index, orderedCandidates) {
-                    var packed = packFreightCandidates(orderedCandidates, zeroVolumeSelections, freightLimit);
+                    var packed = packRestockCandidates(orderedCandidates, freeSelections, freightLimit, valueLimit);
 
-                    if (packed.volume > bestSelection.volume) {
+                    if (packed.score > bestSelection.score) {
                         bestSelection = packed;
                     }
                 });
@@ -2437,36 +2502,71 @@
                 });
             }
 
-            function packFreightCandidates(candidates, zeroVolumeSelections, freightLimit) {
-                var selectedByIndex = $.extend({}, zeroVolumeSelections);
-                var remaining = freightLimit;
+            function packRestockCandidates(candidates, freeSelections, freightLimit, valueLimit) {
+                var selectedByIndex = $.extend({}, freeSelections);
+                var remainingVolume = freightLimit && freightLimit > 0 ? freightLimit : null;
+                var remainingValue = valueLimit && valueLimit > 0 ? valueLimit : null;
                 var selectedVolume = 0;
+                var selectedValue = 0;
 
                 $.each(candidates, function (index, line) {
-                    if (remaining <= 0) {
-                        return false;
+                    var maxQuantity = line.quantity;
+
+                    if (remainingVolume !== null && line.unit_volume > 0) {
+                        maxQuantity = Math.min(maxQuantity, Math.floor((remainingVolume + 0.0000001) / line.unit_volume));
                     }
 
-                    var quantity = Math.min(line.quantity, Math.floor((remaining + 0.0000001) / line.unit_volume));
+                    if (remainingValue !== null && line.unit_value > 0) {
+                        maxQuantity = Math.min(maxQuantity, Math.floor((remainingValue + 0.0000001) / line.unit_value));
+                    }
 
-                    if (quantity <= 0) {
+                    if (maxQuantity <= 0) {
                         return;
                     }
 
-                    var lineVolume = quantity * line.unit_volume;
-                    remaining -= lineVolume;
+                    var quantity = Math.max(0, maxQuantity);
+                    var lineVolume = quantity * Number(line.unit_volume || 0);
+                    var lineValue = quantity * Number(line.unit_value || 0);
+                    if (remainingVolume !== null) {
+                        remainingVolume -= lineVolume;
+                    }
+                    if (remainingValue !== null) {
+                        remainingValue -= lineValue;
+                    }
                     selectedVolume += lineVolume;
+                    selectedValue += lineValue;
                     selectedByIndex[line.originalIndex] = $.extend({}, line, {
                         quantity: quantity,
                         volume: lineVolume,
+                        value: lineValue,
                         line: line.name + '\t' + quantity
                     });
                 });
 
                 return {
                     selectedByIndex: selectedByIndex,
-                    volume: selectedVolume
+                    volume: selectedVolume,
+                    value: selectedValue,
+                    score: restockLimitScore(selectedVolume, selectedValue, freightLimit, valueLimit)
                 };
+            }
+
+            function restockLimitScore(selectedVolume, selectedValue, freightLimit, valueLimit) {
+                var score = 0;
+
+                if (freightLimit && freightLimit > 0) {
+                    score += Math.min(1, selectedVolume / freightLimit);
+                }
+
+                if (valueLimit && valueLimit > 0) {
+                    score += Math.min(1, selectedValue / valueLimit);
+                }
+
+                return score;
+            }
+
+            function restockLineValue(line) {
+                return Number(line.value || 0) || (Number(line.quantity || 0) * Number(line.unit_value || 0));
             }
 
             function matchesDashboardFilters(category, group, stockStatus, priority, sourceFilters, selectedCategory, selectedGroup, selectedSource, selectedStatus, selectedPriority) {
@@ -3029,8 +3129,21 @@
                 return parsed > 0 ? parsed : null;
             }
 
+            function parsePositiveMoney(value) {
+                var parsed = parseMoney(value);
+
+                return parsed > 0 ? parsed : null;
+            }
+
             function formatEvePrice(value) {
                 return Number(value || 0).toFixed(2);
+            }
+
+            function formatIsk(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) + ' ISK';
             }
 
             function formatSignedMoney(value) {
