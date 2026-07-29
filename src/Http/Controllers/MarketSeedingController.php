@@ -135,10 +135,14 @@ class MarketSeedingController extends Controller
         }
 
         $types = InvType::query()
+            ->with('group')
             ->whereIn('typeName', $names->all())
-            ->get(['typeID', 'typeName']);
+            ->get(['typeID', 'typeName', 'groupID']);
         $typesByName = $types->keyBy(fn (InvType $type) => mb_strtolower($type->typeName));
         $typeIds = $types->pluck('typeID')->map(fn ($typeId) => (int) $typeId)->values();
+        $categoryNames = InvCategory::query()
+            ->whereIn('categoryID', $types->map(fn (InvType $type) => (int) optional($type->group)->categoryID)->filter()->unique()->values())
+            ->pluck('categoryName', 'categoryID');
         $localPrices = $this->listingHelperSellPrices($market->location_id, $typeIds);
         $jitaPrices = $this->listingHelperSellPrices(MarketStockReport::JITA_STATION_ID, $typeIds);
         $ownSellOrders = $this->listingHelperOwnSellOrders($market, $typeIds);
@@ -151,7 +155,7 @@ class MarketSeedingController extends Controller
                 ];
             });
 
-        $prices = $names->mapWithKeys(function ($name) use ($typesByName, $localPrices, $jitaPrices, $fallbackPrices, $ownSellOrders) {
+        $prices = $names->mapWithKeys(function ($name) use ($typesByName, $categoryNames, $localPrices, $jitaPrices, $fallbackPrices, $ownSellOrders) {
             $type = $typesByName->get(mb_strtolower($name));
 
             if (!$type) {
@@ -161,12 +165,15 @@ class MarketSeedingController extends Controller
                     'type_name' => $name,
                     'local_price' => null,
                     'jita_price' => null,
+                    'category' => null,
+                    'group' => null,
                     'own_sell_orders' => null,
                 ]];
             }
 
             $typeId = (int) $type->typeID;
             $ownOrders = $ownSellOrders->get($typeId);
+            $categoryName = $categoryNames->get((int) optional($type->group)->categoryID, 'Unknown');
 
             return [$name => [
                 'found' => true,
@@ -174,6 +181,8 @@ class MarketSeedingController extends Controller
                 'type_name' => $type->typeName,
                 'local_price' => $localPrices->get($typeId),
                 'jita_price' => $jitaPrices->get($typeId) ?: $fallbackPrices->get($typeId),
+                'category' => SeededMarketItem::CATEGORY_LABELS[$categoryName] ?? $categoryName,
+                'group' => optional($type->group)->groupName ?: 'Unknown',
                 'own_sell_orders' => $ownOrders ? [
                     'count' => (int) $ownOrders['count'],
                     'quantity' => (int) $ownOrders['quantity'],

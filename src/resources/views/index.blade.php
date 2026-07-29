@@ -491,6 +491,69 @@
         .market-seeding-listing-helper-settings .form-group {
             margin-bottom: 0;
         }
+        .market-seeding-listing-helper-mode {
+            background: #eef3f7;
+            border: 1px solid #dee2e6;
+            border-radius: 999px;
+            display: inline-flex;
+            gap: .25rem;
+            margin-bottom: .75rem;
+            padding: .25rem;
+        }
+        .market-seeding-listing-helper-mode label {
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: .82rem;
+            font-weight: 700;
+            margin: 0;
+            padding: .35rem .7rem;
+        }
+        .market-seeding-listing-helper-mode input {
+            display: none;
+        }
+        .market-seeding-listing-helper-mode input:checked + span {
+            background: #17a2b8;
+            border-radius: 999px;
+            color: #fff;
+            display: block;
+            margin: -.35rem -.7rem;
+            padding: .35rem .7rem;
+        }
+        .market-seeding-listing-helper-smart {
+            border-top: 1px solid #dee2e6;
+            margin-top: .75rem;
+            padding-top: .75rem;
+        }
+        .market-seeding-listing-helper-smart-grid {
+            display: grid;
+            gap: .6rem;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .market-seeding-listing-helper-smart-heading {
+            align-items: flex-start;
+            display: flex;
+            gap: .75rem;
+            justify-content: space-between;
+            margin-bottom: .65rem;
+        }
+        .market-seeding-listing-helper-smart-note {
+            font-size: .8rem;
+            margin-bottom: 0;
+        }
+        .market-seeding-listing-helper-tier-grid {
+            display: grid;
+            gap: .5rem;
+            grid-template-columns: repeat(5, minmax(110px, 1fr));
+            margin-top: .65rem;
+        }
+        .market-seeding-listing-helper-tier-grid label {
+            color: #6c757d;
+            display: block;
+            font-size: .72rem;
+            font-weight: 700;
+            margin-bottom: .2rem;
+            text-transform: uppercase;
+        }
         .market-seeding-listing-helper-option {
             border: 1px solid #dee2e6;
             border-radius: 8px;
@@ -573,7 +636,9 @@
         @media (max-width: 991px) {
             .market-seeding-listing-helper-grid,
             .market-seeding-listing-helper-settings,
-            .market-seeding-listing-helper-stat-grid {
+            .market-seeding-listing-helper-stat-grid,
+            .market-seeding-listing-helper-smart-grid,
+            .market-seeding-listing-helper-tier-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -714,6 +779,16 @@
         .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-review {
             background: #1f292e;
             border-color: #3c4b54;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-mode {
+            background: #172228;
+            border-color: #3c4b54;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-smart {
+            border-color: #3c4b54;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-tier-grid label {
+            color: #b8c7ce;
         }
         .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-section-title i,
         .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-intro i {
@@ -1146,7 +1221,7 @@
                                     <div class="form-group">
                                         <label for="{{ $exportId }}-freight-limit">Remaining Freight Space</label>
                                         <div class="input-group">
-                                            <input type="number" class="form-control market-seeding-freight-limit" id="{{ $exportId }}-freight-limit" min="0" step="0.01" placeholder="Optional, e.g. 40000">
+                                            <input type="text" class="form-control market-seeding-freight-limit" id="{{ $exportId }}-freight-limit" placeholder="Optional, e.g. 40,000">
                                             <div class="input-group-append">
                                                 <span class="input-group-text">m&sup3;</span>
                                             </div>
@@ -1158,7 +1233,7 @@
                                     <div class="form-group">
                                         <label for="{{ $exportId }}-value-limit">Maximum ISK Value</label>
                                         <div class="input-group">
-                                            <input type="text" class="form-control market-seeding-value-limit" id="{{ $exportId }}-value-limit" placeholder="Optional, e.g. 2000000000">
+                                            <input type="text" class="form-control market-seeding-value-limit" id="{{ $exportId }}-value-limit" placeholder="Optional, e.g. 2,000,000,000">
                                             <div class="input-group-append">
                                                 <span class="input-group-text">ISK</span>
                                             </div>
@@ -1271,8 +1346,18 @@
                                         <div class="market-seeding-listing-helper-section-title">
                                             <i class="fas fa-sliders-h"></i> Pricing Rules
                                         </div>
+                                        <div class="market-seeding-listing-helper-mode">
+                                            <label>
+                                                <input type="radio" class="market-seeding-listing-helper-mode-input" name="{{ $exportId }}-listing-helper-mode" value="simple" checked>
+                                                <span>Simple markup</span>
+                                            </label>
+                                            <label>
+                                                <input type="radio" class="market-seeding-listing-helper-mode-input" name="{{ $exportId }}-listing-helper-mode" value="smart">
+                                                <span>Smart markup</span>
+                                            </label>
+                                        </div>
                                         <div class="market-seeding-listing-helper-settings">
-                                            <div class="form-group">
+                                            <div class="form-group market-seeding-listing-helper-simple-only">
                                                 <label>% Markup</label>
                                                 <input type="number" class="form-control market-seeding-listing-helper-markup" value="25" step="0.01">
                                             </div>
@@ -1294,9 +1379,125 @@
                                             <div class="custom-control custom-checkbox market-seeding-listing-helper-option">
                                                 <input type="checkbox" class="custom-control-input market-seeding-listing-helper-exclude-problem-items" id="{{ $exportId }}-listing-helper-exclude-problem-items">
                                                 <label class="custom-control-label" for="{{ $exportId }}-listing-helper-exclude-problem-items">
-                                                    Clean multi-sell output
-                                                    <small class="text-muted">Remove SDE-missing and below break-even items from the copy box.</small>
+                                                    Only copy ready-to-list items
+                                                    <small class="text-muted">Skip SDE-missing, missing Jita cost basis, and below break-even items in the copy box.</small>
                                                 </label>
+                                            </div>
+                                        </div>
+                                        <div class="market-seeding-listing-helper-smart d-none">
+                                            <div class="market-seeding-listing-helper-smart-heading">
+                                                <div class="text-muted market-seeding-listing-helper-smart-note">
+                                                    Uses category markups for ammo, ships, and drones. Other items use the markup curve based on unit cost.
+                                                </div>
+                                                <button type="button"
+                                                        class="btn btn-xs btn-outline-secondary market-seeding-listing-helper-smart-reset"
+                                                        title="Reset smart markup defaults"
+                                                        data-toggle="tooltip">
+                                                    <i class="fas fa-undo"></i>
+                                                </button>
+                                            </div>
+                                            <div class="market-seeding-listing-helper-smart-grid">
+                                                <div class="form-group">
+                                                    <label>Ammo Markup</label>
+                                                    <div class="input-group">
+                                                        <input type="number" class="form-control market-seeding-listing-helper-smart-ammo" value="15" step="0.01" min="0">
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Ship Markup</label>
+                                                    <div class="input-group">
+                                                        <input type="number" class="form-control market-seeding-listing-helper-smart-ships" value="10" step="0.01" min="0">
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Drone Markup</label>
+                                                    <div class="input-group">
+                                                        <input type="number" class="form-control market-seeding-listing-helper-smart-drones" value="25" step="0.01" min="0">
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Minimum Profit / Unit</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control market-seeding-listing-helper-smart-floor" value="50,000">
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">ISK</span>
+                                                        </div>
+                                                    </div>
+                                                    <small class="form-text text-muted">Ensures cheap non-ammo items make at least this much profit per unit before fees.</small>
+                                                </div>
+                                                <div class="custom-control custom-checkbox market-seeding-listing-helper-option">
+                                                    <input type="checkbox" class="custom-control-input market-seeding-listing-helper-smart-floor-skip-ammo" id="{{ $exportId }}-listing-helper-floor-skip-ammo" checked>
+                                                    <label class="custom-control-label" for="{{ $exportId }}-listing-helper-floor-skip-ammo">
+                                                        Do not apply minimum profit to ammo
+                                                        <small class="text-muted">Ammo is usually bought in bulk, so per-unit profit floors can get silly fast.</small>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <a class="small" data-toggle="collapse" href="#{{ $exportId }}-listing-helper-smart-advanced" role="button" aria-expanded="false" aria-controls="{{ $exportId }}-listing-helper-smart-advanced">
+                                                    Advanced markup percentage curve
+                                                </a>
+                                                <div class="collapse" id="{{ $exportId }}-listing-helper-smart-advanced">
+                                                    <div class="text-muted small mt-2 mb-2">
+                                                        These values are markup percentages used when the item is not ammo, a ship, or a drone.
+                                                    </div>
+                                                    <div class="market-seeding-listing-helper-tier-grid">
+                                                        <div>
+                                                            <label>Under 25k</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control market-seeding-listing-helper-smart-tier" data-tier="under25k" value="300" step="0.01" min="0">
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label>25k - 1m</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control market-seeding-listing-helper-smart-tier" data-tier="under1m" value="100" step="0.01" min="0">
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label>1m - 20m</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control market-seeding-listing-helper-smart-tier" data-tier="under20m" value="50" step="0.01" min="0">
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label>20m - 100m</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control market-seeding-listing-helper-smart-tier" data-tier="under100m" value="20" step="0.01" min="0">
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label>Over 100m</label>
+                                                            <div class="input-group">
+                                                                <input type="number" class="form-control market-seeding-listing-helper-smart-tier" data-tier="over100m" value="10" step="0.01" min="0">
+                                                                <div class="input-group-append">
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1404,6 +1605,20 @@
             var listingHelperCsrfToken = '{{ csrf_token() }}';
             var listingHelperPreferenceKey = 'seat-market-seeding.listing-helper.preferences.v1';
             var temporaryPurchaseKey = 'seat-market-seeding.temporary-purchases.v1';
+            var listingHelperSmartDefaults = {
+                ammoMarkup: 15,
+                shipMarkup: 10,
+                droneMarkup: 25,
+                floor: 50000,
+                skipAmmoFloor: true,
+                tiers: {
+                    under25k: 300,
+                    under1m: 100,
+                    under20m: 50,
+                    under100m: 20,
+                    over100m: 10
+                }
+            };
             var dashboardSourceFilter = '';
 
             if ($.fn.DataTable) {
@@ -1465,6 +1680,7 @@
 
             $('.market-seeding-listing-helper-modal').on('shown.bs.modal', function () {
                 applyListingHelperPreferences($(this));
+                updateListingHelperSmartVisibility($(this));
                 scheduleListingHelperUpdate($(this), 0);
             });
 
@@ -1472,10 +1688,15 @@
                 resetListingHelper($(this));
             });
 
-            $(document).on('input change', '.market-seeding-listing-helper-input, .market-seeding-listing-helper-markup, .market-seeding-listing-helper-tax, .market-seeding-listing-helper-broker, .market-seeding-listing-helper-competitive, .market-seeding-listing-helper-exclude-problem-items', function () {
+            $(document).on('input change', '.market-seeding-listing-helper-input, .market-seeding-listing-helper-markup, .market-seeding-listing-helper-tax, .market-seeding-listing-helper-broker, .market-seeding-listing-helper-competitive, .market-seeding-listing-helper-exclude-problem-items, .market-seeding-listing-helper-mode-input, .market-seeding-listing-helper-smart-ammo, .market-seeding-listing-helper-smart-ships, .market-seeding-listing-helper-smart-drones, .market-seeding-listing-helper-smart-floor, .market-seeding-listing-helper-smart-floor-skip-ammo, .market-seeding-listing-helper-smart-tier', function () {
                 var $modal = $(this).closest('.market-seeding-listing-helper-modal');
 
+                if ($(this).hasClass('market-seeding-listing-helper-smart-floor')) {
+                    formatMoneyInput($(this), true);
+                }
+
                 if (!$(this).hasClass('market-seeding-listing-helper-input')) {
+                    updateListingHelperSmartVisibility($modal);
                     saveListingHelperPreferences($modal);
                 }
 
@@ -1489,7 +1710,16 @@
                 document.execCommand('copy');
             });
 
+            $(document).on('click', '.market-seeding-listing-helper-smart-reset', function () {
+                var $modal = $(this).closest('.market-seeding-listing-helper-modal');
+
+                applyListingHelperSmartDefaults($modal);
+                saveListingHelperPreferences($modal);
+                scheduleListingHelperUpdate($modal, 0);
+            });
+
             $(document).on('input change', '.market-seeding-freight-limit, .market-seeding-value-limit', function () {
+                formatMoneyInput($(this), true);
                 updateRestockExport($(this).closest('.market-seeding-modal'));
             });
 
@@ -2671,6 +2901,10 @@
                     $modal.find('.market-seeding-listing-helper-markup').val(preferences.markup);
                 }
 
+                if (preferences.pricingMode !== undefined) {
+                    $modal.find('.market-seeding-listing-helper-mode-input[value="' + preferences.pricingMode + '"]').prop('checked', true);
+                }
+
                 if (preferences.tax !== undefined) {
                     $modal.find('.market-seeding-listing-helper-tax').val(preferences.tax);
                 }
@@ -2686,6 +2920,29 @@
                 if (preferences.excludeProblemItems !== undefined) {
                     $modal.find('.market-seeding-listing-helper-exclude-problem-items').prop('checked', !!preferences.excludeProblemItems);
                 }
+
+                if (preferences.smart) {
+                    if (preferences.smart.ammoMarkup !== undefined) {
+                        $modal.find('.market-seeding-listing-helper-smart-ammo').val(preferences.smart.ammoMarkup);
+                    }
+                    if (preferences.smart.shipMarkup !== undefined) {
+                        $modal.find('.market-seeding-listing-helper-smart-ships').val(preferences.smart.shipMarkup);
+                    }
+                    if (preferences.smart.droneMarkup !== undefined) {
+                        $modal.find('.market-seeding-listing-helper-smart-drones').val(preferences.smart.droneMarkup);
+                    }
+                    if (preferences.smart.floor !== undefined) {
+                        $modal.find('.market-seeding-listing-helper-smart-floor').val(preferences.smart.floor);
+                    }
+                    $modal.find('.market-seeding-listing-helper-smart-floor-skip-ammo').prop('checked', preferences.smart.skipAmmoFloor !== false);
+
+                    $.each(preferences.smart.tiers || {}, function (tier, value) {
+                        $modal.find('.market-seeding-listing-helper-smart-tier[data-tier="' + tier + '"]').val(value);
+                    });
+                }
+
+                formatMoneyInput($modal.find('.market-seeding-listing-helper-smart-floor'));
+                updateListingHelperSmartVisibility($modal);
             }
 
             function saveListingHelperPreferences($modal) {
@@ -2696,11 +2953,13 @@
                 }
 
                 var preferences = {
+                    pricingMode: listingHelperPricingMode($modal),
                     markup: $modal.find('.market-seeding-listing-helper-markup').val(),
                     tax: $modal.find('.market-seeding-listing-helper-tax').val(),
                     broker: $modal.find('.market-seeding-listing-helper-broker').val(),
                     competitive: $modal.find('.market-seeding-listing-helper-competitive').is(':checked'),
-                    excludeProblemItems: $modal.find('.market-seeding-listing-helper-exclude-problem-items').is(':checked')
+                    excludeProblemItems: $modal.find('.market-seeding-listing-helper-exclude-problem-items').is(':checked'),
+                    smart: listingHelperSmartPreferences($modal)
                 };
 
                 try {
@@ -2730,6 +2989,83 @@
                 } catch (e) {
                     return null;
                 }
+            }
+
+            function updateListingHelperSmartVisibility($modal) {
+                var isSmart = listingHelperPricingMode($modal) === 'smart';
+
+                $modal.find('.market-seeding-listing-helper-smart').toggleClass('d-none', !isSmart);
+                $modal.find('.market-seeding-listing-helper-simple-only').toggleClass('d-none', isSmart);
+            }
+
+            function applyListingHelperSmartDefaults($modal) {
+                $modal.find('.market-seeding-listing-helper-smart-ammo').val(listingHelperSmartDefaults.ammoMarkup);
+                $modal.find('.market-seeding-listing-helper-smart-ships').val(listingHelperSmartDefaults.shipMarkup);
+                $modal.find('.market-seeding-listing-helper-smart-drones').val(listingHelperSmartDefaults.droneMarkup);
+                $modal.find('.market-seeding-listing-helper-smart-floor').val(formatWholeNumber(listingHelperSmartDefaults.floor));
+                $modal.find('.market-seeding-listing-helper-smart-floor-skip-ammo').prop('checked', listingHelperSmartDefaults.skipAmmoFloor);
+
+                $.each(listingHelperSmartDefaults.tiers, function (tier, value) {
+                    $modal.find('.market-seeding-listing-helper-smart-tier[data-tier="' + tier + '"]').val(value);
+                });
+            }
+
+            function formatMoneyInput($input, preserveCursor) {
+                var rawValue = $.trim($input.val());
+
+                if (rawValue === '') {
+                    return;
+                }
+
+                var input = $input[0];
+                var cursor = preserveCursor && input ? input.selectionStart : null;
+                var digitsBeforeCursor = cursor === null
+                    ? null
+                    : String($input.val()).slice(0, cursor).replace(/\D/g, '').length;
+                var formatted = formatWholeNumber(parseMoney(rawValue));
+
+                $input.val(formatted);
+
+                if (digitsBeforeCursor === null || !input || typeof input.setSelectionRange !== 'function') {
+                    return;
+                }
+
+                var nextCursor = formatted.length;
+                var digitsSeen = 0;
+
+                for (var index = 0; index < formatted.length; index++) {
+                    if (/\d/.test(formatted.charAt(index))) {
+                        digitsSeen++;
+                    }
+
+                    if (digitsSeen >= digitsBeforeCursor) {
+                        nextCursor = index + 1;
+                        break;
+                    }
+                }
+
+                input.setSelectionRange(nextCursor, nextCursor);
+            }
+
+            function listingHelperPricingMode($modal) {
+                return $modal.find('.market-seeding-listing-helper-mode-input:checked').val() || 'simple';
+            }
+
+            function listingHelperSmartPreferences($modal) {
+                var tiers = {};
+
+                $modal.find('.market-seeding-listing-helper-smart-tier').each(function () {
+                    tiers[$(this).data('tier')] = $(this).val();
+                });
+
+                return {
+                    ammoMarkup: $modal.find('.market-seeding-listing-helper-smart-ammo').val(),
+                    shipMarkup: $modal.find('.market-seeding-listing-helper-smart-ships').val(),
+                    droneMarkup: $modal.find('.market-seeding-listing-helper-smart-drones').val(),
+                    floor: formatWholeNumber(parseMoney($modal.find('.market-seeding-listing-helper-smart-floor').val())),
+                    skipAmmoFloor: $modal.find('.market-seeding-listing-helper-smart-floor-skip-ammo').is(':checked'),
+                    tiers: tiers
+                };
             }
 
             function updateListingHelper($modal) {
@@ -2862,8 +3198,98 @@
                 return result;
             }
 
+            function listingHelperPricingPolicy($modal) {
+                var tiers = {};
+
+                $modal.find('.market-seeding-listing-helper-smart-tier').each(function () {
+                    tiers[$(this).data('tier')] = parseFloat($(this).val() || 0);
+                });
+
+                return {
+                    mode: listingHelperPricingMode($modal),
+                    simpleMarkup: parseFloat($modal.find('.market-seeding-listing-helper-markup').val() || 0),
+                    ammoMarkup: parseFloat($modal.find('.market-seeding-listing-helper-smart-ammo').val() || 0),
+                    shipMarkup: parseFloat($modal.find('.market-seeding-listing-helper-smart-ships').val() || 0),
+                    droneMarkup: parseFloat($modal.find('.market-seeding-listing-helper-smart-drones').val() || 0),
+                    floor: parsePositiveMoney($modal.find('.market-seeding-listing-helper-smart-floor').val()) || 0,
+                    skipAmmoFloor: $modal.find('.market-seeding-listing-helper-smart-floor-skip-ammo').is(':checked'),
+                    tiers: tiers
+                };
+            }
+
+            function listingHelperMarkupPrice(costBasis, priceInfo, policy) {
+                if (policy.mode !== 'smart') {
+                    return {
+                        price: roundUpToEvePrice(costBasis * (1 + (policy.simpleMarkup / 100))),
+                        rule: 'Simple ' + formatCompactPercent(policy.simpleMarkup)
+                    };
+                }
+
+                var category = String(priceInfo.category || '');
+                var tier = listingHelperSmartTier(costBasis);
+                var markup = tier.markup(policy);
+                var rule = tier.label + ' ' + formatCompactPercent(markup);
+
+                if (category === 'Ammunition & Charges') {
+                    markup = policy.ammoMarkup;
+                    rule = 'Ammo ' + formatCompactPercent(markup);
+                } else if (category === 'Ships') {
+                    markup = policy.shipMarkup;
+                    rule = 'Ship ' + formatCompactPercent(markup);
+                } else if (category === 'Drones') {
+                    markup = policy.droneMarkup;
+                    rule = 'Drone ' + formatCompactPercent(markup);
+                }
+
+                var basePrice = costBasis * (1 + (markup / 100));
+                var floorApplies = policy.floor > 0 && !(policy.skipAmmoFloor && category === 'Ammunition & Charges');
+                var floorPrice = floorApplies ? costBasis + policy.floor : 0;
+                var floorUsed = floorPrice > basePrice;
+                var price = roundUpToEvePrice(Math.max(basePrice, floorPrice));
+
+                return {
+                    price: price,
+                    rule: floorUsed ? 'Min profit +' + formatMetricMoney(policy.floor) : rule
+                };
+            }
+
+            function listingHelperSmartTier(costBasis) {
+                if (costBasis < 25000) {
+                    return {
+                        label: '<25k',
+                        markup: function (policy) { return policy.tiers.under25k || 0; }
+                    };
+                }
+
+                if (costBasis < 1000000) {
+                    return {
+                        label: '25k-1m',
+                        markup: function (policy) { return policy.tiers.under1m || 0; }
+                    };
+                }
+
+                if (costBasis < 20000000) {
+                    return {
+                        label: '1m-20m',
+                        markup: function (policy) { return policy.tiers.under20m || 0; }
+                    };
+                }
+
+                if (costBasis < 100000000) {
+                    return {
+                        label: '20m-100m',
+                        markup: function (policy) { return policy.tiers.under100m || 0; }
+                    };
+                }
+
+                return {
+                    label: '>100m',
+                    markup: function (policy) { return policy.tiers.over100m || 0; }
+                };
+            }
+
             function renderListingHelper($modal, parsed, prices) {
-                var markup = parseFloat($modal.find('.market-seeding-listing-helper-markup').val() || 0);
+                var pricingPolicy = listingHelperPricingPolicy($modal);
                 var salesTax = parseFloat($modal.find('.market-seeding-listing-helper-tax').val() || 0);
                 var brokerFee = parseFloat($modal.find('.market-seeding-listing-helper-broker').val() || 0);
                 var feeRate = Math.max(0, (salesTax + brokerFee) / 100);
@@ -2897,7 +3323,8 @@
                     var jitaPrice = priceInfo.jita_price ? parseFloat(priceInfo.jita_price) : null;
                     var useJitaCostBasis = item.highestCost <= 0;
                     var costBasis = useJitaCostBasis ? (jitaPrice || 0) : item.highestCost;
-                    var markupPrice = roundUpToEvePrice(costBasis * (1 + (markup / 100)));
+                    var markupResult = listingHelperMarkupPrice(costBasis, priceInfo, pricingPolicy);
+                    var markupPrice = markupResult.price;
                     var localUndercutPrice = priceInfo.local_price ? previousEvePrice(parseFloat(priceInfo.local_price)) : null;
                     var competitivePrice = useCompetitive ? localUndercutPrice : null;
                     var sellPrice = competitivePrice ? Math.min(markupPrice, competitivePrice) : markupPrice;
@@ -2947,6 +3374,11 @@
                             className: usedCompetitive ? 'badge-primary' : 'badge-success'
                         });
                     }
+
+                    notes.push({
+                        label: markupResult.rule,
+                        className: pricingPolicy.mode === 'smart' ? 'badge-primary' : 'badge-secondary'
+                    });
 
                     if (ownSellOrders && Number(ownSellOrders.count || 0) > 0) {
                         notes.push({ label: 'Your order exists', className: 'badge-warning' });
@@ -3174,6 +3606,20 @@
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1
                 }) + '%';
+            }
+
+            function formatCompactPercent(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2
+                }) + '%';
+            }
+
+            function formatWholeNumber(value) {
+                return Number(value || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                });
             }
 
             function formatMetricMoney(value) {
