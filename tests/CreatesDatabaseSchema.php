@@ -270,9 +270,18 @@ trait CreatesDatabaseSchema
             $table->double('basePrice')->nullable();
             $table->boolean('published')->default(true);
             $table->bigInteger('marketGroupID')->nullable();
+            $table->integer('metaGroupID')->nullable();
             $table->integer('iconID')->nullable();
             $table->integer('soundID')->nullable();
             $table->integer('graphicID')->nullable();
+        });
+
+        Schema::create('dgmTypeAttributes', function (Blueprint $table) {
+            $table->bigInteger('typeID');
+            $table->integer('attributeID');
+            $table->double('valueInt')->nullable();
+            $table->double('valueFloat')->nullable();
+            $table->primary(['typeID', 'attributeID']);
         });
 
         Schema::create('market_orders', function (Blueprint $table) {

@@ -10,6 +10,7 @@ use Raikia\SeatMarketSeeding\Models\SeededMarket;
 use Raikia\SeatMarketSeeding\Models\SeededMarketItem;
 use Seat\Eveapi\Models\Market\MarketOrder;
 use Seat\Eveapi\Models\Market\Price;
+use Seat\Eveapi\Models\Sde\DgmTypeAttribute;
 use Seat\Eveapi\Models\Sde\InvType;
 
 class MarketStockReport
@@ -17,6 +18,12 @@ class MarketStockReport
     const JITA_STATION_ID = 60003760;
 
     const SHIP_CATEGORY_ID = 6;
+
+    const META_LEVEL_ATTRIBUTE_ID = 633;
+
+    const META_GROUP_TECH_I = 1;
+
+    const META_GROUP_FACTION = 4;
 
     const PRIORITY_WEIGHTS = [
         'status_empty' => 50,
@@ -97,6 +104,7 @@ class MarketStockReport
         $jitaPrices = $this->jitaSellPrices($typeIds);
         $fallbackPrices = Price::whereIn('type_id', $typeIds)->get()->keyBy('type_id');
         $typeVolumes = $this->packagedVolumes($typeIds);
+        $localBuildFlags = $this->localBuildFlags($typeIds);
         $recommendationSalesDays = $this->settings->recommendationSalesDays();
         $salesByItem = $this->estimatedSalesByItem($markets, $recommendationSalesDays);
 
@@ -126,7 +134,7 @@ class MarketStockReport
                 'health_score' => 100,
             ];
 
-            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, $salesByItem, $recommendationSalesDays, &$marketTotals) {
+            $rows = $market->items->sortBy('type_name')->map(function ($item) use ($market, $localOrders, $jitaPrices, $fallbackPrices, $typeVolumes, $localBuildFlags, $salesByItem, $recommendationSalesDays, &$marketTotals) {
                 $key = $market->location_id . ':' . $item->type_id;
                 $local = $localOrders->get($key);
                 $currentQuantity = $local ? (int) $local->quantity : 0;
@@ -171,6 +179,7 @@ class MarketStockReport
                     'type_group' => $item->typeGroupName(),
                     'source_flags' => $item->sourceFlags(),
                     'source_filters' => $this->itemSourceFilters($item),
+                    'is_buildable_local' => (bool) $localBuildFlags->get((int) $item->type_id, false),
                     'current_quantity' => $currentQuantity,
                     'missing_quantity' => $missingQuantity,
                     'local_price' => $localPrice,
@@ -473,6 +482,43 @@ class MarketStockReport
                 ->get()
                 ->mapWithKeys(function (InvType $type) {
                     return [$type->typeID => $this->packagedVolume($type)];
+                });
+        });
+    }
+
+    private function localBuildFlags(Collection $typeIds): Collection
+    {
+        if ($typeIds->isEmpty()) {
+            return collect();
+        }
+
+        $typeIds = $typeIds->map(fn ($typeId) => (int) $typeId)->sort()->values();
+        $cacheKey = 'seat-market-seeding:local-build-flags:' . md5($typeIds->implode(','));
+
+        return Cache::remember($cacheKey, now()->addDay(), function () use ($typeIds) {
+            $metaLevels = DgmTypeAttribute::query()
+                ->whereIn('typeID', $typeIds)
+                ->where('attributeID', self::META_LEVEL_ATTRIBUTE_ID)
+                ->get()
+                ->mapWithKeys(function (DgmTypeAttribute $attribute) {
+                    return [
+                        (int) $attribute->typeID => (int) ($attribute->valueInt ?? $attribute->valueFloat ?? 0),
+                    ];
+                });
+
+            return InvType::with('group')
+                ->whereIn('typeID', $typeIds)
+                ->get()
+                ->mapWithKeys(function (InvType $type) use ($metaLevels) {
+                    $typeId = (int) $type->typeID;
+                    $categoryId = (int) optional($type->group)->categoryID;
+                    $metaGroupId = (int) ($type->metaGroupID ?? 0);
+                    $metaLevel = $metaLevels->has($typeId) ? (int) $metaLevels->get($typeId) : null;
+
+                    $isTechOneOrMetaZero = $metaGroupId === self::META_GROUP_TECH_I || $metaLevel === 0;
+                    $isFactionShip = $categoryId === self::SHIP_CATEGORY_ID && $metaGroupId === self::META_GROUP_FACTION;
+
+                    return [$typeId => $isTechOneOrMetaZero || $isFactionShip];
                 });
         });
     }

@@ -360,11 +360,15 @@
             white-space: pre-line;
             z-index: 3000;
         }
-        .market-seeding-local-purchase-badge {
+        .market-seeding-local-purchase-badge,
+        .market-seeding-local-build-badge {
             margin-left: .35rem;
         }
         .market-seeding-locally-purchased {
             background: rgba(40, 167, 69, .08);
+        }
+        .market-seeding-locally-building {
+            background: rgba(23, 162, 184, .08);
         }
         .market-seeding-restock-output-actions {
             align-items: center;
@@ -373,6 +377,65 @@
             gap: .5rem;
             justify-content: flex-end;
             margin-top: .65rem;
+        }
+        .market-seeding-buildable-option {
+            align-items: flex-start;
+            background: rgba(23, 162, 184, .08);
+            border: 1px solid rgba(23, 162, 184, .25);
+            border-radius: 8px;
+            display: flex;
+            gap: .75rem;
+            margin-bottom: .75rem;
+            padding: .75rem .9rem;
+        }
+        .market-seeding-buildable-option input {
+            flex: 0 0 auto;
+            margin-top: .2rem;
+        }
+        .market-seeding-buildable-option label {
+            cursor: pointer;
+            line-height: 1.35;
+            margin: 0;
+        }
+        .market-seeding-buildable-option strong {
+            display: block;
+        }
+        .market-seeding-buildable-section,
+        .market-seeding-build-tools {
+            background: rgba(23, 162, 184, .08);
+            border: 1px solid rgba(23, 162, 184, .25);
+            border-radius: 8px;
+            margin-top: 1rem;
+            padding: 1rem;
+        }
+        .market-seeding-buildable-section-header {
+            align-items: flex-start;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            justify-content: space-between;
+            margin-bottom: .75rem;
+        }
+        .market-seeding-restock-summary,
+        .market-seeding-buildable-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-top: .65rem;
+        }
+        .market-seeding-restock-summary span,
+        .market-seeding-buildable-summary span {
+            border: 1px solid rgba(23, 162, 184, .28);
+            border-radius: 6px;
+            padding: .25rem .5rem;
+        }
+        .market-seeding-hidden-copy-source {
+            height: 1px;
+            left: -9999px;
+            opacity: 0;
+            position: absolute;
+            top: auto;
+            width: 1px;
         }
         .market-seeding-purchased-tools {
             background: rgba(248, 249, 250, .92);
@@ -780,6 +843,16 @@
             background: #1f292e;
             border-color: #3c4b54;
         }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-buildable-option,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-buildable-section,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-build-tools {
+            background: #1f292e;
+            border-color: #315766;
+        }
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-restock-summary span,
+        .market-seeding-modal.market-seeding-dark-skin .market-seeding-buildable-summary span {
+            border-color: #315766;
+        }
         .market-seeding-modal.market-seeding-dark-skin .market-seeding-listing-helper-mode {
             background: #172228;
             border-color: #3c4b54;
@@ -1004,6 +1077,7 @@
                             'status' => $row['stock_status'],
                             'priority' => $row['priority']['level'],
                             'source_filters' => $sourceFilterKeys,
+                            'is_buildable_local' => (bool) ($row['is_buildable_local'] ?? false),
                             'type_id' => $row['item']->type_id,
                             'name' => $row['item']->type_name,
                             'quantity' => $row['missing_quantity'],
@@ -1243,7 +1317,19 @@
                                 </div>
                             </div>
                             <small class="form-text text-muted market-seeding-limit-result d-none"></small>
+                            <div class="market-seeding-buildable-option">
+                                <input type="checkbox" class="market-seeding-split-buildable" id="{{ $exportId }}-split-buildable">
+                                <label for="{{ $exportId }}-split-buildable">
+                                    <strong>Separate Buildable Locally items</strong>
+                                    <small class="text-muted d-block">Move T1/meta 0 items and faction ships into a second list so they can be built locally instead of hauled.</small>
+                                </label>
+                            </div>
                             <textarea id="{{ $exportId }}" class="form-control market-seeding-export-textarea" rows="10" readonly data-lines='@json($restockLines)'>{{ $marketReport['export'] }}</textarea>
+                            <div class="market-seeding-restock-summary">
+                                <span>Items: <strong data-restock-summary="items">0</strong></span>
+                                <span>Total m&sup3;: <strong data-restock-summary="volume">0.00</strong></span>
+                                <span>Estimated Value: <strong data-restock-summary="value">0.00 ISK</strong></span>
+                            </div>
                             <div class="market-seeding-restock-output-actions">
                                 <button type="button" class="btn btn-sm btn-outline-success market-seeding-mark-visible-purchased">
                                     <i class="fas fa-check"></i> Mark Current List Purchased
@@ -1251,6 +1337,62 @@
                                 <button type="button" class="btn btn-sm btn-primary copy-market-export" data-target="{{ $exportId }}">
                                     <i class="fas fa-copy"></i> Copy Multi-Buy
                                 </button>
+                            </div>
+                            <div class="market-seeding-buildable-section d-none">
+                                <div class="market-seeding-buildable-section-header">
+                                    <div>
+                                        <strong><i class="fas fa-industry"></i> Buildable Locally</strong>
+                                        <small class="text-muted d-block">These lines were removed from the multi-buy list by the buildable-local split.</small>
+                                    </div>
+                                    <div class="market-seeding-restock-output-actions mt-0">
+                                        <button type="button" class="btn btn-sm btn-outline-success market-seeding-mark-visible-building">
+                                            <i class="fas fa-hammer"></i> Mark Build List Building
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-info copy-market-export" data-target="{{ $exportId }}-buildable">
+                                            <i class="fas fa-copy"></i> Copy Build List
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea id="{{ $exportId }}-buildable" class="form-control market-seeding-buildable-textarea" rows="6" readonly></textarea>
+                                <div class="market-seeding-buildable-summary">
+                                    <span>Items: <strong data-buildable-summary="items">0</strong></span>
+                                    <span>Total m&sup3;: <strong data-buildable-summary="volume">0.00</strong></span>
+                                    <span>Estimated Value: <strong data-buildable-summary="value">0.00 ISK</strong></span>
+                                </div>
+                            </div>
+                            <div class="market-seeding-build-tools d-none" data-market-id="{{ $market->id }}">
+                                <div class="market-seeding-purchased-header">
+                                    <div>
+                                        <strong>Temporary Build List</strong>
+                                        <small class="text-muted d-block">Stored only in this browser. These quantities are subtracted from the restock list.</small>
+                                    </div>
+                                </div>
+                                <div class="market-seeding-purchased-summary">
+                                    <span>Items: <strong data-build-summary="items">0</strong></span>
+                                    <span>Total m&sup3;: <strong data-build-summary="volume">0.00</strong></span>
+                                    <span>Total Value: <strong data-build-summary="value">0.00 ISK</strong></span>
+                                </div>
+                                <textarea id="{{ $exportId }}-temporary-build" class="market-seeding-hidden-copy-source market-seeding-temporary-build-textarea" readonly></textarea>
+                                <div class="table-responsive mt-2">
+                                    <table class="table table-sm table-hover market-seeding-build-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Module</th>
+                                                <th class="text-right">Quantity</th>
+                                                <th class="text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <div class="market-seeding-restock-output-actions">
+                                    <button type="button" class="btn btn-sm btn-outline-info copy-market-export" data-target="{{ $exportId }}-temporary-build">
+                                        <i class="fas fa-copy"></i> Copy Build List
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger market-seeding-clear-building">
+                                        <i class="fas fa-trash"></i> Clear Temporary Build List
+                                    </button>
+                                </div>
                             </div>
                             <div class="market-seeding-purchased-tools" data-market-id="{{ $market->id }}">
                                 <div class="market-seeding-purchased-header">
@@ -1605,6 +1747,7 @@
             var listingHelperCsrfToken = '{{ csrf_token() }}';
             var listingHelperPreferenceKey = 'seat-market-seeding.listing-helper.preferences.v1';
             var temporaryPurchaseKey = 'seat-market-seeding.temporary-purchases.v1';
+            var temporaryBuildKey = 'seat-market-seeding.temporary-builds.v1';
             var listingHelperSmartDefaults = {
                 ammoMarkup: 15,
                 shipMarkup: 10,
@@ -1723,6 +1866,10 @@
                 updateRestockExport($(this).closest('.market-seeding-modal'));
             });
 
+            $(document).on('change', '.market-seeding-split-buildable', function () {
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+            });
+
             $(document).on('click', '.market-seeding-import-purchased', function () {
                 var $tools = $(this).closest('.market-seeding-purchased-tools');
                 var $modal = $(this).closest('.market-seeding-modal');
@@ -1773,6 +1920,33 @@
                 updateDashboardTemporaryPurchaseBadges();
             });
 
+            $(document).on('click', '.market-seeding-mark-visible-building', function () {
+                var $modal = $(this).closest('.market-seeding-modal');
+                var $tools = $modal.find('.market-seeding-build-tools');
+                var selected = $modal.data('restock-buildable-lines') || [];
+
+                if (!selected.length) {
+                    window.alert('No items are currently in the buildable-local list.');
+                    return;
+                }
+
+                saveTemporaryBuilds(
+                    $tools.data('market-id'),
+                    $.map(selected, function (line) {
+                        return {
+                            type_id: line.type_id,
+                            name: line.name,
+                            unit_volume: line.unit_volume,
+                            unit_value: line.unit_value,
+                            quantity: Number(line.quantity || 0)
+                        };
+                    }),
+                    false
+                );
+                updateRestockExport($modal);
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
             $(document).on('click', '.market-seeding-clear-purchased', function () {
                 var $tools = $(this).closest('.market-seeding-purchased-tools');
 
@@ -1781,6 +1955,18 @@
                 }
 
                 clearTemporaryPurchasesForMarket($tools.data('market-id'));
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
+            $(document).on('click', '.market-seeding-clear-building', function () {
+                var $tools = $(this).closest('.market-seeding-build-tools');
+
+                if (!window.confirm('Clear all temporary build items for this market in this browser?')) {
+                    return;
+                }
+
+                clearTemporaryBuildsForMarket($tools.data('market-id'));
                 updateRestockExport($(this).closest('.market-seeding-modal'));
                 updateDashboardTemporaryPurchaseBadges();
             });
@@ -1802,6 +1988,23 @@
                 updateDashboardTemporaryPurchaseBadges();
             });
 
+            $(document).on('input change', '.market-seeding-build-quantity', function () {
+                var $input = $(this);
+                var $tools = $input.closest('.market-seeding-build-tools');
+                var marketId = $tools.data('market-id');
+                var purchaseKey = $input.closest('tr').data('purchase-key');
+                var rawValue = $.trim($input.val());
+                var quantity = parseNumber($input.val());
+
+                if (rawValue === '') {
+                    return;
+                }
+
+                updateTemporaryBuildQuantity(marketId, purchaseKey, quantity);
+                updateRestockExport($input.closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
             $(document).on('click', '.market-seeding-remove-purchased', function () {
                 var $row = $(this).closest('tr');
                 var $tools = $(this).closest('.market-seeding-purchased-tools');
@@ -1811,7 +2014,22 @@
                 updateDashboardTemporaryPurchaseBadges();
             });
 
+            $(document).on('click', '.market-seeding-remove-building', function () {
+                var $row = $(this).closest('tr');
+                var $tools = $(this).closest('.market-seeding-build-tools');
+
+                deleteTemporaryBuild($tools.data('market-id'), $row.data('purchase-key'));
+                updateRestockExport($(this).closest('.market-seeding-modal'));
+                updateDashboardTemporaryPurchaseBadges();
+            });
+
             $(document).on('keydown', '.market-seeding-remove-purchased', function (event) {
+                if (event.key === 'Backspace' || event.key === 'Delete') {
+                    event.preventDefault();
+                }
+            });
+
+            $(document).on('keydown', '.market-seeding-remove-building', function (event) {
                 if (event.key === 'Backspace' || event.key === 'Delete') {
                     event.preventDefault();
                 }
@@ -2207,9 +2425,17 @@
                 });
                 var marketId = modal.find('.market-seeding-purchased-tools').data('market-id');
                 filtered = applyTemporaryPurchases(filtered, marketId);
+                filtered = applyTemporaryBuilds(filtered, marketId);
+                var splitBuildable = modal.find('.market-seeding-split-buildable').is(':checked');
+                var buildableLines = splitBuildable ? $.grep(filtered, function (line) {
+                    return !!line.is_buildable_local;
+                }) : [];
+                var buyLines = splitBuildable ? $.grep(filtered, function (line) {
+                    return !line.is_buildable_local;
+                }) : filtered;
                 var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
                 var valueLimit = parsePositiveMoney(modal.find('.market-seeding-value-limit').val());
-                var selected = applyRestockLimits(filtered, freightLimit, valueLimit);
+                var selected = applyRestockLimits(buyLines, freightLimit, valueLimit);
                 var volume = selected.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
                 }, 0);
@@ -2223,8 +2449,48 @@
                 }).join('\n');
 
                 modal.find('.market-seeding-export-volume').text(formatDecimal(volume));
+                renderRestockListSummary(modal, selected, volume, value);
                 updateLimitResult(modal, freightLimit, valueLimit, volume, value);
+                renderBuildableLocalList(modal, buildableLines, splitBuildable);
+                renderTemporaryBuilds(modal, lines);
                 renderTemporaryPurchases(modal, lines);
+            }
+
+            function renderRestockListSummary(modal, selectedLines, volume, value) {
+                modal.find('[data-restock-summary="items"]').text(numberWithCommas((selectedLines || []).length));
+                modal.find('[data-restock-summary="volume"]').text(formatDecimal(volume || 0));
+                modal.find('[data-restock-summary="value"]').text(formatMetricMoney(value || 0));
+            }
+
+            function renderBuildableLocalList(modal, buildableLines, splitBuildable) {
+                var $section = modal.find('.market-seeding-buildable-section');
+                var $textarea = modal.find('.market-seeding-buildable-textarea');
+                var lines = buildableLines || [];
+                var volume = lines.reduce(function (total, line) {
+                    return total + Number(line.volume || 0);
+                }, 0);
+                var value = lines.reduce(function (total, line) {
+                    return total + restockLineValue(line);
+                }, 0);
+
+                if (!splitBuildable) {
+                    $section.addClass('d-none');
+                    $textarea.val('');
+                    modal.removeData('restock-buildable-lines');
+                    return;
+                }
+
+                modal.data('restock-buildable-lines', lines);
+                $section.removeClass('d-none');
+                $textarea.val(lines.length
+                    ? $.map(lines, function (line) {
+                        return line.line;
+                    }).join('\n')
+                    : 'No T1/meta 0 items or faction ships match the current restock filters.'
+                );
+                $section.find('[data-buildable-summary="items"]').text(numberWithCommas(lines.length));
+                $section.find('[data-buildable-summary="volume"]').text(formatDecimal(volume));
+                $section.find('[data-buildable-summary="value"]').text(formatMetricMoney(value));
             }
 
             function updateLimitResult(modal, freightLimit, valueLimit, selectedVolume, selectedValue) {
@@ -2271,6 +2537,22 @@
                 }
             }
 
+            function temporaryBuildStorage() {
+                try {
+                    return JSON.parse(window.localStorage.getItem(temporaryBuildKey) || '{}') || {};
+                } catch (error) {
+                    return {};
+                }
+            }
+
+            function saveTemporaryBuildStorage(storage) {
+                try {
+                    window.localStorage.setItem(temporaryBuildKey, JSON.stringify(storage || {}));
+                } catch (error) {
+                    window.alert('Unable to save temporary build items in this browser.');
+                }
+            }
+
             function temporaryPurchaseKeyFor(marketId, purchaseKey) {
                 return String(marketId) + ':' + String(purchaseKey);
             }
@@ -2310,6 +2592,29 @@
                 return purchases;
             }
 
+            function buildsForMarket(marketId) {
+                var storage = temporaryBuildStorage();
+                var prefix = String(marketId) + ':';
+                var builds = {};
+
+                $.each(storage, function (key, build) {
+                    if (key.indexOf(prefix) === 0 && Number(build.quantity || 0) >= 0) {
+                        var buildKey = build.purchase_key;
+
+                        if (!buildKey && Number(build.type_id || 0) > 0) {
+                            buildKey = 'type:' + Number(build.type_id);
+                        }
+
+                        buildKey = buildKey || key.replace(prefix, '');
+                        builds[String(buildKey)] = $.extend({}, build, {
+                            purchase_key: buildKey
+                        });
+                    }
+                });
+
+                return builds;
+            }
+
             function saveTemporaryPurchases(marketId, purchases, replace) {
                 var storage = temporaryPurchaseStorage();
                 var prefix = String(marketId) + ':';
@@ -2347,6 +2652,43 @@
                 saveTemporaryPurchaseStorage(storage);
             }
 
+            function saveTemporaryBuilds(marketId, builds, replace) {
+                var storage = temporaryBuildStorage();
+                var prefix = String(marketId) + ':';
+
+                if (replace) {
+                    $.each(Object.keys(storage), function (index, key) {
+                        if (key.indexOf(prefix) === 0) {
+                            delete storage[key];
+                        }
+                    });
+                }
+
+                $.each(builds, function (index, build) {
+                    var buildKey = temporaryPurchaseItemKey(build);
+                    var quantity = Number(build.quantity || 0);
+
+                    if (!buildKey || buildKey === 'name:' || quantity <= 0) {
+                        return;
+                    }
+
+                    var key = temporaryPurchaseKeyFor(marketId, buildKey);
+                    var existing = storage[key] || {};
+                    storage[key] = {
+                        market_id: Number(marketId),
+                        purchase_key: buildKey,
+                        type_id: Number(build.type_id || existing.type_id || 0),
+                        name: build.name || existing.name || '',
+                        unit_volume: Number(build.unit_volume || existing.unit_volume || 0),
+                        unit_value: Number(build.unit_value || existing.unit_value || 0),
+                        quantity: replace ? quantity : quantity + Number(existing.quantity || 0),
+                        updated_at: new Date().toISOString()
+                    };
+                });
+
+                saveTemporaryBuildStorage(storage);
+            }
+
             function updateTemporaryPurchaseQuantity(marketId, purchaseKey, quantity) {
                 var storage = temporaryPurchaseStorage();
                 var key = temporaryPurchaseKeyFor(marketId, purchaseKey);
@@ -2360,12 +2702,33 @@
                 saveTemporaryPurchaseStorage(storage);
             }
 
+            function updateTemporaryBuildQuantity(marketId, buildKey, quantity) {
+                var storage = temporaryBuildStorage();
+                var key = temporaryPurchaseKeyFor(marketId, buildKey);
+
+                storage[key] = $.extend({}, storage[key] || {}, {
+                    market_id: Number(marketId),
+                    purchase_key: buildKey,
+                    quantity: Math.max(0, quantity),
+                    updated_at: new Date().toISOString()
+                });
+                saveTemporaryBuildStorage(storage);
+            }
+
             function deleteTemporaryPurchase(marketId, purchaseKey) {
                 var storage = temporaryPurchaseStorage();
                 var key = temporaryPurchaseKeyFor(marketId, purchaseKey);
 
                 delete storage[key];
                 saveTemporaryPurchaseStorage(storage);
+            }
+
+            function deleteTemporaryBuild(marketId, buildKey) {
+                var storage = temporaryBuildStorage();
+                var key = temporaryPurchaseKeyFor(marketId, buildKey);
+
+                delete storage[key];
+                saveTemporaryBuildStorage(storage);
             }
 
             function clearTemporaryPurchasesForMarket(marketId) {
@@ -2379,6 +2742,19 @@
                 });
 
                 saveTemporaryPurchaseStorage(storage);
+            }
+
+            function clearTemporaryBuildsForMarket(marketId) {
+                var storage = temporaryBuildStorage();
+                var prefix = String(marketId) + ':';
+
+                $.each(Object.keys(storage), function (index, key) {
+                    if (key.indexOf(prefix) === 0) {
+                        delete storage[key];
+                    }
+                });
+
+                saveTemporaryBuildStorage(storage);
             }
 
             function applyTemporaryPurchases(lines, marketId) {
@@ -2395,6 +2771,34 @@
                     var purchase = purchases['type:' + String(line.type_id)] || purchasesByName[normalizeTemporaryPurchaseName(line.name)];
                     var purchasedQuantity = Number(purchase ? purchase.quantity : 0);
                     var remainingQuantity = Math.max(0, Number(line.quantity || 0) - purchasedQuantity);
+
+                    if (remainingQuantity <= 0) {
+                        return null;
+                    }
+
+                    return $.extend({}, line, {
+                        quantity: remainingQuantity,
+                        volume: remainingQuantity * Number(line.unit_volume || 0),
+                        value: remainingQuantity * Number(line.unit_value || 0),
+                        line: line.name + '\t' + remainingQuantity
+                    });
+                });
+            }
+
+            function applyTemporaryBuilds(lines, marketId) {
+                var builds = buildsForMarket(marketId);
+                var buildsByName = {};
+
+                $.each(builds, function (key, build) {
+                    if (build.name) {
+                        buildsByName[normalizeTemporaryPurchaseName(build.name)] = build;
+                    }
+                });
+
+                return $.map(lines, function (line) {
+                    var build = builds['type:' + String(line.type_id)] || buildsByName[normalizeTemporaryPurchaseName(line.name)];
+                    var buildQuantity = Number(build ? build.quantity : 0);
+                    var remainingQuantity = Math.max(0, Number(line.quantity || 0) - buildQuantity);
 
                     if (remainingQuantity <= 0) {
                         return null;
@@ -2479,6 +2883,92 @@
                 $tools.find('[data-purchased-summary="value"]').text(formatMetricMoney(totalValue));
             }
 
+            function renderTemporaryBuilds(modal, lines) {
+                var $tools = modal.find('.market-seeding-build-tools');
+                var marketId = $tools.data('market-id');
+                var builds = buildsForMarket(marketId);
+                var byTypeId = {};
+                var byName = {};
+                var rows = [];
+                var totalQuantity = 0;
+                var totalVolume = 0;
+                var totalValue = 0;
+
+                if (!$tools.length) {
+                    return;
+                }
+
+                $.each(lines, function (index, line) {
+                    byTypeId[String(line.type_id)] = line;
+                    byName[normalizeTemporaryPurchaseName(line.name)] = line;
+                });
+
+                $.each(builds, function (buildKey, build) {
+                    var line = byTypeId[String(build.type_id)] || byName[normalizeTemporaryPurchaseName(build.name)];
+                    var quantity = Number(build.quantity || 0);
+
+                    if (quantity < 0) {
+                        return;
+                    }
+
+                    var unitVolume = line ? Number(line.unit_volume || 0) : Number(build.unit_volume || 0);
+                    var unitValue = line ? Number(line.unit_value || 0) : Number(build.unit_value || 0);
+                    totalQuantity += quantity;
+                    totalVolume += quantity * unitVolume;
+                    totalValue += quantity * unitValue;
+                    rows.push({
+                        purchase_key: build.purchase_key || buildKey,
+                        type_id: Number(build.type_id || (line ? line.type_id : 0) || 0),
+                        name: build.name || (line ? line.name : 'Unknown item'),
+                        quantity: quantity
+                    });
+                });
+
+                $tools.toggleClass('d-none', rows.length === 0);
+
+                if (!rows.length) {
+                    $tools.find('.market-seeding-build-table tbody').empty();
+                    $tools.find('.market-seeding-temporary-build-textarea').val('');
+                    $tools.find('[data-build-summary="items"]').text('0');
+                    $tools.find('[data-build-summary="volume"]').text('0.00');
+                    $tools.find('[data-build-summary="value"]').text('0.00 ISK');
+                    return;
+                }
+
+                rows.sort(function (a, b) {
+                    return a.name.localeCompare(b.name);
+                });
+
+                var $body = $tools.find('.market-seeding-build-table tbody');
+                $body.empty();
+                $tools.find('.market-seeding-temporary-build-textarea').val($.map(rows, function (row) {
+                    return Number(row.quantity || 0) > 0
+                        ? row.name + '\t' + Number(row.quantity || 0)
+                        : null;
+                }).join('\n'));
+
+                $.each(rows, function (index, row) {
+                    var icon = row.type_id > 0
+                        ? '<img src="' + escapeHtml(eveTypeIconUrl(row.type_id, 32)) + '" alt="">'
+                        : '<i class="fas fa-cube text-muted"></i>';
+                    $body.append(
+                        '<tr data-purchase-key="' + escapeHtml(row.purchase_key) + '">' +
+                            '<td><span class="market-seeding-purchased-item"><span class="market-seeding-purchased-item-icon">' + icon + '</span><span>' + escapeHtml(row.name) + '</span></span></td>' +
+                            '<td class="text-right">' +
+                                '<input type="number" min="0" step="1" class="form-control form-control-sm market-seeding-build-quantity ml-auto" value="' + escapeHtml(row.quantity) + '">' +
+                            '</td>' +
+                            '<td class="text-right">' +
+                                '<button type="button" class="btn btn-xs btn-outline-danger market-seeding-remove-building">Remove</button>' +
+                            '</td>' +
+                        '</tr>'
+                    );
+                });
+
+                $tools.find('[data-build-summary="items"]').text(numberWithCommas(rows.length));
+                $tools.find('[data-build-summary="volume"]').text(formatDecimal(totalVolume));
+                $tools.find('[data-build-summary="value"]').text(formatMetricMoney(totalValue));
+            }
+
             function updateDashboardTemporaryPurchaseBadges() {
                 $('.market-seeding-dashboard-table tbody tr').each(function () {
                     var $row = $(this);
@@ -2487,23 +2977,34 @@
                     var itemName = $row.data('item-name');
                     var missingQuantity = Number($row.data('missing-quantity') || 0);
                     var purchases = purchasesForMarket(marketId);
+                    var builds = buildsForMarket(marketId);
                     var purchase = purchases['type:' + String(typeId)] || purchases['name:' + normalizeTemporaryPurchaseName(itemName)];
+                    var build = builds['type:' + String(typeId)] || builds['name:' + normalizeTemporaryPurchaseName(itemName)];
                     var purchasedQuantity = Number(purchase ? purchase.quantity : 0);
+                    var buildQuantity = Number(build ? build.quantity : 0);
                     var $itemCell = $row.find('td:first');
 
                     $row.toggleClass('market-seeding-locally-purchased', purchasedQuantity > 0);
-                    $itemCell.find('.market-seeding-local-purchase-badge').remove();
+                    $row.toggleClass('market-seeding-locally-building', buildQuantity > 0);
+                    $itemCell.find('.market-seeding-local-purchase-badge, .market-seeding-local-build-badge').remove();
 
-                    if (purchasedQuantity <= 0) {
-                        return;
+                    if (purchasedQuantity > 0) {
+                        var purchaseLabel = purchasedQuantity >= missingQuantity && missingQuantity > 0 ? 'Bought locally' : 'Partially bought';
+                        $itemCell.append(
+                            '<span class="badge badge-success market-seeding-local-purchase-badge" title="Stored only in this browser">' +
+                                escapeHtml(purchaseLabel) +
+                            '</span>'
+                        );
                     }
 
-                    var label = purchasedQuantity >= missingQuantity && missingQuantity > 0 ? 'Bought locally' : 'Partially bought';
-                    $itemCell.append(
-                        '<span class="badge badge-success market-seeding-local-purchase-badge" title="Stored only in this browser">' +
-                            escapeHtml(label) +
-                        '</span>'
-                    );
+                    if (buildQuantity > 0) {
+                        var buildLabel = buildQuantity >= missingQuantity && missingQuantity > 0 ? 'Build locally' : 'Partially building';
+                        $itemCell.append(
+                            '<span class="badge badge-info market-seeding-local-build-badge" title="Stored only in this browser">' +
+                                escapeHtml(buildLabel) +
+                            '</span>'
+                        );
+                    }
                 });
             }
 
