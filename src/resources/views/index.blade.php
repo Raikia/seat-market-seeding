@@ -1591,13 +1591,13 @@
                                                             <span class="input-group-text">ISK</span>
                                                         </div>
                                                     </div>
-                                                    <small class="form-text text-muted">Ensures cheap non-ammo items make at least this much profit per unit before fees.</small>
+                                                    <small class="form-text text-muted">Ensures cheap non-ammo/non-fuel items make at least this much profit per unit before fees.</small>
                                                 </div>
                                                 <div class="custom-control custom-checkbox market-seeding-listing-helper-option">
                                                     <input type="checkbox" class="custom-control-input market-seeding-listing-helper-smart-floor-skip-ammo" id="{{ $exportId }}-listing-helper-floor-skip-ammo" checked>
                                                     <label class="custom-control-label" for="{{ $exportId }}-listing-helper-floor-skip-ammo">
-                                                        Do not apply minimum profit to ammo
-                                                        <small class="text-muted">Ammo is usually bought in bulk, so per-unit profit floors can get silly fast.</small>
+                                                        Do not apply minimum profit to ammo or fuel
+                                                        <small class="text-muted">Bulk items are usually bought in large stacks, so per-unit profit floors can get silly fast.</small>
                                                     </label>
                                                 </div>
                                             </div>
@@ -3786,11 +3786,13 @@
                 }
 
                 var category = String(priceInfo.category || '');
+                var isAmmo = category === 'Ammunition & Charges';
+                var isFuel = listingHelperIsFuel(priceInfo);
                 var tier = listingHelperSmartTier(costBasis);
                 var markup = tier.markup(policy);
                 var rule = tier.label + ' ' + formatCompactPercent(markup);
 
-                if (category === 'Ammunition & Charges') {
+                if (isAmmo) {
                     markup = policy.ammoMarkup;
                     rule = 'Ammo ' + formatCompactPercent(markup);
                 } else if (category === 'Ships') {
@@ -3802,7 +3804,7 @@
                 }
 
                 var basePrice = costBasis * (1 + (markup / 100));
-                var floorApplies = policy.floor > 0 && !(policy.skipAmmoFloor && category === 'Ammunition & Charges');
+                var floorApplies = policy.floor > 0 && !(policy.skipAmmoFloor && (isAmmo || isFuel));
                 var floorPrice = floorApplies ? costBasis + policy.floor : 0;
                 var floorUsed = floorPrice > basePrice;
                 var price = roundUpToEvePrice(Math.max(basePrice, floorPrice));
@@ -3811,6 +3813,15 @@
                     price: price,
                     rule: floorUsed ? 'Min profit +' + formatMetricMoney(policy.floor) : rule
                 };
+            }
+
+            function listingHelperIsFuel(priceInfo) {
+                var category = String(priceInfo.category || '').toLowerCase();
+                var group = String(priceInfo.group || '').toLowerCase();
+
+                return category.indexOf('fuel') !== -1
+                    || group.indexOf('fuel') !== -1
+                    || group === 'ice product';
             }
 
             function listingHelperSmartTier(costBasis) {

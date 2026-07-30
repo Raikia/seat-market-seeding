@@ -143,6 +143,32 @@ class MarketStockReportTest extends TestCase
         $this->assertSame(15.0, $priority['value_score']);
     }
 
+    public function test_scripts_are_marked_buildable_local_even_without_meta_zero_attributes(): void
+    {
+        $this->seedSde();
+
+        DB::table('invGroups')->insert([
+            'groupID' => 1306,
+            'categoryID' => 8,
+            'groupName' => 'Missile Guidance Script',
+            'published' => true,
+        ]);
+
+        $this->seedType(35794, 'Missile Precision Script', [
+            'groupID' => 1306,
+            'volume' => 1,
+            'metaGroupID' => null,
+        ]);
+
+        $market = $this->createMarket(['location_id' => 60000001]);
+        app(StockTargetProjector::class)->setManualTarget($market, 35794, 'Missile Precision Script', 100, 30);
+
+        $report = app(MarketStockReport::class)->build(collect([$market->fresh()]));
+        $row = $report['markets'][0]['rows']->first();
+
+        $this->assertTrue($row['is_buildable_local']);
+    }
+
     public function test_item_details_uses_latest_summary_quantity_when_no_local_order_exists(): void
     {
         $this->seedSde();

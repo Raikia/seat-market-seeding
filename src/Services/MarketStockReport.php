@@ -512,13 +512,15 @@ class MarketStockReport
                 ->mapWithKeys(function (InvType $type) use ($metaLevels) {
                     $typeId = (int) $type->typeID;
                     $categoryId = (int) optional($type->group)->categoryID;
+                    $groupName = (string) optional($type->group)->groupName;
                     $metaGroupId = (int) ($type->metaGroupID ?? 0);
                     $metaLevel = $metaLevels->has($typeId) ? (int) $metaLevels->get($typeId) : null;
 
                     $isTechOneOrMetaZero = $metaGroupId === self::META_GROUP_TECH_I || $metaLevel === 0;
                     $isFactionShip = $categoryId === self::SHIP_CATEGORY_ID && $metaGroupId === self::META_GROUP_FACTION;
+                    $isScript = str_contains($groupName, 'Script');
 
-                    return [$typeId => $isTechOneOrMetaZero || $isFactionShip];
+                    return [$typeId => $isTechOneOrMetaZero || $isFactionShip || $isScript];
                 });
         });
     }
