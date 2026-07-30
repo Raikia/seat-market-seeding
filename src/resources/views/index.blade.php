@@ -1076,6 +1076,7 @@
                             'group' => $row['type_group'] ?? 'Unknown',
                             'status' => $row['stock_status'],
                             'priority' => $row['priority']['level'],
+                            'priority_score' => $row['priority']['score'],
                             'source_filters' => $sourceFilterKeys,
                             'is_buildable_local' => (bool) ($row['is_buildable_local'] ?? false),
                             'type_id' => $row['item']->type_id,
@@ -1083,6 +1084,7 @@
                             'quantity' => $row['missing_quantity'],
                             'line' => $row['export_line'],
                             'volume' => $row['restock_volume'],
+                            'value' => $row['restock_cost'],
                             'unit_volume' => $row['missing_quantity'] > 0
                                 ? $row['restock_volume'] / $row['missing_quantity']
                                 : 0,
@@ -1291,7 +1293,7 @@
                                 Estimated restock volume: <span class="market-seeding-export-volume">{{ $volume($marketReport['totals']['restock_volume']) }}</span> m&sup3;
                             </p>
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="form-group">
                                         <label for="{{ $exportId }}-freight-limit">Remaining Freight Space</label>
                                         <div class="input-group">
@@ -1303,7 +1305,7 @@
                                         <small class="form-text text-muted">Trim the list to fit inside this remaining cargo space.</small>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="form-group">
                                         <label for="{{ $exportId }}-value-limit">Maximum ISK Value</label>
                                         <div class="input-group">
@@ -1313,6 +1315,21 @@
                                             </div>
                                         </div>
                                         <small class="form-text text-muted">Trim the list so estimated restock cost stays under this value.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label for="{{ $exportId }}-sort">Restock Order</label>
+                                        <select class="form-control market-seeding-restock-sort" id="{{ $exportId }}-sort">
+                                            <option value="current">Dashboard order</option>
+                                            <option value="priority">Priority first</option>
+                                            <option value="value_desc">Highest ISK impact</option>
+                                            <option value="volume_desc">Highest m&sup3; impact</option>
+                                            <option value="quantity_desc">Most missing</option>
+                                            <option value="volume_asc">Smallest m&sup3; first</option>
+                                            <option value="value_asc">Lowest ISK first</option>
+                                        </select>
+                                        <small class="form-text text-muted">Controls which items are kept first when cargo or ISK limits are set.</small>
                                     </div>
                                 </div>
                             </div>
@@ -1866,7 +1883,7 @@
                 updateRestockExport($(this).closest('.market-seeding-modal'));
             });
 
-            $(document).on('change', '.market-seeding-split-buildable', function () {
+            $(document).on('change', '.market-seeding-split-buildable, .market-seeding-restock-sort', function () {
                 updateRestockExport($(this).closest('.market-seeding-modal'));
             });
 
@@ -2435,6 +2452,9 @@
                 }) : filtered;
                 var freightLimit = parsePositiveDecimal(modal.find('.market-seeding-freight-limit').val());
                 var valueLimit = parsePositiveMoney(modal.find('.market-seeding-value-limit').val());
+                var sortMode = modal.find('.market-seeding-restock-sort').val();
+                buyLines = sortRestockLines(buyLines, sortMode);
+                buildableLines = sortRestockLines(buildableLines, sortMode);
                 var selected = applyRestockLimits(buyLines, freightLimit, valueLimit);
                 var volume = selected.reduce(function (total, line) {
                     return total + Number(line.volume || 0);
@@ -2454,6 +2474,45 @@
                 renderBuildableLocalList(modal, buildableLines, splitBuildable);
                 renderTemporaryBuilds(modal, lines);
                 renderTemporaryPurchases(modal, lines);
+            }
+
+            function sortRestockLines(lines, sortMode) {
+                var indexed = $.map(lines || [], function (line, index) {
+                    return $.extend({}, line, {
+                        original_sort_index: index
+                    });
+                });
+                var mode = sortMode || 'current';
+                var desc = function (field) {
+                    return function (a, b) {
+                        var difference = Number(b[field] || 0) - Number(a[field] || 0);
+
+                        return difference || a.original_sort_index - b.original_sort_index;
+                    };
+                };
+                var asc = function (field) {
+                    return function (a, b) {
+                        var difference = Number(a[field] || 0) - Number(b[field] || 0);
+
+                        return difference || a.original_sort_index - b.original_sort_index;
+                    };
+                };
+
+                if (mode === 'priority') {
+                    indexed.sort(desc('priority_score'));
+                } else if (mode === 'value_desc') {
+                    indexed.sort(desc('value'));
+                } else if (mode === 'volume_desc') {
+                    indexed.sort(desc('volume'));
+                } else if (mode === 'quantity_desc') {
+                    indexed.sort(desc('quantity'));
+                } else if (mode === 'volume_asc') {
+                    indexed.sort(asc('volume'));
+                } else if (mode === 'value_asc') {
+                    indexed.sort(asc('value'));
+                }
+
+                return indexed;
             }
 
             function renderRestockListSummary(modal, selectedLines, volume, value) {
