@@ -47,6 +47,14 @@ Route::group([
             'as' => 'market-seeding.settings',
             'uses' => 'SettingsController@index',
         ]);
+        Route::get('/notifications', [
+            'as' => 'market-seeding.notifications',
+            'uses' => 'NotificationSettingsController@index',
+        ]);
+        Route::post('/notifications', [
+            'as' => 'market-seeding.notifications.update',
+            'uses' => 'NotificationSettingsController@update',
+        ]);
         Route::post('/settings/general', [
             'as' => 'market-seeding.settings.general',
             'uses' => 'SettingsController@updateGeneralSettings',

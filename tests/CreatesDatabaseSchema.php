@@ -54,6 +54,41 @@ trait CreatesDatabaseSchema
             $table->timestamps();
         });
 
+        Schema::create('notification_groups', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->boolean('suppress_duplicate_notifications')->default(false);
+            $table->timestamps();
+        });
+
+        Schema::create('group_alerts', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('notification_group_id');
+            $table->string('alert');
+            $table->timestamps();
+        });
+
+        Schema::create('integrations', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->string('type');
+            $table->json('settings')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('integration_notification_group', function (Blueprint $table) {
+            $table->unsignedInteger('integration_id');
+            $table->unsignedInteger('notification_group_id');
+            $table->timestamps();
+        });
+
+        Schema::create('notification_groups_mentions', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedInteger('notification_group_id');
+            $table->string('type');
+            $table->json('data')->nullable();
+        });
+
         Schema::create('seat_market_seeding_markets', function (Blueprint $table) {
             $table->increments('id');
             $table->integer('sort_order')->default(0);
@@ -161,6 +196,14 @@ trait CreatesDatabaseSchema
             $table->string('setting')->primary();
             $table->text('value')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('seat_market_seeding_notification_group_filters', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedInteger('notification_group_id');
+            $table->json('allowed_market_ids')->nullable();
+            $table->timestamps();
+            $table->unique('notification_group_id', 'ms_ngf_group_unique');
         });
 
         Schema::create('seat_market_seeding_stock_history', function (Blueprint $table) {
@@ -351,6 +394,7 @@ trait CreatesDatabaseSchema
             'seat_market_seeding_stock_daily_summaries',
             'seat_market_seeding_stock_snapshots',
             'seat_market_seeding_stock_history',
+            'seat_market_seeding_notification_group_filters',
             'seat_market_seeding_settings',
             'seat_market_seeding_profiles',
             'seat_market_seeding_tracked_doctrine_fits',
@@ -359,6 +403,11 @@ trait CreatesDatabaseSchema
             'seat_market_seeding_item_sources',
             'seat_market_seeding_items',
             'seat_market_seeding_markets',
+            'notification_groups_mentions',
+            'integration_notification_group',
+            'integrations',
+            'group_alerts',
+            'notification_groups',
             'global_settings',
             'refresh_tokens',
             'role_user',

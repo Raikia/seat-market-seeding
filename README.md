@@ -23,6 +23,9 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Add items one at a time, by bulk paste, from EFT-style fittings, from saved fits, or from reusable market profiles.
 - Preview imports before applying them.
 - Export missing items in a copy/paste friendly EVE multi-buy format.
+- Trim restock lists by remaining cargo space or maximum ISK budget.
+- Keep browser-local purchased, build, and no-buy lists while restocking.
+- Split likely local-build items into a separate build list.
 - Show estimated Jita restock cost and packaged restock volume.
 - Show seeded value, target value, empty/low status, restock cost, and per-market health.
 - Show category readiness on the dashboard, so it is easier to spot if one area like ships or ammo is falling behind.
@@ -38,6 +41,7 @@ After updating `.env`, restart/update your SeAT containers the same way you norm
 - Get target stock recommendations based on recent estimated sales pace.
 - Apply recommended target changes in bulk after reviewing the expected cost and volume increase.
 - Send grouped SeAT notifications when items move to low stock, empty stock, or get restocked.
+- Limit market seeding notification groups to specific seeded markets.
 - Use the Listing Helper to turn EVE market transaction logs into multi-sell pricing lines.
 - See which characters are actively seeding tracked market items, with a per-market Seeders page.
 - Warn users when their tracked sell orders are getting close to expiring.
@@ -74,6 +78,8 @@ The settings page also includes reusable market profiles, recommendation tuning,
 
 The dashboard is meant for day-to-day restocking. It shows each market’s health, local quantity, target quantity, missing quantity, local price, Jita price, restock cost, and restock volume. Restock lists can be copied directly into EVE multi-buy.
 
+The restock modal has a few browser-local helpers for actual shopping trips. You can cap the list by cargo space or ISK budget, mark items as already purchased, move items to a temporary build list, or keep a no-buy list for things you do not want included. These lists only live in your browser and do not change real market stock.
+
 The dashboard also includes a Listing Helper for sellers. Paste a character or corporation market transaction log, choose markup and fee settings, and it will generate copy/paste friendly EVE multi-sell lines. It can optionally compare against cached local sell orders, show rows that would not be the lowest listing, flag below break-even items, warn when one of your characters already has an order up, and remember your helper preferences in the browser.
 
 The history page is meant for planning. It keeps a record of stock state changes, estimated sold quantities, restocks, and daily market movement. It includes filters, charts, most-sold item tables, restock frequency tables, and a needs-attention view for items whose target stock probably needs to change.
@@ -89,6 +95,12 @@ Target changes are audited separately from stock history. The audit log records 
 The Seeders page shows who is actively seeding each tracked market. It groups character orders by the main character on the SeAT account, then shows listed value, total volume, tracked orders, and market share. Clicking a seeder opens their current tracked orders for that market.
 
 The plugin can also warn a user when one of their own character orders for a tracked item is close to expiring.
+
+## Notifications
+
+Market Seeding can send grouped SeAT notifications when tracked items become low, become empty, or are restocked. The Notifications page lists notification groups that already have market seeding alerts enabled and lets managers choose which seeded markets each group should receive.
+
+If no markets are selected for a group, that group receives alerts for every seeded market. This keeps older setups working while still allowing market-specific alert routing.
 
 ## Permissions
 

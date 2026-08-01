@@ -5,5 +5,6 @@ return [
     'dashboard' => 'Dashboard',
     'history' => 'History',
     'seeders' => 'Seeders',
+    'notifications' => 'Notifications',
     'settings' => 'Settings',
 ];

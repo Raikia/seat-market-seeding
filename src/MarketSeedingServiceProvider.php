@@ -118,6 +118,7 @@ class MarketSeedingServiceProvider extends AbstractSeatPlugin
             'seat-market-seeding::index',
             'seat-market-seeding::history',
             'seat-market-seeding::seeders',
+            'seat-market-seeding::notifications',
             'seat-market-seeding::settings',
         ], function ($view) {
             $view->with(

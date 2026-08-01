@@ -5,6 +5,7 @@ namespace Raikia\SeatMarketSeeding\Services;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Raikia\SeatMarketSeeding\Models\MarketSeedingNotificationGroupFilter;
 use Raikia\SeatMarketSeeding\Models\MarketStockDailySummary;
 use Raikia\SeatMarketSeeding\Models\MarketStockHistory;
 use Raikia\SeatMarketSeeding\Models\MarketStockSnapshot;
@@ -157,11 +158,7 @@ class MarketStockTransitionNotifier
             return 0;
         }
 
-        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
-            ->whereHas('alerts', function ($query) use ($alertType) {
-                $query->where('alert', $alertType);
-            })
-            ->get();
+        $groups = $this->notificationGroupsForMarket($alertType, $market);
 
         if ($groups->isEmpty()) {
             return 0;
@@ -192,11 +189,7 @@ class MarketStockTransitionNotifier
             return 0;
         }
 
-        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
-            ->whereHas('alerts', function ($query) {
-                $query->where('alert', self::ALERT_RESTOCKED);
-            })
-            ->get();
+        $groups = $this->notificationGroupsForMarket(self::ALERT_RESTOCKED, $market);
 
         if ($groups->isEmpty()) {
             return 0;
@@ -218,6 +211,42 @@ class MarketStockTransitionNotifier
         });
 
         return 1;
+    }
+
+    private function notificationGroupsForMarket(string $alertType, SeededMarket $market): Collection
+    {
+        $groups = NotificationGroup::with('alerts', 'integrations', 'mentions')
+            ->whereHas('alerts', function ($query) use ($alertType) {
+                $query->where('alert', $alertType);
+            })
+            ->get();
+
+        if ($groups->isEmpty() || ! Schema::hasTable('seat_market_seeding_notification_group_filters')) {
+            return $groups;
+        }
+
+        $filters = MarketSeedingNotificationGroupFilter::query()
+            ->whereIn('notification_group_id', $groups->pluck('id'))
+            ->get()
+            ->keyBy('notification_group_id');
+        $marketId = (int) $market->id;
+
+        return $groups->filter(function (NotificationGroup $group) use ($filters, $marketId) {
+            $filter = $filters->get($group->id);
+
+            if (! $filter) {
+                return true;
+            }
+
+            $allowedMarketIds = collect($filter->allowed_market_ids ?? [])
+                ->filter(fn ($id) => filled($id))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            return empty($allowedMarketIds) || in_array($marketId, $allowedMarketIds, true);
+        })->values();
     }
 
     private function restockedItemPayload(SeededMarketItem $item, string $previousStatus, string $currentStatus, int $currentQuantity): array

@@ -30,6 +30,13 @@ return [
                 'permission' => 'seat-market-seeding.seeders',
             ],
             [
+                'name' => 'Notifications',
+                'label' => 'seat-market-seeding::sidebar.notifications',
+                'icon' => 'fas fa-bell',
+                'route' => 'market-seeding.notifications',
+                'permission' => 'seat-market-seeding.manager',
+            ],
+            [
                 'name' => 'Settings',
                 'label' => 'seat-market-seeding::sidebar.settings',
                 'icon' => 'fas fa-cog',
